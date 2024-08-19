@@ -2,32 +2,45 @@ name: Backend CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'  # Specify the version your project uses
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
 
-      - name: Install dependencies
-        run: npm install  # or `yarn install`
+    - name: Install dependencies
+      run: npm install
 
-      - name: Lint code
-        run: npm run lint  # or `yarn lint` if you have linting configured
+    - name: Lint code
+      run: npm run lint
 
-      - name: Run tests
-        run: npm test  # or `yarn test`
+    - name: Run tests
+      run: npm test
 
-      - name: Build application (if needed)
-        run: npm run build  # or `yarn build` if your backend needs to be built
+    - name: Build Docker image
+      run: docker build -t backend-app .
 
-      # Optionally add deployment steps here
+    - name: Push Docker image to registry
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ghcr.io/yourusername/backend-app:latest
+
+    - name: Deploy (optional, if you have a deployment step)
+      run: |
+        # Add your deployment script here
+        echo "Deploying the backend app..."
