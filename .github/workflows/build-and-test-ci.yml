@@ -1,4 +1,4 @@
-name: Backend CI
+name: "Backend CI"
 
 on:
   push:
@@ -9,38 +9,79 @@ on:
       - main
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Check for vulnerabilities
+        run: npm audit
+
+      - name: Lint code
+        run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
   build:
     runs-on: ubuntu-latest
+    needs: [lint, test]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
+      - name: Build Docker image
+        uses: docker/build-push-action@v4
+        env:
+          NODE_ENV: production
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/yourusername/backend-app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-    - name: Install dependencies
-      run: npm install
-
-    - name: Lint code
-      run: npm run lint
-
-    - name: Run tests
-      run: npm test
-
-    - name: Build Docker image
-      run: docker build -t backend-app .
-
-    - name: Push Docker image to registry
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: ghcr.io/yourusername/backend-app:latest
-
-    - name: Deploy (optional, if you have a deployment step)
-      run: |
-        # Add your deployment script here
-        echo "Deploying the backend app..."
+      - name: Deploy (optional, if you have a deployment step)
+        run: |
+          # Add your deployment script here
+          echo "Deploying the backend app..."
