@@ -1,19 +1,11 @@
-// eslint.config.mjs
-import pkg from 'eslint';
-const { defineConfig } = pkg;
+import globals from "globals";
+import tseslint from "typescript-eslint";
+import pluginReact from "eslint-plugin-react";
 
-export default defineConfig({
-  parser: '@babel/eslint-parser',
-  env: {
-    browser: true,
-    node: true,
-    es2021: true,
-  },
-  extends: [
-    'eslint:recommended',
-  ],
-  rules: {
-    'no-console': 'warn',  // Warn about console statements
-    'no-unused-vars': 'warn',  // Warn about variables that are declared but not used
-  },
-});
+
+export default [
+  {files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"]},
+  {languageOptions: { globals: globals.node }},
+  ...tseslint.configs.recommended,
+  pluginReact.configs.flat.recommended,
+];
