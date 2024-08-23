@@ -1,5 +1,6 @@
 // eslint.config.mjs
-import { defineConfig } from 'eslint';
+import pkg from 'eslint';
+const { defineConfig } = pkg;
 
 export default defineConfig({
   parser: '@babel/eslint-parser',
@@ -12,16 +13,7 @@ export default defineConfig({
     'eslint:recommended',
   ],
   rules: {
-    'no-console': 'warn',
-    'no-unused-vars': 'warn',
-    'prettier/prettier': [
-      'error',
-      {
-        singleQuote: true,
-        trailingComma: 'all',
-      },
-    ],
+    'no-console': 'warn',  // Warn about console statements
+    'no-unused-vars': 'warn',  // Warn about variables that are declared but not used
   },
-  plugins: [
-  ],
 });
