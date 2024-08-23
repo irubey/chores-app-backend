@@ -3,6 +3,7 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import pkg from '@eslint/js';
 const { configs } = pkg;
 import globals from 'globals';
+import jest from 'eslint-plugin-jest';
 
 export default [
   {
@@ -19,11 +20,13 @@ export default [
       },
       globals: {
         ...globals.node,
-        ...globals.browser
+        ...globals.browser,
+        ...globals.jest
       }
     },
     plugins: {
-      '@typescript-eslint': tseslint
+      '@typescript-eslint': tseslint,
+      'jest':jest
     },
     rules: {
       ...configs.recommended.rules, // ESLint recommended rules
@@ -33,7 +36,11 @@ export default [
       'quotes': ['error', 'single'],
       'semi': ['error', 'always'],
       'no-unused-vars': 'warn',
-      'react/prop-types': 'off'
+      'jest/consistent-test-it': ['error', { fn: 'test', withinDescribe: 'it' }],
+      'jest/no-disabled-tests': 'warn',
+      'jest/no-focused-tests': 'error',
+      'jest/prefer-to-have-length': 'warn',
+      'jest/valid-expect': 'error'
     },
     settings: {
     }
