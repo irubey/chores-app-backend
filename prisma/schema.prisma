@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  name             String
+  oauth_provider   String
+  oauth_id         String            @unique
+  created_at       DateTime          @default(now())
+  updated_at       DateTime          @updatedAt
+  assignedChores   Chore[]           @relation("UserAssignedChores")
+  householdMembers HouseholdMember[]
+  notifications    Notification[]
+}
+
+model Household {
+  id         String            @id @default(uuid())
+  name       String
+  created_at DateTime          @default(now())
+  chores     Chore[]
+  members    HouseholdMember[]
+}
+
+model HouseholdMember {
+  user_id      String
+  household_id String
+  role         String?
+  joined_at    DateTime  @default(now())
+  household    Household @relation(fields: [household_id], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, household_id])
+  @@index([household_id])
+  @@index([user_id])
+}
+
+model Chore {
+  id            String         @id @default(uuid())
+  household_id  String
+  title         String
+  description   String?
+  time_estimate Int?
+  frequency     String?
+  assigned_to   String?
+  status        String?
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  due_date      DateTime?
+  assigned_user User?          @relation("UserAssignedChores", fields: [assigned_to], references: [id])
+  household     Household      @relation(fields: [household_id], references: [id], onDelete: Cascade)
+  Notification  Notification[]
+}
+
+model Notification {
+  id       String   @id @default(uuid())
+  user_id  String
+  chore_id String?
+  type     String
+  message  String?
+  sent_at  DateTime @default(now())
+  chore    Chore?   @relation(fields: [chore_id], references: [id])
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
