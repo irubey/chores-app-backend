@@ -25,7 +25,7 @@ app.post('/some-endpoint', (req, res) => {
 });
 
 // Error handling middleware
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   console.error(err instanceof Error ? err.stack : err);
   res.status(500).send('Something broke - error log from middleware!');

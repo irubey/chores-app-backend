@@ -29,19 +29,20 @@ export default [
       'jest':jest
     },
     rules: {
-      ...configs.recommended.rules, // ESLint recommended rules
-      ...tseslint.configs['recommended'].rules, // TypeScript ESLint recommended rules
+      ...configs.recommended.rules,
+      ...tseslint.configs['recommended'].rules,
       'indent': ['error', 2],
       'linebreak-style': ['error', 'unix'],
       'quotes': ['error', 'single'],
       'semi': ['error', 'always'],
-      'no-unused-vars': 'warn',
+      '@typescript-eslint/no-unused-vars': ['warn'],
       'jest/consistent-test-it': ['error', { fn: 'test', withinDescribe: 'it' }],
       'jest/no-disabled-tests': 'warn',
       'jest/no-focused-tests': 'error',
       'jest/prefer-to-have-length': 'warn',
       'jest/valid-expect': 'error'
     },
+    
     settings: {
     }
   }
