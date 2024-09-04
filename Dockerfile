@@ -3,7 +3,8 @@ FROM node:20 AS build
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY package*.json tsconfig.json ./
+COPY src ./src
 
 RUN npm install
 
@@ -13,7 +14,7 @@ COPY . .
 
 RUN npx prisma generate
 
-RUN npm run build
+RUN npm run build && ls -la dist
 
 # Stage 2: Serve
 FROM node:20 AS runtime
