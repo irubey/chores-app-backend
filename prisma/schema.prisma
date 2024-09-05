@@ -57,21 +57,21 @@ enum NotificationType {
 
 
 model User {
-  id               String            @id @default(uuid())
-  email            String            @unique
-  name             String
-  oauth_provider   OAuthProvider
-  oauth_id         String            @unique
-  role             UserRole          @default(MEMBER)
-  created_at       DateTime          @default(now())
-  updated_at       DateTime          @updatedAt
-  assignedChores   Chore[]           @relation("UserAssignedChores")
-  householdMembers HouseholdMember[]
-  notifications    Notification[]
-  badges           Badge[]           @relation("UserBadges")
-  preferences      UserPreference?
-  calendarIntegration CalendarIntegration?
-  choreActivities  ChoreActivity[]
+  id                   String               @id @default(uuid())
+  email                String               @unique
+  name                 String
+  oauth_provider       OAuthProvider
+  oauth_id             String               @unique
+  role                 UserRole             @default(MEMBER)
+  created_at           DateTime             @default(now())
+  updated_at           DateTime             @updatedAt
+  assignedChores       Chore[]              @relation("UserAssignedChores")
+  householdMembers     HouseholdMember[]
+  notifications        Notification[]
+  preferences          UserPreference?
+  calendarIntegration  CalendarIntegration?
+  choreActivities      ChoreActivity[]
+  badges               UserBadge[]
 }
 
 // Household model: Represents a group of users sharing chores
@@ -162,11 +162,11 @@ model UserPreference {
 
 // Badge model: Represents achievement badges for users
 model Badge {
-  id          String @id @default(uuid())
+  id          String     @id @default(uuid())
   name        String
   description String
-  icon_url    String?
-  users       User[] @relation("UserBadges")
+  icon_url    String
+  users       UserBadge[]
 }
 
 // CalendarIntegration model: Manages calendar integrations for users
@@ -184,9 +184,22 @@ model CalendarIntegration {
 model ChoreActivity {
   id         String   @id @default(uuid())
   chore_id   String
+  chore      Chore    @relation(fields: [chore_id], references: [id])
   user_id    String
+  user       User     @relation(fields: [user_id], references: [id])
   action     String
-  timestamp  DateTime @default(now())
-  chore      Chore    @relation(fields: [chore_id], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now())
+
+  @@index([chore_id])
+  @@index([user_id])
+}
+
+model UserBadge {
+  user     User   @relation(fields: [user_id], references: [id])
+  user_id  String
+  badge    Badge  @relation(fields: [badge_id], references: [id])
+  badge_id String
+  awarded_at DateTime @default(now())
+
+  @@id([user_id, badge_id])
 }
