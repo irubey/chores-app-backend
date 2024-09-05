@@ -127,14 +127,14 @@
 //   done(null, user.id);
 // });
 
-// passport.deserializeUser(async (id: string, done: (error: any, user?: User) => void) => {
+// passport.deserializeUser(async (id: string, done: (error: any, user?: User | false | null) => void) => {
 //   try {
 //     const user = await prisma.user.findUnique({
 //       where: { id },
 //     });
-
 //     done(null, user);
 //   } catch (error) {
+//     console.error('Deserialization Error:', error);
 //     done(error);
 //   }
 // });

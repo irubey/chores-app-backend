@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import morgan from 'morgan';
+import router from './routes';
+import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 
 dotenv.config();
 
@@ -24,13 +26,16 @@ app.post('/some-endpoint', (req, res) => {
   res.json({ receivedData: data });
 });
 
+// 404 handler
+app.use(notFoundHandler);
+
 // Error handling middleware
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-  console.error(err instanceof Error ? err.stack : err);
-  res.status(500).send('Something broke - error log from middleware!');
-});
+app.use(errorHandler);
+
+app.use('/api', router);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
+export default app;
