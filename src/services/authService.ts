@@ -56,6 +56,9 @@ export const findOrCreateUser = async (email: string, name: string | null, provi
 };
 
 export const generateToken = (userId: string) => {
+  if (!config.jwtSecret) {
+    throw new Error('JWT secret is not defined');
+  }
   return jwt.sign({ userId }, config.jwtSecret, {
     expiresIn: '1d',
   });

@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
@@ -15,9 +16,17 @@ export const config = {
     clientId: process.env.APPLE_CLIENT_ID,
     teamId: process.env.APPLE_TEAM_ID,
     keyId: process.env.APPLE_KEY_ID,
-    privateKey: process.env.APPLE_PRIVATE_KEY,
+    privateKeyLocation: process.env.APPLE_PRIVATE_KEY_LOCATION,
   },
-  jwtSecret: process.env.JWT_SECRET || 'your-default-jwt-secret',
-  jwtExpiresIn: '1d', // Token expiration time
+  jwtSecret: process.env.JWT_SECRET,
+} as const;
+
+export const generateToken = (userId: string) => {
+  if (!config.jwtSecret) {
+    throw new Error('JWT_SECRET is not defined');
+  }
+  return jwt.sign({ userId }, config.jwtSecret, {
+    expiresIn: '1d',
+  });
 };
 
