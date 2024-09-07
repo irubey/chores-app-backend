@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as authService from '../services/authService';
+import { AuthenticatedRequest } from '../middlewares/authMiddleware';
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -37,13 +38,14 @@ export const logout = (req: Request, res: Response) => {
   res.json({ message: 'Logged out successfully' });
 };
 
-export const getCurrentUser = async (req: Request, res: Response) => {
+export const getCurrentUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).userId;
+    const userId = req.user.id;
     const user = await authService.getCurrentUser(userId);
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     res.json(user);

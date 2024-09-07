@@ -5,6 +5,9 @@ import * as userService from '../services/userService';
 export const getUserProfile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID not found in request' });
+    }
     const user = await userService.getUserProfile(userId);
     res.json(user);
   } catch (error) {

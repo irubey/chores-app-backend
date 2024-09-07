@@ -9,10 +9,6 @@ export const getUserProfile = async (userId: string) => {
       id: true,
       name: true,
       email: true,
-      oauth_provider: true,
-      role: true,
-      created_at: true,
-      updated_at: true,
     },
   });
 
