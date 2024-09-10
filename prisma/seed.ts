@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-import { OAuthProvider, UserRole, HouseholdStatus, ChoreStatus, ChoreFrequency, ChorePriority } from '@prisma/client';
+import { PrismaClient, OAuthProvider, UserRole, ChoreFrequency} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -48,46 +47,25 @@ async function main() {
     },
   });
 
-  // Create a household for the dev user
-  const devHousehold = await prisma.household.create({
-    data: {
-      name: 'Dev Household',
-      status: HouseholdStatus.ACTIVE,
-      members: {
-        create: [
-          { user_id: devUser.id, role: UserRole.ADMIN },
-          { user_id: user1.id, role: UserRole.MEMBER },
-          { user_id: user2.id, role: UserRole.MEMBER },
-        ],
-      },
-    },
-  });
 
-  // Create chores
-  await prisma.chore.createMany({
-    data: [
-      {
-        household_id: devHousehold.id,
-        title: 'Dev Chore 1',
-        description: 'A chore for testing',
-        time_estimate: 15,
-        frequency: ChoreFrequency.DAILY,
-        assigned_to: devUser.id,
-        status: ChoreStatus.PENDING,
-        priority: ChorePriority.MEDIUM,
-      },
-      {
-        household_id: devHousehold.id,
-        title: 'Dev Chore 2',
-        description: 'Another chore for testing',
-        time_estimate: 20,
-        frequency: ChoreFrequency.WEEKLY,
-        assigned_to: devUser.id,
-        status: ChoreStatus.PENDING,
-        priority: ChorePriority.HIGH,
-      },
-    ],
-  });
+  const presetChoreTemplates = [
+    { title: "Vacuuming", description: "Vacuum all carpeted areas", time_estimate: 30, frequency: ChoreFrequency.WEEKLY, is_preset: true },
+    { title: "Doing the dishes", description: "Wash and put away all dishes", time_estimate: 20, frequency: ChoreFrequency.DAILY, is_preset: true },
+    { title: "Taking out the trash", description: "Empty all trash bins and replace bags", time_estimate: 10, frequency: ChoreFrequency.WEEKLY, is_preset: true },
+    { title: "Cleaning the bathroom", description: "Clean toilet, sink, and shower/bathtub", time_estimate: 45, frequency: ChoreFrequency.WEEKLY, is_preset: true },
+    { title: "Doing laundry", description: "Wash, dry, and fold clothes", time_estimate: 90, frequency: ChoreFrequency.WEEKLY, is_preset: true },
+    { title: "Grocery shopping", description: "Buy groceries for the household", time_estimate: 60, frequency: ChoreFrequency.WEEKLY, is_preset: true },
+    { title: "Mowing the lawn", description: "Mow the lawn and trim edges", time_estimate: 60, frequency: ChoreFrequency.WEEKLY, is_preset: true },
+    { title: "Dusting furniture", description: "Dust all surfaces in common areas", time_estimate: 30, frequency: ChoreFrequency.WEEKLY, is_preset: true },
+  ];
+
+  for (const template of presetChoreTemplates) {
+    await prisma.choreTemplate.upsert({
+      where: { title: template.title },
+      update: template,
+      create: template,
+    });
+  }
 
   console.log('Seed data created successfully');
 }

@@ -114,3 +114,79 @@ export const removeHouseholdMember = async (householdId: string, removerId: stri
     },
   });
 };
+
+export const joinHousehold = async (householdId: string, userId: string) => {
+  const household = await prisma.household.findUnique({
+    where: { id: householdId },
+  });
+
+  if (!household) {
+    throw new Error('Household not found');
+  }
+
+  const existingMembership = await prisma.householdMember.findFirst({
+    where: {
+      household_id: householdId,
+      user_id: userId,
+    },
+  });
+
+  if (existingMembership) {
+    throw new Error('You are already a member of this household');
+  }
+
+  await prisma.householdMember.create({
+    data: {
+      household_id: householdId,
+      user_id: userId,
+      role: 'MEMBER',
+      joined_at: new Date(),
+    },
+  });
+
+  return prisma.household.findUnique({
+    where: { id: householdId },
+    include: {
+      members: {
+        include: {
+          user: true,
+        },
+      },
+    },
+  });
+};
+
+export const getHouseholdById = async (householdId: string) => {
+  const household = await prisma.household.findUnique({
+    where: { id: householdId },
+    include: {
+      members: {
+        include: {
+          user: {
+            include: {
+              badges: {
+                include: {
+                  badge: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!household) return null;
+
+  return {
+    id: household.id,
+    name: household.name,
+    members: household.members.map(member => ({
+      id: member.user.id,
+      name: member.user.name,
+      role: member.role,
+      badges: member.user.badges.map(userBadge => userBadge.badge.name)
+    })),
+    status: household.status
+  };
+};

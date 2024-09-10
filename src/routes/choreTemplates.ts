@@ -10,6 +10,8 @@ import { authMiddleware, AuthenticatedRequest, isAuthenticatedRequest } from '..
 import { validateRequest } from '../middlewares/validate';
 import { createChoreTemplateSchema, updateChoreTemplateSchema } from '../utils/validators';
 import { errorHandler } from '../middlewares/errorHandler';
+import { fetchPresetTemplates } from '../controllers/choreTemplateController';
+import { Request, Response, NextFunction } from 'express';
 
 const router = express.Router();
 
@@ -26,12 +28,8 @@ router.post('/', validateRequest(createChoreTemplateSchema), (req, res, next) =>
 });
 
 // Get all chore templates
-router.get('/', (req, res, next) => {
-  if (isAuthenticatedRequest(req)) {
-    getChoreTemplates(req, res).catch(next);
-  } else {
-    res.status(401).json({ error: 'Unauthorized' });
-  }
+router.get('/', (req: Request, res: Response, next: NextFunction) => {
+  getChoreTemplates(req, res).catch(next);
 });
 
 // Get details of a specific chore template
@@ -63,5 +61,9 @@ router.delete('/:template_id', (req, res, next) => {
 
 // Error handling middleware
 router.use(errorHandler);
+
+// Fetch preset templates
+router.get('/preset', (req: Request, res: Response, next: NextFunction) => fetchPresetTemplates(req, res).catch(next));
+
 
 export default router;

@@ -138,13 +138,14 @@ model Notification {
 // ChoreTemplate model: Represents preset chore templates
 model ChoreTemplate {
   id            String         @id @default(uuid())
-  title         String
+  title         String         @unique
   description   String?
   time_estimate Int?
   frequency     ChoreFrequency
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
   chores        Chore[]
+  is_preset     Boolean        @default(false)
 }
 
 // UserPreference model: Stores user-specific preferences
