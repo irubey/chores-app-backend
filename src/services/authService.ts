@@ -4,9 +4,12 @@ import { OAuth2Client } from 'google-auth-library';
 import appleSignin from 'apple-signin-auth';
 import { config } from '../config/auth';
 import { OAuthProvider } from '@prisma/client';
+import axios from 'axios';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
-const googleClient = new OAuth2Client(config.google.clientId);
+
+// TODO add specific development bypass for local development
 
 export const verifyGoogleToken = async (idToken: string) => {
   const ticket = await googleClient.verifyIdToken({
@@ -69,4 +72,58 @@ export const getCurrentUser = async (userId: string) => {
     where: { id: userId },
     select: { id: true, name: true, email: true },
   });
+};
+
+const googleClient = new OAuth2Client(
+  config.google.clientId,
+  config.google.clientSecret,
+  config.google.redirectUri
+);
+
+export const exchangeGoogleCode = async (code: string) => {
+  // Implement Google code exchange
+};
+
+export const exchangeFacebookCode = async (code: string) => {
+  // Implement Facebook code exchange
+};
+
+export const exchangeAppleCode = async (code: string) => {
+  // Implement Apple code exchange
+};
+
+export const getUserData = async (provider: string, tokenData: any) => {
+  switch (provider) {
+    case 'google':
+      return getGoogleUserData(tokenData.access_token);
+    case 'facebook':
+      return getFacebookUserData(tokenData.access_token);
+    case 'apple':
+      return getAppleUserData(tokenData.id_token);
+    default:
+      throw new Error('Unsupported provider');
+  }
+};
+
+const getGoogleUserData = async (accessToken: string) => {
+  const { data } = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return { id: data.id, email: data.email, name: data.name };
+};
+
+const getFacebookUserData = async (accessToken: string) => {
+  const { data } = await axios.get('https://graph.facebook.com/me', {
+    params: { fields: 'id,email,name', access_token: accessToken },
+  });
+  return { id: data.id, email: data.email, name: data.name };
+};
+
+const getAppleUserData = async (idToken: string) => {
+  // Implement Apple user data retrieval
+  // This involves decoding and verifying the ID token
+};
+
+export const generateState = () => {
+  return crypto.randomBytes(32).toString('hex');
 };

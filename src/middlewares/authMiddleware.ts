@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import * as authService from '../services/authService';
+
 
 export interface AuthenticatedRequest extends Request {
   user: {
@@ -19,6 +19,16 @@ export const authMiddleware = (
   res: Response,
   next: NextFunction
 ): void => {
+  // Bypass auth checks in development mode
+  if (process.env.NODE_ENV === 'development') {
+    (req as AuthenticatedRequest).user = {
+      id: 'dev-user-id',
+      email: 'dev@example.com',
+      role: 'admin'
+    };
+    return next();
+  }
+
   const token = req.header('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
