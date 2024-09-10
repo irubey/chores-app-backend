@@ -1,16 +1,14 @@
-import express from 'express';
 import passport from 'passport';
 import { Router } from 'express';
-import { login, callback, logout, getCurrentUser } from '../controllers/authController';
+import { login, callback, logout, getCurrentUser, handleOAuthCallback, devLogin } from '../controllers/authController';
 import { authMiddleware, isAuthenticatedRequest } from '../middlewares/authMiddleware';
-
 const router = Router();
 
 // Route to initiate OAuth login
 router.post('/login', login);
 
 // OAuth callback route
-router.get('/callback/:provider', passport.authenticate('oauth2', { session: false }), callback);
+router.get('/callback/:provider', handleOAuthCallback);
 
 // Route to logout
 router.post('/logout', logout);
@@ -23,5 +21,7 @@ router.get('/user', authMiddleware, (req, res) => {
     res.status(401).json({ error: 'Unauthorized' });
   }
 });
+
+router.post('/dev-login', devLogin);
 
 export default router;
