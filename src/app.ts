@@ -5,6 +5,7 @@ import router from './routes';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import cors from 'cors';
 import { CorsOptions } from 'cors';
+import choreRoutes from './routes/chores';
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api', router);
+app.use('/api', choreRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
