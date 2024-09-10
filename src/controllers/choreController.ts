@@ -29,11 +29,7 @@ export const getHouseholdChores = async (req: AuthenticatedRequest, res: Respons
     res.json(chores);
   } catch (error) {
     console.error('Error fetching household chores:', error);
-    if (error instanceof Error && error.message === 'You are not a member of this household') {
-      res.status(403).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
