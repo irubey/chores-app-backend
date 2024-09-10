@@ -66,3 +66,34 @@ export const removeHouseholdMember = async (req: AuthenticatedRequest, res: Resp
     }
   }
 };
+
+export const joinHousehold = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { household_id } = req.params;
+    const userId = req.user.id;
+
+    const household = await householdService.joinHousehold(household_id, userId);
+    res.json(household);
+  } catch (error) {
+    console.error('Error joining household:', error);
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+};
+
+export const getHouseholdById = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const household = await householdService.getHouseholdById(id);
+    if (!household) {
+      return res.status(404).json({ error: 'Household not found' });
+    }
+    res.json(household);
+  } catch (error) {
+    console.error('Error fetching household:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

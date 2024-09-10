@@ -36,3 +36,12 @@ export const deleteChoreTemplate = async (templateId: string) => {
     where: { id: templateId },
   });
 };
+
+async function getPresetTemplates() {
+  return prisma.choreTemplate.findMany({
+    where: { is_preset: true },
+  });
+}
+
+// Add this to your exports
+export { getPresetTemplates };

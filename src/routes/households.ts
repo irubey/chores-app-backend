@@ -3,7 +3,9 @@ import {
   createHousehold,
   getHouseholds,
   addHouseholdMember,
-  removeHouseholdMember
+  removeHouseholdMember,
+  joinHousehold,
+  getHouseholdById
 } from '../controllers/householdController';
 import { authMiddleware, AuthenticatedRequest, isAuthenticatedRequest } from '../middlewares/authMiddleware';
 import { validateRequest } from '../middlewares/validate';
@@ -45,6 +47,24 @@ router.post('/:household_id/members', validateRequest(addMemberSchema), (req: ex
 router.delete('/:household_id/members/:user_id', (req: express.Request, res: express.Response) => {
   if (isAuthenticatedRequest(req)) {
     removeHouseholdMember(req as AuthenticatedRequest, res);
+  } else {
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+});
+
+// Join an existing household
+router.post('/:household_id/join', (req: express.Request, res: express.Response) => {
+  if (isAuthenticatedRequest(req)) {
+    joinHousehold(req as AuthenticatedRequest, res);
+  } else {
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+});
+
+// Get a specific household by ID
+router.get('/:id', (req: express.Request, res: express.Response) => {
+  if (isAuthenticatedRequest(req)) {
+    getHouseholdById(req as AuthenticatedRequest, res);
   } else {
     res.status(401).json({ error: 'Unauthorized' });
   }

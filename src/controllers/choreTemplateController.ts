@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/authMiddleware';
 import * as choreTemplateService from '../services/choreTemplateService';
+import { getPresetTemplates } from '../services/choreTemplateService';
+import { Request } from 'express';
 
 export const createChoreTemplate = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -13,13 +15,13 @@ export const createChoreTemplate = async (req: AuthenticatedRequest, res: Respon
   }
 };
 
-export const getChoreTemplates = async (req: AuthenticatedRequest, res: Response) => {
+export const getChoreTemplates = async (req: Request, res: Response) => {
   try {
     const choreTemplates = await choreTemplateService.getChoreTemplates();
     res.json(choreTemplates);
   } catch (error) {
     console.error('Error fetching chore templates:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to fetch chore templates' });
   }
 };
 
@@ -60,3 +62,12 @@ export const deleteChoreTemplate = async (req: AuthenticatedRequest, res: Respon
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export async function fetchPresetTemplates(req: Request, res: Response) {
+  try {
+    const presetTemplates = await getPresetTemplates();
+    res.json(presetTemplates);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch preset templates' });
+  }
+}
