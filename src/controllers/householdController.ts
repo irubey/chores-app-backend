@@ -97,3 +97,43 @@ export const getHouseholdById = async (req: AuthenticatedRequest, res: Response)
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const deleteHousehold = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Check if the user is an admin of the household
+    const isAdmin = await householdService.isUserAdmin(id, userId);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Only administrators can delete households' });
+    }
+
+    await householdService.deleteHousehold(id, userId);
+    res.json({ message: 'Household deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting household:', error);
+    if (error instanceof Error) {
+      res.status(403).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+};
+
+export const leaveHousehold = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    await householdService.leaveHousehold(id, userId);
+    res.json({ message: 'Left household successfully' });
+  } catch (error) {
+    console.error('Error leaving household:', error);
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+};
