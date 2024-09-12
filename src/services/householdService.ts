@@ -190,3 +190,123 @@ export const getHouseholdById = async (householdId: string) => {
     status: household.status
   };
 };
+
+export const deleteHousehold = async (householdId: string, userId: string) => {
+  const household = await prisma.household.findUnique({
+    where: { id: householdId },
+    include: { members: true, chores: true }
+  });
+
+  if (!household) {
+    throw new Error('Household not found');
+  }
+
+  const userMember = household.members.find(member => member.user_id === userId);
+
+  if (!userMember || userMember.role !== 'ADMIN') {
+    throw new Error('You do not have permission to delete this household');
+  }
+
+  // Delete related records
+  await prisma.$transaction(async (prisma) => {
+    // Delete ChoreActivity records
+    await prisma.choreActivity.deleteMany({ 
+      where: { chore: { household_id: householdId } } 
+    });
+
+    // Delete Chore records
+    await prisma.chore.deleteMany({ where: { household_id: householdId } });
+
+    // Delete HouseholdMember records
+    await prisma.householdMember.deleteMany({ where: { household_id: householdId } });
+
+    // Finally, delete the Household
+    await prisma.household.delete({ where: { id: householdId } });
+  });
+
+  return household;
+};
+
+export const leaveHousehold = async (householdId: string, userId: string) => {
+  const membership = await prisma.householdMember.findFirst({
+    where: {
+      household_id: householdId,
+      user_id: userId,
+    },
+    include: {
+      household: {
+        include: {
+          members: true,
+          chores: true
+        }
+      }
+    }
+  });
+
+  if (!membership) {
+    throw new Error('You are not a member of this household');
+  }
+
+  if (membership.role === 'ADMIN') {
+    const otherAdmins = await prisma.householdMember.count({
+      where: {
+        household_id: householdId,
+        role: 'ADMIN',
+        NOT: {
+          user_id: userId,
+        },
+      },
+    });
+
+    if (otherAdmins === 0) {
+      throw new Error('You cannot leave the household as you are the only admin');
+    }
+  }
+
+  await prisma.$transaction(async (prisma) => {
+    // Remove user from assigned chores
+    await prisma.chore.updateMany({
+      where: {
+        household_id: householdId,
+        assigned_to: userId
+      },
+      data: {
+        assigned_to: null
+      }
+    });
+
+    // Delete user's chore activities in this household
+    await prisma.choreActivity.deleteMany({
+      where: {
+        user_id: userId,
+        chore: {
+          household_id: householdId
+        }
+      }
+    });
+
+    // Delete the user's membership
+    await prisma.householdMember.delete({
+      where: {
+        user_id_household_id: {
+          user_id: userId,
+          household_id: householdId,
+        },
+      },
+    });
+  });
+
+  return membership.household;
+};
+
+export const isUserAdmin = async (householdId: string, userId: string): Promise<boolean> => {
+  const membership = await prisma.householdMember.findFirst({
+    where: {
+      household_id: householdId,
+      user_id: userId,
+      role: 'ADMIN',
+    },
+  });
+
+  return !!membership;
+};
