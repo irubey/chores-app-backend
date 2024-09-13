@@ -172,45 +172,22 @@ export const getHouseholdById = async (householdId: string) => {
             }
           }
         }
-      }
+      },
+      chores: true
     }
-  });
-
-  if (!household) return null;
-
-  return {
-    id: household.id,
-    name: household.name,
-    members: household.members.map(member => ({
-      id: member.user.id,
-      name: member.user.name,
-      role: member.role,
-      badges: member.user.badges.map(userBadge => userBadge.badge.name)
-    })),
-    status: household.status
-  };
-};
-
-export const deleteHousehold = async (householdId: string, userId: string) => {
-  const household = await prisma.household.findUnique({
-    where: { id: householdId },
-    include: { members: true, chores: true }
   });
 
   if (!household) {
     throw new Error('Household not found');
   }
 
-  const userMember = household.members.find(member => member.user_id === userId);
+  return household;
+};
 
-  if (!userMember || userMember.role !== 'ADMIN') {
-    throw new Error('You do not have permission to delete this household');
-  }
-
-  // Delete related records
-  await prisma.$transaction(async (prisma) => {
-    // Delete ChoreActivity records
-    await prisma.choreActivity.deleteMany({ 
+export const deleteHousehold = async (householdId: string) => {
+  return prisma.$transaction(async (prisma) => {
+    // Delete associated records
+    await prisma.notification.deleteMany({
       where: { chore: { household_id: householdId } } 
     });
 
@@ -221,10 +198,10 @@ export const deleteHousehold = async (householdId: string, userId: string) => {
     await prisma.householdMember.deleteMany({ where: { household_id: householdId } });
 
     // Finally, delete the Household
-    await prisma.household.delete({ where: { id: householdId } });
-  });
+    const household = await prisma.household.delete({ where: { id: householdId } });
 
-  return household;
+    return household;
+  });
 };
 
 export const leaveHousehold = async (householdId: string, userId: string) => {
@@ -237,10 +214,10 @@ export const leaveHousehold = async (householdId: string, userId: string) => {
       household: {
         include: {
           members: true,
-          chores: true
-        }
-      }
-    }
+          chores: true,
+        },
+      },
+    },
   });
 
   if (!membership) {
@@ -264,28 +241,38 @@ export const leaveHousehold = async (householdId: string, userId: string) => {
   }
 
   await prisma.$transaction(async (prisma) => {
-    // Remove user from assigned chores
-    await prisma.chore.updateMany({
+    // 1. Fetch all chores assigned to the user
+    const chores = await prisma.chore.findMany({
       where: {
         household_id: householdId,
-        assigned_to: userId
+        assigned_to: {
+          has: userId
+        }
       },
-      data: {
-        assigned_to: null
-      }
     });
 
-    // Delete user's chore activities in this household
+    // 2. Update each chore by removing the userId from assigned_to
+    const updatePromises = chores.map((chore) => {
+      const newAssignedTo = chore.assigned_to.filter((id: string) => id !== userId);
+      return prisma.chore.update({
+        where: { id: chore.id },
+        data: { assigned_to: newAssignedTo },
+      });
+    });
+
+    await Promise.all(updatePromises);
+
+    // 3. Deletar atividades de chores do usuário nesta household
     await prisma.choreActivity.deleteMany({
       where: {
         user_id: userId,
         chore: {
-          household_id: householdId
-        }
-      }
+          household_id: householdId,
+        },
+      },
     });
 
-    // Delete the user's membership
+    // 4. Deletar a associação do usuário com a household
     await prisma.householdMember.delete({
       where: {
         user_id_household_id: {

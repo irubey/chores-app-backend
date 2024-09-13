@@ -34,6 +34,7 @@ export const updateUserProfile = async (req: AuthenticatedRequest, res: Response
 
 export const getUserPreferences = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    console.log('Fetching user preferences for user:', req.user.id);
     const userId = req.user.id;
     const preferences = await userService.getUserPreferences(userId);
     res.json(preferences);

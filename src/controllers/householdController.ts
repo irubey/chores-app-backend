@@ -109,7 +109,7 @@ export const deleteHousehold = async (req: AuthenticatedRequest, res: Response) 
       return res.status(403).json({ error: 'Only administrators can delete households' });
     }
 
-    await householdService.deleteHousehold(id, userId);
+    const deletedHousehold = await householdService.deleteHousehold(id);
     res.json({ message: 'Household deleted successfully' });
   } catch (error) {
     console.error('Error deleting household:', error);
@@ -123,11 +123,11 @@ export const deleteHousehold = async (req: AuthenticatedRequest, res: Response) 
 
 export const leaveHousehold = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const { household_id } = req.params;
     const userId = req.user.id;
 
-    await householdService.leaveHousehold(id, userId);
-    res.json({ message: 'Left household successfully' });
+    const household = await householdService.leaveHousehold(household_id, userId);
+    res.json({ message: 'Successfully left the household', household });
   } catch (error) {
     console.error('Error leaving household:', error);
     if (error instanceof Error) {
