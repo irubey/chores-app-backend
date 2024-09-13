@@ -10,7 +10,8 @@
     "build": "tsc",
     "lint": "eslint 'src/**/*.{js,ts,jsx,tsx}'",
     "seed": "ts-node prisma/seed.ts",
-    "dev:seed": "npm run seed && npm run dev"
+    "dev:seed": "npm run seed && npm run dev",
+    "migrate:deploy": "prisma migrate deploy"
   },
   "keywords": [],
   "author": "",

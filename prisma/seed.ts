@@ -19,6 +19,11 @@ async function main() {
       oauth_provider: OAuthProvider.GOOGLE, // Or any provider you prefer
       oauth_id: 'dev_oauth_id',
       role: UserRole.ADMIN,
+      preferences: {
+        create: {
+          theme: 'light',
+        },
+      },
     },
   });
 
