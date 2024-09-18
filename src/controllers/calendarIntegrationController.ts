@@ -1,66 +1,121 @@
-import { Response } from 'express';
-import { AuthenticatedRequest } from '../middlewares/authMiddleware';
-import * as calendarIntegrationService from '../services/calendarIntegrationService';
+import { Response, NextFunction } from 'express';
+import * as calendarService from '../services/calendarIntegrationService';
+import { AuthenticatedRequest } from '../types';
 
-export const connectCalendar = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    const { provider, access_token, refresh_token, expires_at } = req.body;
-
-    const calendarIntegration = await calendarIntegrationService.connectCalendar(
-      userId,
-      provider,
-      access_token,
-      refresh_token,
-      expires_at
-    );
-
-    res.json({ message: 'Calendar connected successfully', calendarIntegration });
-  } catch (error) {
-    console.error('Error connecting calendar:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const disconnectCalendar = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-
-    await calendarIntegrationService.disconnectCalendar(userId);
-
-    res.json({ message: 'Calendar disconnected successfully' });
-  } catch (error) {
-    console.error('Error disconnecting calendar:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const getCalendarIntegration = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-
-    const calendarIntegration = await calendarIntegrationService.getCalendarIntegration(userId);
-
-    if (!calendarIntegration) {
-      return res.status(404).json({ error: 'Calendar integration not found' });
+/**
+ * CalendarIntegrationController handles all calendar-related operations.
+ */
+export class CalendarIntegrationController {
+  /**
+   * Retrieves all calendar events for a specific household.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async getCalendarEvents(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId } = req.params;
+      const userId = req.user!.id;
+      const events = await calendarService.getCalendarEvents(householdId, userId);
+      res.status(200).json(events);
+    } catch (error) {
+      next(error);
     }
-
-    res.json(calendarIntegration);
-  } catch (error) {
-    console.error('Error fetching calendar integration:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
-};
 
-export const syncChores = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-
-    const result = await calendarIntegrationService.syncChores(userId);
-
-    res.json(result);
-  } catch (error) {
-    console.error('Error syncing chores:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  /**
+   * Creates a new calendar event within a household.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async createEvent(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId } = req.params;
+      const userId = req.user!.id;
+      const eventData = req.body;
+      const event = await calendarService.createEvent(householdId, eventData, userId);
+      res.status(201).json(event);
+    } catch (error) {
+      next(error);
+    }
   }
-};
+
+  /**
+   * Updates an existing calendar event.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async updateEvent(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, eventId } = req.params;
+      const userId = req.user!.id;
+      const updateData = req.body;
+      const updatedEvent = await calendarService.updateEvent(householdId, eventId, updateData, userId);
+      res.status(200).json(updatedEvent);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Deletes a calendar event from a household.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async deleteEvent(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, eventId } = req.params;
+      const userId = req.user!.id;
+      await calendarService.deleteEvent(householdId, eventId, userId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Syncs the household calendar with the user's personal calendar.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async syncWithPersonalCalendar(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId } = req.params;
+      const userId = req.user!.id;
+      const { provider, accessToken } = req.body; // e.g., Google, Apple
+      const syncResult = await calendarService.syncWithPersonalCalendar(
+        householdId,
+        userId,
+        provider,
+        accessToken
+      );
+      res.status(200).json(syncResult);
+    } catch (error) {
+      next(error);
+    }
+  }
+}

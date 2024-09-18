@@ -1,66 +1,75 @@
 import express from 'express';
-import dotenv from 'dotenv';
-import morgan from 'morgan';
-import router from './routes';
-import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
+import session from 'express-session';
+import passport from './config/passport';
+import {initializeSocket} from './sockets';
+import http from 'http';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import { CorsOptions } from 'cors';
-import choreRoutes from './routes/chores';
+import { errorHandler } from './middlewares/errorHandler';
+import { authMiddleware } from './middlewares/authMiddleware';
+import rateLimitMiddleware from './middlewares/rateLimit';
+import { connectDatabase } from './config/database';
+import routes from './routes';
+import logger from './utils/logger';
+import startScheduledJobs from './jobs/scheduler';
+import { AuthenticatedRequest } from './types/index';
 
-dotenv.config();
-
-if (!process.env.JWT_SECRET) {
-  console.error('JWT_SECRET is not defined in the environment variables');
-  process.exit(1);
-}
-
+// Initialize Express app
 const app = express();
-const port = process.env.PORT || 3000;
+const server = http.createServer(app);
 
-// Enable CORS for all routes
-const corsOptions: CorsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:3001'];
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+// Initialize Socket.io
+const io = initializeSocket(server);
+
+// Connect to the database
+connectDatabase();
+
+// Middleware Setup
+
+// Rate Limiting Middleware
+app.use(rateLimitMiddleware);
+
+// CORS Middleware
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
+  credentials: true,
+}));
 
-// Apply CORS middleware before other routes
-app.use(cors(corsOptions));
-
-// Enable pre-flight requests for all routes
-app.options('*', cors(corsOptions));
-
-// Middleware for logging
-app.use(morgan('combined'));
-
-// Middleware for parsing JSON
+// Body Parsers
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Cookie Parser
+app.use(cookieParser());
+
+// Session Setup
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET!,
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Authentication Middleware
+app.use((req, res, next) => authMiddleware(req as AuthenticatedRequest, res, next));
 
 // Routes
-app.use('/api', router);
-app.use('/api', choreRoutes);
+app.use('/api', routes);
 
-// Basic route
-app.get('/', (req, res) => {
-  res.send('Welcome to the Chore Management API!');
-});
-
-// 404 handler
-app.use(notFoundHandler);
-
-// Error handling middleware
+// Error Handling Middleware (should be after other middleware and routes)
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+// Start Scheduled Jobs
+startScheduledJobs();
 
-export default app;
+// Start Server
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+});

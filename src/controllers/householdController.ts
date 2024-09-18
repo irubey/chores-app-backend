@@ -1,139 +1,155 @@
-import { Response } from 'express';
-import { AuthenticatedRequest } from '../middlewares/authMiddleware';
+import { Response, NextFunction } from 'express';
 import * as householdService from '../services/householdService';
+import { NotFoundError, UnauthorizedError, BadRequestError } from '../middlewares/errorHandler';
+import { AuthenticatedRequest, CreateHouseholdDTO, UpdateHouseholdDTO, AddMemberDTO } from '../types';
 
-export const createHousehold = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { name } = req.body;
-    const userId = req.user.id;
+/**
+ * HouseholdController handles all CRUD operations related to households.
+ */
+export class HouseholdController {
+  /**
+   * Creates a new household.
+   * @param req Authenticated Express Request object containing household data
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async createHousehold(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const householdData: CreateHouseholdDTO = req.body;
+      const userId = req.user?.id;
 
-    const household = await householdService.createHousehold(name, userId);
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
 
-    res.status(201).json({
-      id: household.id,
-      name: household.name,
-      created_at: household.created_at,
-      status: 'ACTIVE',
-    });
-  } catch (error) {
-    console.error('Error creating household:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const getHouseholds = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    const households = await householdService.getHouseholds(userId);
-    res.json(households);
-  } catch (error) {
-    console.error('Error fetching households:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const addHouseholdMember = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { household_id } = req.params;
-    const { email, role } = req.body;
-    const inviterId = req.user.id;
-
-    await householdService.addHouseholdMember(household_id, inviterId, email, role);
-    res.json({ message: 'Invitation sent' });
-  } catch (error) {
-    console.error('Error adding household member:', error);
-    if (error instanceof Error) {
-      res.status(400).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
+      const household = await householdService.createHousehold(householdData, userId);
+      res.status(201).json(household);
+    } catch (error) {
+      next(error);
     }
   }
-};
 
-export const removeHouseholdMember = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { household_id, user_id } = req.params;
-    const removerId = req.user.id;
+  /**
+   * Retrieves details of a specific household.
+   * @param req Authenticated Express Request object containing householdId
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async getHousehold(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const householdId = req.params.householdId;
+      const userId = req.user?.id;
 
-    await householdService.removeHouseholdMember(household_id, removerId, user_id);
-    res.json({ message: 'Member removed' });
-  } catch (error) {
-    console.error('Error removing household member:', error);
-    if (error instanceof Error) {
-      res.status(403).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      const household = await householdService.getHouseholdById(householdId, userId);
+
+      if (!household) {
+        throw new NotFoundError('Household not found');
+      }
+
+      res.status(200).json(household);
+    } catch (error) {
+      next(error);
     }
   }
-};
 
-export const joinHousehold = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { household_id } = req.params;
-    const userId = req.user.id;
+  /**
+   * Updates an existing household.
+   * @param req Authenticated Express Request object containing householdId and update data
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async updateHousehold(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const householdId = req.params.householdId;
+      const updateData: UpdateHouseholdDTO = req.body;
+      const userId = req.user?.id;
 
-    const household = await householdService.joinHousehold(household_id, userId);
-    res.json(household);
-  } catch (error) {
-    console.error('Error joining household:', error);
-    if (error instanceof Error) {
-      res.status(400).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      const updatedHousehold = await householdService.updateHousehold(householdId, updateData, userId);
+
+      if (!updatedHousehold) {
+        throw new NotFoundError('Household not found or you do not have permission to update it');
+      }
+
+      res.status(200).json(updatedHousehold);
+    } catch (error) {
+      next(error);
     }
   }
-};
 
-export const getHouseholdById = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { id } = req.params;
-    const household = await householdService.getHouseholdById(id);
-    if (!household) {
-      return res.status(404).json({ error: 'Household not found' });
-    }
-    res.json(household);
-  } catch (error) {
-    console.error('Error fetching household:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
+  /**
+   * Deletes a household.
+   * @param req Authenticated Express Request object containing householdId
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async deleteHousehold(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const householdId = req.params.householdId;
+      const userId = req.user?.id;
 
-export const deleteHousehold = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
 
-    // Check if the user is an admin of the household
-    const isAdmin = await householdService.isUserAdmin(id, userId);
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Only administrators can delete households' });
-    }
-
-    const deletedHousehold = await householdService.deleteHousehold(id);
-    res.json({ message: 'Household deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting household:', error);
-    if (error instanceof Error) {
-      res.status(403).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
+      await householdService.deleteHousehold(householdId, userId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
     }
   }
-};
 
-export const leaveHousehold = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { household_id } = req.params;
-    const userId = req.user.id;
+  /**
+   * Adds a new member to the household.
+   * @param req Authenticated Express Request object containing householdId and member data
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async addMember(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const householdId = req.params.householdId;
+      const memberData: AddMemberDTO = req.body;
+      const userId = req.user?.id;
 
-    const household = await householdService.leaveHousehold(household_id, userId);
-    res.json({ message: 'Successfully left the household', household });
-  } catch (error) {
-    console.error('Error leaving household:', error);
-    if (error instanceof Error) {
-      res.status(400).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      const newMember = await householdService.addMember(householdId, memberData, userId);
+
+      res.status(201).json(newMember);
+    } catch (error) {
+      next(error);
     }
   }
-};
+
+  /**
+   * Removes a member from the household.
+   * @param req Authenticated Express Request object containing householdId and memberId
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async removeMember(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const householdId = req.params.householdId;
+      const memberId = req.params.memberId;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      await householdService.removeMember(householdId, memberId, userId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+}
