@@ -6,13 +6,13 @@ import http from 'http';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { errorHandler } from './middlewares/errorHandler';
-import { authMiddleware } from './middlewares/authMiddleware';
+import authMiddleware from './middlewares/authMiddleware';
 import rateLimitMiddleware from './middlewares/rateLimit';
 import { connectDatabase } from './config/database';
 import routes from './routes';
 import logger from './utils/logger';
-import startScheduledJobs from './jobs/scheduler';
 import { AuthenticatedRequest } from './types/index';
+import { initializeJobs } from './jobs'; // New import
 
 // Initialize Express app
 const app = express();
@@ -65,8 +65,8 @@ app.use('/api', routes);
 // Error Handling Middleware (should be after other middleware and routes)
 app.use(errorHandler);
 
-// Start Scheduled Jobs
-startScheduledJobs();
+// Initialize Scheduled Jobs
+initializeJobs();
 
 // Start Server
 const PORT = process.env.PORT || 5000;

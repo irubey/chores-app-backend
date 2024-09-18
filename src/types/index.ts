@@ -1,4 +1,4 @@
-import { Request} from 'express';
+import { Request } from 'express';
 import {
   ChoreStatus,
   SubtaskStatus,
@@ -15,6 +15,7 @@ import {
   Subtask,
   Expense,
   Event,
+  ExpenseSplit,
   Notification as PrismaNotification,
 } from '@prisma/client';
 
@@ -172,7 +173,7 @@ export interface CreateChoreDTO {
   recurrence?: string;
   priority?: number;
   assignedUserIds?: string[];
-  subtasks?: CreateSubtaskDTO[]; 
+  subtasks?: CreateSubtaskDTO[];
 }
 
 /**
@@ -453,6 +454,19 @@ export interface EventUpdateEvent {
   event: Event;
 }
 
+// Partial types for flexible updates
+export type PartialUpdateChoreDTO = Partial<UpdateChoreDTO>;
+export type ChorePickDTO = Pick<Chore, 'id' | 'title' | 'status'>;
+
+
+// Expense with splits for reminders
+export type ExpenseWithSplits = Expense & {
+  splits: (ExpenseSplit & {
+    user: User;
+  })[];
+};
+
+
 // Prisma Models and enums Export
 export {
   User,
@@ -476,7 +490,5 @@ export {
   NotificationType,
   Provider,
 } from '@prisma/client';
-// Partial types for flexible updates
-export type PartialUpdateChoreDTO = Partial<UpdateChoreDTO>;
-export type ChorePickDTO = Pick<Chore, 'id' | 'title' | 'status'>;
+
 

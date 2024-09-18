@@ -50,6 +50,7 @@ model User {
   profileImageURL  String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
+  deviceTokens     String[]            @default([])
 
   households       HouseholdMember[]
   messages         Message[]
