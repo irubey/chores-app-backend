@@ -1,34 +1,21 @@
-import { PrismaClient } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
+import prisma from '../config/database';
+import { CreateHouseholdDTO, UpdateHouseholdDTO, AddMemberDTO } from '../types';
+import { UnauthorizedError, NotFoundError, BadRequestError } from '../middlewares/errorHandler';
 
-const prisma = new PrismaClient();
-
-export const createHousehold = async (name: string, userId: string) => {
-  return prisma.household.create({
+/**
+ * Creates a new household and adds the creator as an ADMIN member.
+ * @param data - The household data.
+ * @param userId - The ID of the user creating the household.
+ * @returns The created household with members.
+ */
+export async function createHousehold(data: CreateHouseholdDTO, userId: string) {
+  const household = await prisma.household.create({
     data: {
-      id: uuidv4(),
-      name,
-      created_at: new Date(),
+      name: data.name,
       members: {
         create: {
-          user_id: userId,
+          userId,
           role: 'ADMIN',
-          joined_at: new Date(),
-        },
-      },
-    },
-    include: {
-      members: true,
-    },
-  });
-};
-
-export const getHouseholds = async (userId: string) => {
-  const households = await prisma.household.findMany({
-    where: {
-      members: {
-        some: {
-          user_id: userId,
         },
       },
     },
@@ -41,110 +28,18 @@ export const getHouseholds = async (userId: string) => {
     },
   });
 
-  return households.map(household => ({
-    id: household.id,
-    name: household.name,
-    members: household.members.map(member => ({
-      id: member.user.id,
-      name: member.user.name,
-      role: member.role,
-    })),
-    status: 'ACTIVE',
-  }));
-};
+  return household;
+}
 
-export const addHouseholdMember = async (householdId: string, inviterId: string, email: string, role: 'ADMIN' | 'MEMBER') => {
-  const inviterMembership = await prisma.householdMember.findFirst({
-    where: {
-      household_id: householdId,
-      user_id: inviterId,
-    },
-  });
-
-  if (!inviterMembership) {
-    throw new Error('You are not a member of this household');
-  }
-
-  const invitedUser = await prisma.user.findUnique({
-    where: { email },
-  });
-
-  if (!invitedUser) {
-    throw new Error('User not found');
-  }
-
-  const existingMembership = await prisma.householdMember.findFirst({
-    where: {
-      household_id: householdId,
-      user_id: invitedUser.id,
-    },
-  });
-
-  if (existingMembership) {
-    throw new Error('User is already a member of this household');
-  }
-
-  return prisma.householdMember.create({
-    data: {
-      household_id: householdId,
-      user_id: invitedUser.id,
-      role,
-      joined_at: new Date(),
-    },
-  });
-};
-
-export const removeHouseholdMember = async (householdId: string, removerId: string, userIdToRemove: string) => {
-  const removerMembership = await prisma.householdMember.findFirst({
-    where: {
-      household_id: householdId,
-      user_id: removerId,
-      role: 'ADMIN',
-    },
-  });
-
-  if (!removerMembership) {
-    throw new Error('You do not have permission to remove members');
-  }
-
-  return prisma.householdMember.deleteMany({
-    where: {
-      household_id: householdId,
-      user_id: userIdToRemove,
-    },
-  });
-};
-
-export const joinHousehold = async (householdId: string, userId: string) => {
+/**
+ * Retrieves a household by its ID if the user is a member.
+ * @param householdId - The ID of the household.
+ * @param userId - The ID of the requesting user.
+ * @returns The household details.
+ * @throws NotFoundError if the household does not exist or the user is not a member.
+ */
+export async function getHouseholdById(householdId: string, userId: string) {
   const household = await prisma.household.findUnique({
-    where: { id: householdId },
-  });
-
-  if (!household) {
-    throw new Error('Household not found');
-  }
-
-  const existingMembership = await prisma.householdMember.findFirst({
-    where: {
-      household_id: householdId,
-      user_id: userId,
-    },
-  });
-
-  if (existingMembership) {
-    throw new Error('You are already a member of this household');
-  }
-
-  await prisma.householdMember.create({
-    data: {
-      household_id: householdId,
-      user_id: userId,
-      role: 'MEMBER',
-      joined_at: new Date(),
-    },
-  });
-
-  return prisma.household.findUnique({
     where: { id: householdId },
     include: {
       members: {
@@ -152,148 +47,220 @@ export const joinHousehold = async (householdId: string, userId: string) => {
           user: true,
         },
       },
+      chores: true,
+      expenses: true,
+      messages: true,
+      events: true,
     },
-  });
-};
-
-export const getHouseholdById = async (householdId: string) => {
-  const household = await prisma.household.findUnique({
-    where: { id: householdId },
-    include: {
-      members: {
-        include: {
-          user: {
-            include: {
-              badges: {
-                include: {
-                  badge: true
-                }
-              }
-            }
-          }
-        }
-      },
-      chores: true
-    }
   });
 
   if (!household) {
-    throw new Error('Household not found');
+    throw new NotFoundError('Household not found');
+  }
+
+  const isMember = household.members.some((member) => member.userId === userId);
+
+  if (!isMember) {
+    throw new UnauthorizedError('You are not a member of this household');
   }
 
   return household;
-};
+}
 
-export const deleteHousehold = async (householdId: string) => {
-  return prisma.$transaction(async (prisma) => {
-    // Delete associated records
-    await prisma.notification.deleteMany({
-      where: { chore: { household_id: householdId } } 
-    });
-
-    // Delete Chore records
-    await prisma.chore.deleteMany({ where: { household_id: householdId } });
-
-    // Delete HouseholdMember records
-    await prisma.householdMember.deleteMany({ where: { household_id: householdId } });
-
-    // Finally, delete the Household
-    const household = await prisma.household.delete({ where: { id: householdId } });
-
-    return household;
-  });
-};
-
-export const leaveHousehold = async (householdId: string, userId: string) => {
-  const membership = await prisma.householdMember.findFirst({
+/**
+ * Updates a household's details.
+ * @param householdId - The ID of the household to update.
+ * @param data - The updated household data.
+ * @param userId - The ID of the user performing the update.
+ * @returns The updated household.
+ * @throws NotFoundError if the household does not exist.
+ * @throws UnauthorizedError if the user is not an ADMIN.
+ */
+export async function updateHousehold(householdId: string, data: UpdateHouseholdDTO, userId: string) {
+  // Verify the user is an ADMIN member
+  const membership = await prisma.householdMember.findUnique({
     where: {
-      household_id: householdId,
-      user_id: userId,
-    },
-    include: {
-      household: {
-        include: {
-          members: true,
-          chores: true,
-        },
+      userId_householdId: {
+        householdId,
+        userId,
       },
     },
   });
 
-  if (!membership) {
-    throw new Error('You are not a member of this household');
+  if (!membership || membership.role !== 'ADMIN') {
+    throw new UnauthorizedError('You do not have permission to update this household');
   }
 
-  if (membership.role === 'ADMIN') {
-    const otherAdmins = await prisma.householdMember.count({
-      where: {
-        household_id: householdId,
-        role: 'ADMIN',
-        NOT: {
-          user_id: userId,
+  const household = await prisma.household.update({
+    where: { id: householdId },
+    data: {
+      name: data.name,
+    },
+    include: {
+      members: {
+        include: {
+          user: true,
         },
+      },
+    },
+  });
+
+  return household;
+}
+
+/**
+ * Deletes a household.
+ * @param householdId - The ID of the household to delete.
+ * @param userId - The ID of the user performing the deletion.
+ * @throws NotFoundError if the household does not exist.
+ * @throws UnauthorizedError if the user is not an ADMIN.
+ */
+export async function deleteHousehold(householdId: string, userId: string): Promise<void> {
+  // Verify the user is an ADMIN member
+  const membership = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId,
+      },
+    },
+  });
+
+  if (!membership || membership.role !== 'ADMIN') {
+    throw new UnauthorizedError('You do not have permission to delete this household');
+  }
+
+  // Optionally, you might want to delete related data or handle constraints
+
+  await prisma.household.delete({
+    where: { id: householdId },
+  });
+}
+
+/**
+ * Adds a new member to the household.
+ * @param householdId - The ID of the household.
+ * @param memberData - The data of the member to add.
+ * @param userId - The ID of the user performing the action.
+ * @returns The newly added household member.
+ * @throws NotFoundError if the household does not exist.
+ * @throws UnauthorizedError if the user is not an ADMIN.
+ * @throws BadRequestError if the user is already a member.
+ */
+export async function addMember(householdId: string, memberData: AddMemberDTO, userId: string) {
+  // Verify the user is an ADMIN member
+  const membership = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId,
+      },
+    },
+  });
+
+  if (!membership || membership.role !== 'ADMIN') {
+    throw new UnauthorizedError('You do not have permission to add members to this household');
+  }
+
+  // Check if the user to be added exists
+  const user = await prisma.user.findUnique({
+    where: { id: memberData.userId },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User to be added does not exist');
+  }
+
+  // Check if the user is already a member
+  const existingMember = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId: memberData.userId,
+      },
+    },
+  });
+
+  if (existingMember) {
+    throw new BadRequestError('User is already a member of the household');
+  }
+
+  const newMember = await prisma.householdMember.create({
+    data: {
+      householdId,
+      userId: memberData.userId,
+      role: memberData.role || 'MEMBER',
+    },
+    include: {
+      user: true,
+    },
+  });
+
+  return newMember;
+}
+
+/**
+ * Removes a member from the household.
+ * @param householdId - The ID of the household.
+ * @param memberId - The ID of the member to remove.
+ * @param userId - The ID of the user performing the action.
+ * @throws NotFoundError if the household or member does not exist.
+ * @throws UnauthorizedError if the user is not an ADMIN or trying to remove themselves.
+ * @throws BadRequestError if attempting to remove the last ADMIN.
+ */
+export async function removeMember(householdId: string, memberId: string, userId: string): Promise<void> {
+  // Verify the user is an ADMIN member
+  const requestingMembership = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId,
+      },
+    },
+  });
+
+  if (!requestingMembership || requestingMembership.role !== 'ADMIN') {
+    throw new UnauthorizedError('You do not have permission to remove members from this household');
+  }
+
+  // Prevent removing oneself if desired, or allow based on business logic
+  if (memberId === userId) {
+    throw new BadRequestError('Admins cannot remove themselves from the household');
+  }
+
+  const member = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId: memberId,
+      },
+    },
+  });
+
+  if (!member) {
+    throw new NotFoundError('Member not found in the household');
+  }
+
+  // Ensure there is at least one ADMIN left
+  if (member.role === 'ADMIN') {
+    const adminCount = await prisma.householdMember.count({
+      where: {
+        householdId,
+        role: 'ADMIN',
       },
     });
 
-    if (otherAdmins === 0) {
-      throw new Error('You cannot leave the household as you are the only admin');
+    if (adminCount <= 1) {
+      throw new BadRequestError('Cannot remove the last ADMIN of the household');
     }
   }
 
-  await prisma.$transaction(async (prisma) => {
-    // 1. Fetch all chores assigned to the user
-    const chores = await prisma.chore.findMany({
-      where: {
-        household_id: householdId,
-        assigned_to: {
-          has: userId
-        }
-      },
-    });
-
-    // 2. Update each chore by removing the userId from assigned_to
-    const updatePromises = chores.map((chore) => {
-      const newAssignedTo = chore.assigned_to.filter((id: string) => id !== userId);
-      return prisma.chore.update({
-        where: { id: chore.id },
-        data: { assigned_to: newAssignedTo },
-      });
-    });
-
-    await Promise.all(updatePromises);
-
-    // 3. Deletar atividades de chores do usuário nesta household
-    await prisma.choreActivity.deleteMany({
-      where: {
-        user_id: userId,
-        chore: {
-          household_id: householdId,
-        },
-      },
-    });
-
-    // 4. Deletar a associação do usuário com a household
-    await prisma.householdMember.delete({
-      where: {
-        user_id_household_id: {
-          user_id: userId,
-          household_id: householdId,
-        },
-      },
-    });
-  });
-
-  return membership.household;
-};
-
-export const isUserAdmin = async (householdId: string, userId: string): Promise<boolean> => {
-  const membership = await prisma.householdMember.findFirst({
+  await prisma.householdMember.delete({
     where: {
-      household_id: householdId,
-      user_id: userId,
-      role: 'ADMIN',
+      userId_householdId: {
+        householdId,
+        userId: memberId,
+      },
     },
   });
-
-  return !!membership;
-};
+}

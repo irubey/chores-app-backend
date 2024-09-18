@@ -1,80 +1,156 @@
-import { Response } from 'express';
-import { AuthenticatedRequest } from '../middlewares/authMiddleware';
+import { Response, NextFunction } from 'express';
 import * as userService from '../services/userService';
+import { NotFoundError, UnauthorizedError, BadRequestError } from '../middlewares/errorHandler';
+import { AuthenticatedRequest } from '../types';
 
-export const getUserProfile = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID not found in request' });
-    }
-    const user = await userService.getUserProfile(userId);
-    res.json(user);
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    if (error instanceof Error && error.message === 'User not found') {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-};
-
-export const updateUserProfile = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    const { name } = req.body;
-    const updatedUser = await userService.updateUserProfile(userId, name);
-    res.json(updatedUser);
-  } catch (error) {
-    console.error('Error updating user profile:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const getUserPreferences = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    console.log('Fetching user preferences for user:', req.user.id);
-    const userId = req.user.id;
-    const preferences = await userService.getUserPreferences(userId);
-    res.json(preferences);
-  } catch (error) {
-    console.error('Error fetching user preferences:', error);
-    if (error instanceof Error && error.message === 'User preferences not found') {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
+/**
+ * UserController handles all user-related operations such as registration, login, and household management.
+ */
+export class UserController {
+  /**
+   * Registers a new user.
+   * @param req Express Request object containing user registration data
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async register(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { email, password, name } = req.body;
+      const user = await userService.registerUser({ email, password, name });
+      res.status(201).json(user);
+    } catch (error) {
+      next(error);
     }
   }
-};
 
-export const updateUserPreferences = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    const { notification_preferences, chore_preferences, theme } = req.body;
-    const updatedPreferences = await userService.updateUserPreferences(userId, {
-      notification_preferences,
-      chore_preferences,
-      theme,
-    });
-    res.json(updatedPreferences);
-  } catch (error) {
-    console.error('Error updating user preferences:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const getUserBadges = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    const badges = await userService.getUserBadges(userId);
-    res.json(badges);
-  } catch (error) {
-    console.error('Error fetching user badges:', error);
-    if (error instanceof Error && error.message === 'User not found') {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
+  /**
+   * Logs in an existing user.
+   * @param req Express Request object containing login credentials
+   * @param res Express Response object with authentication tokens
+   * @param next Express NextFunction for error handling
+   */
+  static async login(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { email, password } = req.body;
+      const tokens = await userService.loginUser({ email, password });
+      res.status(200).json(tokens);
+    } catch (error) {
+      next(error);
     }
   }
-};
+
+  /**
+   * Retrieves the profile of the authenticated user.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object with user profile data
+   * @param next Express NextFunction for error handling
+   */
+  static async getProfile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const user = await userService.getUserProfile(req.user.id);
+      res.status(200).json(user);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Creates a new household.
+   * @param req Authenticated Express Request object containing household data
+   * @param res Express Response object with created household data
+   * @param next Express NextFunction for error handling
+   */
+  static async createHousehold(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const { name } = req.body;
+      const household = await userService.createHousehold({ name }, req.user.id);
+      res.status(201).json(household);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Adds a new member to a household.
+   * @param req Authenticated Express Request object containing member data
+   * @param res Express Response object with updated household data
+   * @param next Express NextFunction for error handling
+   */
+  static async addMember(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const { householdId } = req.params;
+      const { userId, role } = req.body;
+      const household = await userService.addMemberToHousehold(householdId, userId, role, req.user.id);
+      res.status(200).json(household);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Removes a member from a household.
+   * @param req Authenticated Express Request object containing member ID
+   * @param res Express Response object with updated household data
+   * @param next Express NextFunction for error handling
+   */
+  static async removeMember(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const { householdId, memberId } = req.params;
+      await userService.removeMemberFromHousehold(householdId, memberId, req.user.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Updates household details.
+   * @param req Authenticated Express Request object containing updated household data
+   * @param res Express Response object with updated household data
+   * @param next Express NextFunction for error handling
+   */
+  static async updateHousehold(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const { householdId } = req.params;
+      const updateData = req.body;
+      const updatedHousehold = await userService.updateHousehold(householdId, updateData, req.user.id);
+      res.status(200).json(updatedHousehold);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Deletes a household.
+   * @param req Authenticated Express Request object containing household ID
+   * @param res Express Response object with no content
+   * @param next Express NextFunction for error handling
+   */
+  static async deleteHousehold(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const { householdId } = req.params;
+      await userService.deleteHousehold(householdId, req.user.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+}

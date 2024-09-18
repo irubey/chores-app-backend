@@ -1,64 +1,80 @@
-import { Response } from 'express';
-import { AuthenticatedRequest } from '../middlewares/authMiddleware';
+import { Response, NextFunction } from 'express';
 import * as notificationService from '../services/notificationService';
+import { AuthenticatedRequest, CreateNotificationDTO, UpdateNotificationDTO } from '../types';
 
-export const getNotifications = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    const notifications = await notificationService.getNotifications(userId);
-    res.json(notifications);
-  } catch (error) {
-    console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const markNotificationAsRead = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { notification_id } = req.params;
-    const userId = req.user.id;
-
-    const result = await notificationService.markNotificationAsRead(notification_id, userId);
-
-    if (result.count === 0) {
-      return res.status(404).json({ error: 'Notification not found' });
+/**
+ * NotificationController handles all CRUD operations related to notifications.
+ */
+export class NotificationController {
+  /**
+   * Retrieves all notifications for the authenticated user.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new Error('User not authenticated');
+      }
+      const notifications = await notificationService.getNotifications(req.user.id);
+      res.status(200).json(notifications);
+    } catch (error) {
+      next(error);
     }
-
-    res.json({ message: 'Notification marked as read' });
-  } catch (error) {
-    console.error('Error marking notification as read:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
-};
 
-export const deleteNotification = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { notification_id } = req.params;
-    const userId = req.user.id;
-
-    const result = await notificationService.deleteNotification(notification_id, userId);
-
-    if (result.count === 0) {
-      return res.status(404).json({ error: 'Notification not found' });
+  /**
+   * Creates a new notification for a user.
+   * @param req Express Request object containing notification data
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async createNotification(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const notificationData: CreateNotificationDTO = req.body;
+      const notification = await notificationService.createNotification(notificationData);
+      res.status(201).json(notification);
+    } catch (error) {
+      next(error);
     }
-
-    res.json({ message: 'Notification deleted' });
-  } catch (error) {
-    console.error('Error deleting notification:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
-};
 
-export const updateNotificationPreferences = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user.id;
-    const { notification_preferences } = req.body;
-
-    const updatedPreferences = await notificationService.updateNotificationPreferences(userId, notification_preferences);
-
-    res.json(updatedPreferences);
-  } catch (error) {
-    console.error('Error updating notification preferences:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  /**
+   * Marks a specific notification as read.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async markAsRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new Error('User not authenticated');
+      }
+      const { notificationId } = req.params;
+      const updatedNotification = await notificationService.markAsRead(req.user.id, notificationId);
+      res.status(200).json(updatedNotification);
+    } catch (error) {
+      next(error);
+    }
   }
-};
+
+  /**
+   * Deletes a specific notification.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async deleteNotification(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new Error('User not authenticated');
+      }
+      const { notificationId } = req.params;
+      await notificationService.deleteNotification(req.user.id, notificationId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+}

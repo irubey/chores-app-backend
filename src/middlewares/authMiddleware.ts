@@ -1,52 +1,71 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { verifyToken, verifyRefreshToken, generateToken } from '../utils/tokenUtils';
+import { logError } from '../utils/logger';
+import { AppError } from './errorHandler';
+import prisma from '../config/database';
+import { AuthenticatedRequest } from '../types';
 
-
-export interface AuthenticatedRequest extends Request {
-  user: {
-    id: string;
-    email: string;
-    role: string;
-  };
-}
-
-export function isAuthenticatedRequest(req: Request): req is AuthenticatedRequest {
-  return (req as AuthenticatedRequest).user !== undefined;
-}
-
-export const authMiddleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  // Bypass auth checks in development mode
-  if (process.env.NODE_ENV === 'development') {
-    (req as AuthenticatedRequest).user = {
-      id: 'dev-user-id',
-      email: 'dev@example.com',
-      role: 'admin'
-    };
-    return next();
-  }
-
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-
-  if (!token) {
-    res.status(401).json({ error: 'No token provided' });
-    return;
-  }
-
+const authMiddleware: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { id: string; email: string; role: string };
-    (req as AuthenticatedRequest).user = { id: decoded.id, email: decoded.email, role: decoded.role };
+    const authHeader = req.headers['authorization'];
+    const accessToken = typeof authHeader === 'string' ? authHeader.split(' ')[1] : null;
+
+    if (!accessToken) {
+      throw new AppError('No token provided', 401);
+    }
+
+    const decoded = verifyToken(accessToken);
+
+    if (decoded) {
+      const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      if (!user) {
+        throw new AppError('User not found', 401);
+      }
+      // Cast req to AuthenticatedRequest to assign user
+      (req as AuthenticatedRequest).user = user;
+      return next();
+    }
+
+    // If access token is invalid or expired, attempt to refresh
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      throw new AppError('No refresh token provided', 401);
+    }
+
+    const refreshPayload = verifyRefreshToken(refreshToken);
+    if (!refreshPayload) {
+      throw new AppError('Invalid refresh token', 401);
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: refreshPayload.userId } });
+    if (!user) {
+      throw new AppError('User not found', 401);
+    }
+
+    // Generate new access token
+    const newAccessToken = generateToken(user);
+    res.setHeader('Authorization', `Bearer ${newAccessToken}`);
+
+    // Assign user to request
+    (req as AuthenticatedRequest).user = user;
+
+    // Implement token rotation
+    const newRefreshToken = generateToken(user, '7d');
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
     next();
   } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
-      res.status(401).json({ error: 'Token expired' });
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({ error: 'Invalid token' });
+    logError('Authentication failed', error as Error);
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ error: error.message });
     } else {
       res.status(500).json({ error: 'Internal server error' });
     }
   }
 };
+
+export default authMiddleware;
