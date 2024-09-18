@@ -1,6 +1,7 @@
 import prisma from '../config/database';
 import { sendEmail } from '../utils/emailUtils';
 import { sendPushNotification } from '../services/pushNotificationService';
+import { ExpenseWithSplits } from '../types';
 
 /**
  * Sends reminders for upcoming chores and expenses.
@@ -17,7 +18,6 @@ export async function sendReminders() {
           gte: now,
           lte: reminderTime,
         },
-        status: 'PENDING',
       },
       include: {
         assignedUsers: true,
@@ -26,7 +26,13 @@ export async function sendReminders() {
 
     for (const chore of chores) {
       for (const user of chore.assignedUsers) {
-        const message = `Reminder: Chore "${chore.title}" is due on ${chore.dueDate.toDateString()}.`;
+        if (!chore.dueDate) {
+          console.warn(`Chore "${chore.title}" has no due date.`);
+          continue; // Skip sending reminder if no due date is set
+        }
+
+        const dueDate = chore.dueDate ? chore.dueDate.toDateString() : 'No due date set';
+        const message = `Reminder: Chore "${chore.title}" is due on ${dueDate}.`;
 
         await sendEmail({
           to: user.email,
@@ -34,22 +40,17 @@ export async function sendReminders() {
           text: message,
         });
 
-        await sendPushNotification({
-          to: user.id,
-          title: 'Chore Reminder',
-          body: message,
-        });
+        await sendPushNotification(user.id, 'Chore Reminder', message);
       }
     }
 
     // Reminders for expenses
-    const expenses = await prisma.expense.findMany({
+    const expenses: ExpenseWithSplits[] = await prisma.expense.findMany({
       where: {
         dueDate: {
           gte: now,
           lte: reminderTime,
         },
-        status: 'PENDING',
       },
       include: {
         splits: {
@@ -62,7 +63,7 @@ export async function sendReminders() {
 
     for (const expense of expenses) {
       for (const split of expense.splits) {
-        const message = `Reminder: You owe $${split.amount} for expense "${expense.description}" due on ${expense.dueDate.toDateString()}.`;
+        const message = `Reminder: You owe $${split.amount} for expense "${expense.description}" due on ${expense.dueDate?.toDateString() || 'No due date'}.`;
 
         await sendEmail({
           to: split.user.email,
@@ -70,11 +71,7 @@ export async function sendReminders() {
           text: message,
         });
 
-        await sendPushNotification({
-          to: split.user.id,
-          title: 'Expense Reminder',
-          body: message,
-        });
+        await sendPushNotification(split.user.id, 'Expense Reminder', message);
       }
     }
 

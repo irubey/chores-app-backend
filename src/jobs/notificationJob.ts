@@ -26,11 +26,12 @@ export async function processNotifications() {
       });
 
       // Send push notification
-      await sendPushNotification({
-        to: notification.user.id,
-        title: `New ${notification.type} Notification`,
-        body: notification.message,
-      });
+      await sendPushNotification(
+        notification.user.id,
+        `New ${notification.type} Notification`, // Providing a title
+        notification.message,
+        { /* optional data */ }
+      );
 
       // Mark as read after sending
       await prisma.notification.update({

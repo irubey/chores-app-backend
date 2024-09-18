@@ -84,7 +84,9 @@ async function createChoreInstance(householdId: string, chore: any) {
       status: 'PENDING',
       recurrence: chore.recurrence,
       priority: chore.priority,
-      assignedUsers: [assignedUser],
+      assignedUsers: {
+        connect: [{ id: assignedUser }],
+      },
     },
   });
 
