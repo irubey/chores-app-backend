@@ -32,10 +32,8 @@ export class AuthController {
   static async login(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { email, password } = req.body;
-      const tokens = await AuthService.login(email, password);
+      const { user, accessToken, refreshToken } = await AuthService.login(email, password);
       
-      const { user, accessToken, refreshToken } = tokens; 
-
       res
         .cookie('refreshToken', refreshToken, {
           httpOnly: true,
@@ -103,6 +101,23 @@ export class AuthController {
         })
         .status(200)
         .json({ data: { accessToken: newAccessToken } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Gets the current user.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async getCurrentUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('User not authenticated');
+      }
+      res.status(200).json({ data: req.user });
     } catch (error) {
       next(error);
     }

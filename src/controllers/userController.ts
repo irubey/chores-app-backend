@@ -153,4 +153,22 @@ export class UserController {
       next(error);
     }
   }
+
+  /**
+   * Retrieves all households for the authenticated user.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object with user's households
+   * @param next Express NextFunction for error handling
+   */
+  static async getUserHouseholds(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const households = await userService.getUserHouseholds(req.user.id);
+      res.status(200).json(households);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

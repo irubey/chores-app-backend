@@ -91,4 +91,11 @@ router.delete(
   asyncHandler(UserController.deleteHousehold)
 );
 
+/**
+ * @route   GET /api/users/me/households
+ * @desc    Get all households for the authenticated user
+ * @access  Protected
+ */
+router.get('/me/households', authMiddleware, asyncHandler(UserController.getUserHouseholds));
+
 export default router;
