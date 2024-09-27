@@ -1,100 +1,150 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.messageController = exports.MessageController = void 0;
-const messageService_1 = require("../services/messageService");
-const attachmentService_1 = require("../services/attachmentService");
-const validationSchemas_1 = require("../utils/validationSchemas");
-class MessageController {
-    sendMessage(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { householdId } = req.params;
-                const { content, parentMessageId } = req.body;
-                const userId = req.user.id;
-                const validationError = (0, validationSchemas_1.validateMessage)(content, parentMessageId);
-                if (validationError) {
-                    return res.status(400).json({ error: validationError });
-                }
-                const message = yield messageService_1.messageService.createMessage(householdId, userId, content, parentMessageId);
-                res.status(201).json(message);
+import * as messageService from '../services/messageService';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+/**
+ * MessageController handles all CRUD operations related to messages.
+ */
+export class MessageController {
+    /**
+     * Retrieves all messages for a specific household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async getMessages(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                console.error('Error in sendMessage:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
+            const householdId = req.params.householdId;
+            const messages = await messageService.getMessages(householdId, req.user.id);
+            res.status(200).json(messages);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    getMessages(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { householdId } = req.params;
-                const { limit, offset } = req.query;
-                const messages = yield messageService_1.messageService.getMessagesByHousehold(householdId, Number(limit) || 20, Number(offset) || 0);
-                res.json(messages);
+    /**
+     * Creates a new message within a household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async createMessage(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                console.error('Error in getMessages:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
+            const householdId = req.params.householdId;
+            const messageData = req.body;
+            const message = await messageService.createMessage(householdId, messageData, req.user.id);
+            res.status(201).json(message);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    uploadAttachment(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { messageId } = req.params;
-                const userId = req.user.id;
-                const file = req.file;
-                if (!file) {
-                    return res.status(400).json({ error: 'No file uploaded' });
-                }
-                const validationError = (0, validationSchemas_1.validateAttachment)(file);
-                if (validationError) {
-                    return res.status(400).json({ error: validationError });
-                }
-                const attachment = yield attachmentService_1.attachmentService.uploadAttachment(messageId, userId, file);
-                res.status(201).json(attachment);
+    /**
+     * Retrieves details of a specific message.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async getMessageDetails(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                console.error('Error in uploadAttachment:', error);
-                res.status(500).json({ error: 'Internal server error' });
+            const { householdId, messageId } = req.params;
+            const message = await messageService.getMessageById(householdId, messageId, req.user.id);
+            if (!message) {
+                throw new NotFoundError('Message not found');
             }
-        });
+            res.status(200).json(message);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    addTag(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { messageId, tagId } = req.params;
-                const tag = yield messageService_1.messageService.addTagToMessage(messageId, tagId);
-                res.status(201).json(tag);
+    /**
+     * Updates an existing message.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async updateMessage(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                console.error('Error in addTag:', error);
-                res.status(500).json({ error: 'Internal server error' });
+            const { householdId, messageId } = req.params;
+            const updateData = req.body;
+            const updatedMessage = await messageService.updateMessage(householdId, messageId, updateData, req.user.id);
+            if (!updatedMessage) {
+                throw new NotFoundError('Message not found or you do not have permission to update it');
             }
-        });
+            res.status(200).json(updatedMessage);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    removeTag(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { messageId, tagId } = req.params;
-                yield messageService_1.messageService.removeTagFromMessage(messageId, tagId);
-                res.status(204).send();
+    /**
+     * Deletes a message from a household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async deleteMessage(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                console.error('Error in removeTag:', error);
-                res.status(500).json({ error: 'Internal server error' });
+            const { householdId, messageId } = req.params;
+            await messageService.deleteMessage(householdId, messageId, req.user.id);
+            res.status(204).send();
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Adds a thread to a specific message.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async addThread(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-        });
+            const { householdId, messageId } = req.params;
+            const threadData = req.body;
+            const thread = await messageService.addThread(householdId, messageId, threadData, req.user.id);
+            res.status(201).json(thread);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Adds an attachment to a specific message.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async addAttachment(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
+            }
+            const { householdId, messageId } = req.params;
+            const attachmentData = req.body;
+            const attachment = await messageService.addAttachment(householdId, messageId, attachmentData, req.user.id);
+            res.status(201).json(attachment);
+        }
+        catch (error) {
+            next(error);
+        }
     }
 }
-exports.MessageController = MessageController;
-exports.messageController = new MessageController();

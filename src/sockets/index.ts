@@ -11,7 +11,9 @@ let io: Server;
 export const initializeSocket = (server: http.Server) => {
   io = new Server(server, {
     cors: {
-      origin: '*', // Adjust as needed for security
+      origin: 'http://localhost:3000',
+      methods: ['GET', 'POST'],
+      credentials: true,
     },
   });
 

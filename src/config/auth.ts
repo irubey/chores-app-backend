@@ -4,7 +4,8 @@ dotenv.config();
 
 const authConfig = {
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-secret-key',
+    accessSecret: process.env.JWT_ACCESS_SECRET || 'your-access-secret-key',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
     accessTokenExpiration: '15m',
     refreshTokenExpiration: '7d',
   },
@@ -27,11 +28,6 @@ const authConfig = {
   },
   passwordReset: {
     tokenExpiration: '1h',
-  },
-  sessionCookie: {
-    name: 'choresapp.sid',
-    secret: process.env.SESSION_SECRET || 'your-session-secret',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
   },
 };
 

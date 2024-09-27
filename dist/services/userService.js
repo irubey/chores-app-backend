@@ -1,141 +1,354 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
+import prisma from '../config/database';
+import { hashPassword, comparePasswords } from '../utils/passwordUtils';
+import { generateToken, generateRefreshToken } from '../utils/tokenUtils';
+import { NotFoundError, UnauthorizedError, BadRequestError } from '../middlewares/errorHandler';
+import { HouseholdRole } from '@prisma/client';
+import logger from '../utils/logger';
+/**
+ * Registers a new user.
+ * @param data - User registration data
+ * @returns The created user without the password hash
+ * @throws BadRequestError if the email is already in use
+ */
+export async function registerUser(data) {
+    const existingUser = await prisma.user.findUnique({
+        where: { email: data.email },
     });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.userService = void 0;
-const client_1 = require("@prisma/client");
-const auth_1 = require("../utils/auth");
-const tokenUtils_1 = require("../utils/tokenUtils");
-const errors_1 = require("../utils/errors");
-const prisma = new client_1.PrismaClient();
-exports.userService = {
-    createUser(userData) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const existingUser = yield prisma.user.findUnique({ where: { email: userData.email } });
-            if (existingUser) {
-                throw new errors_1.BadRequestError('User with this email already exists');
-            }
-            const newUser = yield prisma.user.create({
-                data: Object.assign(Object.assign({}, userData), { password: userData.password ? yield (0, auth_1.hashPassword)(userData.password) : undefined }),
+    if (existingUser) {
+        throw new BadRequestError('Email is already in use.');
+    }
+    const hashedPassword = await hashPassword(data.password);
+    const user = await prisma.user.create({
+        data: {
+            email: data.email,
+            passwordHash: hashedPassword,
+            name: data.name,
+        },
+        select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImageURL: true,
+            createdAt: true,
+            updatedAt: true,
+        },
+    });
+    return user;
+}
+/**
+ * Logs in a user with email and password.
+ * @param credentials - User login credentials
+ * @returns Authentication tokens
+ * @throws UnauthorizedError if credentials are invalid
+ */
+export async function loginUser(credentials) {
+    const user = await prisma.user.findUnique({
+        where: { email: credentials.email },
+    });
+    if (!user || !(await comparePasswords(credentials.password, user.passwordHash || ''))) {
+        throw new UnauthorizedError('Invalid email or password.');
+    }
+    const accessToken = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+    // Optionally, you can store the refresh token in the database
+    return { accessToken, refreshToken };
+}
+/**
+ * Retrieves the profile of a user by ID.
+ * @param userId - The ID of the user
+ * @returns The user profile
+ * @throws NotFoundError if the user does not exist
+ */
+export async function getUserProfile(userId) {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImageURL: true,
+            createdAt: true,
+            updatedAt: true,
+        },
+    });
+    if (!user) {
+        throw new NotFoundError('User not found.');
+    }
+    return user;
+}
+/**
+ * Creates a new household and adds the creator as an admin member.
+ * @param data - Household creation data
+ * @param userId - The ID of the user creating the household
+ * @returns The created household
+ */
+export async function createHousehold(data, userId) {
+    const household = await prisma.household.create({
+        data: {
+            name: data.name,
+            members: {
+                create: {
+                    userId: userId,
+                    role: HouseholdRole.ADMIN,
+                },
+            },
+        },
+        include: {
+            members: {
+                include: {
+                    user: true,
+                },
+            },
+        },
+    });
+    return household;
+}
+/**
+ * Adds a new member to a household.
+ * @param householdId - The ID of the household
+ * @param memberId - The ID of the user to add
+ * @param role - The role of the new member
+ * @param requestingUserId - The ID of the user performing the action
+ * @returns The updated household
+ * @throws UnauthorizedError if the requesting user is not an admin
+ * @throws NotFoundError if the household or member does not exist
+ * @throws BadRequestError if the user is already a member
+ */
+export async function addMemberToHousehold(householdId, memberId, role = HouseholdRole.MEMBER, requestingUserId) {
+    // Verify requesting user is an admin of the household
+    const requesterMembership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId: requestingUserId,
+            },
+        },
+    });
+    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
+        throw new UnauthorizedError('You do not have permission to add members to this household.');
+    }
+    // Check if the user is already a member
+    const existingMembership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId: memberId,
+            },
+        },
+    });
+    if (existingMembership) {
+        throw new BadRequestError('User is already a member of the household.');
+    }
+    const updatedHousehold = await prisma.household.update({
+        where: { id: householdId },
+        data: {
+            members: {
+                create: {
+                    userId: memberId,
+                    role: role,
+                },
+            },
+        },
+        include: {
+            members: {
+                include: {
+                    user: true,
+                },
+            },
+        },
+    });
+    return updatedHousehold;
+}
+/**
+ * Removes a member from a household.
+ * @param householdId - The ID of the household
+ * @param memberId - The ID of the member to remove
+ * @param requestingUserId - The ID of the user performing the action
+ * @throws UnauthorizedError if the requesting user is not an admin
+ * @throws NotFoundError if the household or member does not exist
+ * @throws BadRequestError if attempting to remove the last admin
+ */
+export async function removeMemberFromHousehold(householdId, memberId, requestingUserId) {
+    // Verify requesting user is an admin of the household
+    const requesterMembership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId: requestingUserId,
+            },
+        },
+    });
+    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
+        throw new UnauthorizedError('You do not have permission to remove members from this household.');
+    }
+    // Verify the member exists in the household
+    const memberMembership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId: memberId,
+            },
+        },
+    });
+    if (!memberMembership) {
+        throw new NotFoundError('Member not found in the household.');
+    }
+    // Check if removing this member would leave the household without an admin
+    if (memberMembership.role === HouseholdRole.ADMIN) {
+        const adminCount = await prisma.householdMember.count({
+            where: {
+                householdId,
+                role: HouseholdRole.ADMIN,
+            },
+        });
+        if (adminCount <= 1) {
+            throw new BadRequestError('Cannot remove the last admin from the household.');
+        }
+    }
+    await prisma.householdMember.delete({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId: memberId,
+            },
+        },
+    });
+}
+/**
+ * Updates household details.
+ * @param householdId - The ID of the household
+ * @param data - The updated household data
+ * @param requestingUserId - The ID of the user performing the action
+ * @returns The updated household
+ * @throws UnauthorizedError if the requesting user is not an admin
+ * @throws NotFoundError if the household does not exist
+ */
+export async function updateHousehold(householdId, data, requestingUserId) {
+    // Verify requesting user is an admin of the household
+    const requesterMembership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId: requestingUserId,
+            },
+        },
+    });
+    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
+        throw new UnauthorizedError('You do not have permission to update this household.');
+    }
+    const updatedHousehold = await prisma.household.update({
+        where: { id: householdId },
+        data: {
+            name: data.name,
+        },
+        include: {
+            members: {
+                include: {
+                    user: true,
+                },
+            },
+        },
+    });
+    return updatedHousehold;
+}
+/**
+ * Deletes a household.
+ * @param householdId - The ID of the household
+ * @param requestingUserId - The ID of the user performing the action
+ * @throws UnauthorizedError if the requesting user is not an admin
+ * @throws NotFoundError if the household does not exist
+ */
+export async function deleteHousehold(householdId, requestingUserId) {
+    // Verify requesting user is an admin of the household
+    const requesterMembership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId: requestingUserId,
+            },
+        },
+    });
+    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
+        throw new UnauthorizedError('You do not have permission to delete this household.');
+    }
+    // Optionally, you can add logic to handle related data before deletion
+    await prisma.household.delete({
+        where: { id: householdId },
+    });
+}
+/**
+ * Handles finding or creating a user based on OAuth credentials.
+ */
+export const findOrCreateOAuthUser = {
+    /**
+     * Finds an existing user via OAuth or creates a new one.
+     * @param params - OAuth user parameters
+     * @returns The existing or newly created user
+     * @throws BadRequestError if unable to create user
+     */
+    findOrCreate: async (params) => {
+        const { oauthProvider, oauthId, name, email } = params;
+        // Check if an OAuthIntegration exists
+        let oauthIntegration = await prisma.oAuthIntegration.findUnique({
+            where: {
+                userId_provider: {
+                    userId: oauthId,
+                    provider: oauthProvider,
+                },
+            },
+        });
+        if (oauthIntegration) {
+            // Return the associated user
+            const user = await prisma.user.findUnique({
+                where: { id: oauthIntegration.userId },
             });
-            return newUser;
-        });
-    },
-    getUserById(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return prisma.user.findUnique({ where: { id: userId } });
-        });
-    },
-    getUserByEmail(email) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return prisma.user.findUnique({ where: { email } });
-        });
-    },
-    updateUser(userId, updateData) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const user = yield prisma.user.findUnique({ where: { id: userId } });
-            if (!user) {
-                throw new errors_1.NotFoundError('User not found');
-            }
-            const updatedUser = yield prisma.user.update({
-                where: { id: userId },
-                data: updateData,
-            });
-            return updatedUser;
-        });
-    },
-    deleteUser(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield prisma.user.delete({ where: { id: userId } });
-        });
-    },
-    getUserPreferences(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return prisma.userPreference.findUnique({ where: { userId } });
-        });
-    },
-    updateUserPreferences(userId, preferences) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const existingPreferences = yield prisma.userPreference.findUnique({ where: { userId } });
-            if (existingPreferences) {
-                return prisma.userPreference.update({
-                    where: { userId },
-                    data: preferences,
-                });
+            if (user) {
+                return user;
             }
             else {
-                return prisma.userPreference.create({
-                    data: Object.assign(Object.assign({}, preferences), { userId }),
+                // If OAuthIntegration exists but user does not, delete the OAuthIntegration
+                await prisma.oAuthIntegration.delete({
+                    where: { id: oauthIntegration.id },
                 });
             }
-        });
-    },
-    authenticateUser(email, password) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const user = yield prisma.user.findUnique({ where: { email } });
-            if (!user || !user.password) {
-                return null;
-            }
-            const isPasswordValid = yield (0, auth_1.comparePasswords)(password, user.password);
-            if (!isPasswordValid) {
-                return null;
-            }
-            const token = (0, tokenUtils_1.generateToken)(user);
-            return { user, token };
-        });
-    },
-    getUserHouseholds(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return prisma.householdMember.findMany({
-                where: { userId },
-                include: { household: true },
-            });
-        });
-    },
-    getUserBadges(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return prisma.userBadge.findMany({
-                where: { userId },
-                include: { badge: true },
-            });
-        });
-    },
-    addUserBadge(userId, badgeId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return prisma.userBadge.create({
+        }
+        // If no OAuthIntegration, create a new user and OAuthIntegration
+        return await prisma.$transaction(async (tx) => {
+            const newUser = await tx.user.create({
                 data: {
-                    userId,
-                    badgeId,
+                    email,
+                    name,
+                    profileImageURL: '', // Set default or pass as parameter if available
                 },
             });
+            await tx.oAuthIntegration.create({
+                data: {
+                    userId: newUser.id,
+                    provider: oauthProvider,
+                    accessToken: '', // Store accessToken if needed
+                    refreshToken: '', // Store refreshToken if needed
+                    expiresAt: null, // Set expiration if applicable
+                },
+            });
+            return newUser;
+        }).catch((error) => {
+            logger.error('Error in findOrCreateOAuthUser:', error);
+            throw new BadRequestError('Failed to create user via OAuth.');
         });
     },
-    findOrCreateOAuthUser(userData) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let user = yield prisma.user.findUnique({
-                where: { oauthId: userData.oauthId },
-            });
-            if (!user) {
-                user = yield prisma.user.create({
-                    data: Object.assign(Object.assign({}, userData), { role: 'MEMBER' }),
-                });
-            }
-            return user;
+    /**
+     * Retrieves a user by their ID.
+     * @param userId - The ID of the user
+     * @returns The user object
+     * @throws NotFoundError if the user does not exist
+     */
+    getUserById: async (userId) => {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
         });
-    },
-    findUserById(id) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return prisma.user.findUnique({
-                where: { id },
-            });
-        });
+        if (!user) {
+            throw new NotFoundError('User not found.');
+        }
+        return user;
     },
 };
-exports.default = exports.userService;

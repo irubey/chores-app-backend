@@ -2,11 +2,13 @@ import jwt from 'jsonwebtoken';
 import { User } from '@prisma/client';
 
 // Load environment variables
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '1d';
+const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION || '7d';
 
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined in the environment variables');
+if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
+  throw new Error('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be defined in environment variables');
 }
 
 interface TokenPayload {
@@ -15,29 +17,57 @@ interface TokenPayload {
 }
 
 /**
- * Generate a JWT token for a user
+ * Generate an access JWT token for a user
  * @param user The user object
- * @returns The generated JWT token
+ * @returns The generated JWT access token
  */
-export const generateToken = (user: User, expiresIn: string = JWT_EXPIRATION): string => {
+export const generateAccessToken = (user: User, expiresIn: string = JWT_EXPIRATION): string => {
   const payload: TokenPayload = {
     userId: user.id,
     email: user.email,
   };
 
-  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn });
 };
 
 /**
- * Verify and decode a JWT token
+ * Generate a refresh JWT token for a user
+ * @param user The user object
+ * @returns The generated JWT refresh token
+ */
+export const generateRefreshToken = (user: User, expiresIn: string = JWT_REFRESH_EXPIRATION): string => {
+  const payload: TokenPayload = {
+    userId: user.id,
+    email: user.email,
+  };
+
+  return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn });
+};
+
+/**
+ * Verify and decode an access JWT token
  * @param token The JWT token to verify
  * @returns The decoded token payload or null if invalid
  */
-export const verifyToken = (token: string): TokenPayload | null => {
+export const verifyAccessToken = (token: string): TokenPayload | null => {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, JWT_ACCESS_SECRET) as TokenPayload;
   } catch (error) {
-    console.error('Token verification failed:', error);
+    console.error('Access token verification failed:', error);
+    return null;
+  }
+};
+
+/**
+ * Verify and decode a refresh JWT token
+ * @param token The JWT refresh token to verify
+ * @returns The decoded token payload or null if invalid
+ */
+export const verifyRefreshToken = (token: string): TokenPayload | null => {
+  try {
+    return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+  } catch (error) {
+    console.error('Refresh token verification failed:', error);
     return null;
   }
 };
@@ -52,32 +82,4 @@ export const extractTokenFromHeader = (authHeader: string | undefined): string |
     return null;
   }
   return authHeader.split(' ')[1];
-};
-
-/**
- * Generate a refresh token for a user
- * @param user The user object
- * @returns The generated refresh token
- */
-export const generateRefreshToken = (user: User): string => {
-  const payload: TokenPayload = {
-    userId: user.id,
-    email: user.email,
-  };
-
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-};
-
-/**
- * Verify a refresh token
- * @param refreshToken The refresh token to verify
- * @returns The decoded token payload or null if invalid
- */
-export const verifyRefreshToken = (refreshToken: string): TokenPayload | null => {
-  try {
-    return jwt.verify(refreshToken, JWT_SECRET) as TokenPayload;
-  } catch (error) {
-    console.error('Refresh token verification failed:', error);
-    return null;
-  }
 };

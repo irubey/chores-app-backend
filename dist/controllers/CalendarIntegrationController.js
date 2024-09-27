@@ -1,89 +1,94 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CalendarIntegrationController = void 0;
-const logger_1 = require("../utils/logger");
-class CalendarIntegrationController {
-    constructor(calendarIntegrationService, userService) {
-        this.connectCalendar = (req, res) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { userId } = req.user;
-                const { provider, accessToken, refreshToken } = req.body;
-                const integration = yield this.calendarIntegrationService.connectCalendar(userId, provider, accessToken, refreshToken);
-                res.status(201).json(integration);
-            }
-            catch (error) {
-                logger_1.logger.error('Error connecting calendar:', error);
-                res.status(500).json({ error: 'Failed to connect calendar' });
-            }
-        });
-        this.disconnectCalendar = (req, res) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { userId } = req.user;
-                yield this.calendarIntegrationService.disconnectCalendar(userId);
-                res.status(200).json({ message: 'Calendar disconnected successfully' });
-            }
-            catch (error) {
-                logger_1.logger.error('Error disconnecting calendar:', error);
-                res.status(500).json({ error: 'Failed to disconnect calendar' });
-            }
-        });
-        this.getCalendarEvents = (req, res) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { userId } = req.user;
-                const { startDate, endDate } = req.query;
-                const events = yield this.calendarIntegrationService.getCalendarEvents(userId, startDate, endDate);
-                res.status(200).json(events);
-            }
-            catch (error) {
-                logger_1.logger.error('Error fetching calendar events:', error);
-                res.status(500).json({ error: 'Failed to fetch calendar events' });
-            }
-        });
-        this.syncCalendar = (req, res) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { userId } = req.user;
-                const syncResult = yield this.calendarIntegrationService.syncCalendar(userId);
-                res.status(200).json(syncResult);
-            }
-            catch (error) {
-                logger_1.logger.error('Error syncing calendar:', error);
-                res.status(500).json({ error: 'Failed to sync calendar' });
-            }
-        });
-        this.getCalendarSyncStatus = (req, res) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { userId } = req.user;
-                const syncStatus = yield this.calendarIntegrationService.getCalendarSyncStatus(userId);
-                res.status(200).json(syncStatus);
-            }
-            catch (error) {
-                logger_1.logger.error('Error fetching calendar sync status:', error);
-                res.status(500).json({ error: 'Failed to fetch calendar sync status' });
-            }
-        });
-        this.getExternalCalendarEvents = (req, res) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { userId } = req.user;
-                const { startDate, endDate } = req.query;
-                const externalEvents = yield this.calendarIntegrationService.getExternalCalendarEvents(userId, startDate, endDate);
-                res.status(200).json(externalEvents);
-            }
-            catch (error) {
-                logger_1.logger.error('Error fetching external calendar events:', error);
-                res.status(500).json({ error: 'Failed to fetch external calendar events' });
-            }
-        });
-        this.calendarIntegrationService = calendarIntegrationService;
-        this.userService = userService;
+import * as calendarService from '../services/calendarIntegrationService';
+/**
+ * CalendarIntegrationController handles all calendar-related operations.
+ */
+export class CalendarIntegrationController {
+    /**
+     * Retrieves all calendar events for a specific household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async getCalendarEvents(req, res, next) {
+        try {
+            const { householdId } = req.params;
+            const userId = req.user.id;
+            const events = await calendarService.getCalendarEvents(householdId, userId);
+            res.status(200).json(events);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Creates a new calendar event within a household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async createEvent(req, res, next) {
+        try {
+            const { householdId } = req.params;
+            const userId = req.user.id;
+            const eventData = req.body;
+            const event = await calendarService.createEvent(householdId, eventData, userId);
+            res.status(201).json(event);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Updates an existing calendar event.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async updateEvent(req, res, next) {
+        try {
+            const { householdId, eventId } = req.params;
+            const userId = req.user.id;
+            const updateData = req.body;
+            const updatedEvent = await calendarService.updateEvent(householdId, eventId, updateData, userId);
+            res.status(200).json(updatedEvent);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Deletes a calendar event from a household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async deleteEvent(req, res, next) {
+        try {
+            const { householdId, eventId } = req.params;
+            const userId = req.user.id;
+            await calendarService.deleteEvent(householdId, eventId, userId);
+            res.status(204).send();
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Syncs the household calendar with the user's personal calendar.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async syncWithPersonalCalendar(req, res, next) {
+        try {
+            const { householdId } = req.params;
+            const userId = req.user.id;
+            const { provider, accessToken } = req.body; // e.g., Google, Apple
+            const syncResult = await calendarService.syncWithPersonalCalendar(householdId, userId, provider, accessToken);
+            res.status(200).json(syncResult);
+        }
+        catch (error) {
+            next(error);
+        }
     }
 }
-exports.CalendarIntegrationController = CalendarIntegrationController;

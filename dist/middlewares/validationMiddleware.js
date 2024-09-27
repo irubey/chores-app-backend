@@ -1,8 +1,12 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.validate = void 0;
-const validate = (schema) => {
-    return (req, res, next) => {
+/**
+ * Validation Middleware
+ *
+ * @param schema - Joi validation schema
+ * @returns Middleware function
+ */
+export const validate = (schema) => {
+    return async (req, res, next) => {
+        const authReq = req;
         const { error } = schema.validate(req.body, { abortEarly: false });
         if (error) {
             const errorMessage = error.details.map((detail) => detail.message).join(', ');
@@ -11,4 +15,3 @@ const validate = (schema) => {
         next();
     };
 };
-exports.validate = validate;

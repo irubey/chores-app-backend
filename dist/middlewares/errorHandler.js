@@ -1,13 +1,6 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.UnauthorizedError = exports.NotFoundError = exports.BadRequestError = exports.errorHandler = exports.AppError = void 0;
-exports.createAuthError = createAuthError;
-const logger_1 = __importDefault(require("../utils/logger"));
+import logger from '../utils/logger';
 // Define the AppError class
-class AppError extends Error {
+export class AppError extends Error {
     constructor(message, statusCode) {
         super(message);
         this.statusCode = statusCode;
@@ -15,8 +8,7 @@ class AppError extends Error {
         Error.captureStackTrace(this, this.constructor);
     }
 }
-exports.AppError = AppError;
-const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, next) => {
     // Default values
     let statusCode = 500;
     let isOperational = false;
@@ -26,7 +18,7 @@ const errorHandler = (err, req, res, next) => {
         isOperational = err.isOperational;
     }
     // Log error
-    logger_1.default.error({
+    logger.error({
         message: err.message,
         stack: err.stack,
         statusCode,
@@ -54,31 +46,27 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 };
-exports.errorHandler = errorHandler;
 // Helper function to create an AuthError
-function createAuthError(message, statusCode = 401) {
+export function createAuthError(message, statusCode = 401) {
     const error = new AppError(message, statusCode);
     error.name = 'AuthError';
     return error;
 }
-class BadRequestError extends AppError {
+export class BadRequestError extends AppError {
     constructor(message) {
         super(message, 400);
         this.name = 'BadRequestError';
     }
 }
-exports.BadRequestError = BadRequestError;
-class NotFoundError extends AppError {
+export class NotFoundError extends AppError {
     constructor(message) {
         super(message, 404);
         this.name = 'NotFoundError';
     }
 }
-exports.NotFoundError = NotFoundError;
-class UnauthorizedError extends AppError {
+export class UnauthorizedError extends AppError {
     constructor(message) {
         super(message, 401);
         this.name = 'UnauthorizedError';
     }
 }
-exports.UnauthorizedError = UnauthorizedError;

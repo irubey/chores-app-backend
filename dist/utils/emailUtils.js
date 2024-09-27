@@ -1,21 +1,6 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.isValidEmail = exports.generateChoreReminderEmailTemplate = exports.generateInvitationEmailTemplate = exports.sendEmail = void 0;
-const nodemailer_1 = __importDefault(require("nodemailer"));
+import nodemailer from 'nodemailer';
 // Configure the email transporter
-const transporter = nodemailer_1.default.createTransport({
+const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: process.env.SMTP_SECURE === 'true',
@@ -29,9 +14,9 @@ const transporter = nodemailer_1.default.createTransport({
  * @param options EmailOptions object containing to, subject, and text/html
  * @returns Promise<boolean> indicating whether the email was sent successfully
  */
-const sendEmail = (options) => __awaiter(void 0, void 0, void 0, function* () {
+export const sendEmail = async (options) => {
     try {
-        yield transporter.sendMail({
+        await transporter.sendMail({
             from: process.env.EMAIL_FROM,
             to: options.to,
             subject: options.subject,
@@ -44,8 +29,7 @@ const sendEmail = (options) => __awaiter(void 0, void 0, void 0, function* () {
         console.error('Error sending email:', error);
         return false;
     }
-});
-exports.sendEmail = sendEmail;
+};
 /**
  * Generates an HTML email template for household invitations
  * @param inviterName Name of the user sending the invitation
@@ -53,7 +37,7 @@ exports.sendEmail = sendEmail;
  * @param invitationLink URL for accepting the invitation
  * @returns HTML string for the email body
  */
-const generateInvitationEmailTemplate = (inviterName, householdName, invitationLink) => {
+export const generateInvitationEmailTemplate = (inviterName, householdName, invitationLink) => {
     return `
     <html>
       <body>
@@ -66,7 +50,6 @@ const generateInvitationEmailTemplate = (inviterName, householdName, invitationL
     </html>
   `;
 };
-exports.generateInvitationEmailTemplate = generateInvitationEmailTemplate;
 /**
  * Generates an HTML email template for chore reminders
  * @param userName Name of the user receiving the reminder
@@ -75,7 +58,7 @@ exports.generateInvitationEmailTemplate = generateInvitationEmailTemplate;
  * @param choreLink URL to view the chore details
  * @returns HTML string for the email body
  */
-const generateChoreReminderEmailTemplate = (userName, choreName, dueDate, choreLink) => {
+export const generateChoreReminderEmailTemplate = (userName, choreName, dueDate, choreLink) => {
     return `
     <html>
       <body>
@@ -89,14 +72,12 @@ const generateChoreReminderEmailTemplate = (userName, choreName, dueDate, choreL
     </html>
   `;
 };
-exports.generateChoreReminderEmailTemplate = generateChoreReminderEmailTemplate;
 /**
  * Validates an email address format
  * @param email Email address to validate
  * @returns boolean indicating whether the email format is valid
  */
-const isValidEmail = (email) => {
+export const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 };
-exports.isValidEmail = isValidEmail;

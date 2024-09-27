@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import { verifyToken } from '../utils/tokenUtils';
+import { verifyAccessToken } from '../utils/tokenUtils';
 import { User } from '@prisma/client';
 import logger from '../utils/logger';
 import { DefaultEventsMap } from 'socket.io/dist/typed-events';
@@ -29,7 +29,7 @@ export const initializeSocket = (server: HttpServer): Server => {
     }
 
     try {
-      const user = await verifyToken(token);
+      const user = await verifyAccessToken(token);
       if (!user) {
         throw new Error('Invalid token');
       }

@@ -1,155 +1,220 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
+import prisma from '../config/database';
+import { OAuthProvider } from '../types';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { HouseholdRole } from '@prisma/client';
+import { getIO } from '../sockets';
+/**
+ * Retrieves all calendar events for a specific household.
+ * @param householdId - The ID of the household.
+ * @param userId - The ID of the requesting user.
+ * @returns A list of calendar events.
+ * @throws UnauthorizedError if the user is not a household member.
+ */
+export async function getCalendarEvents(householdId, userId) {
+    // Verify user is a member of the household
+    const membership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId,
+            },
+        },
     });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.calendarIntegrationService = void 0;
-const client_1 = require("@prisma/client");
-const googleapis_1 = require("googleapis");
-const appleCalendarAPI_1 = require("../utils/appleCalendarAPI"); // You'll need to implement this
-const logger_1 = require("../utils/logger");
-const prisma = new client_1.PrismaClient();
-class CalendarIntegrationService {
-    constructor() {
-        this.googleOAuth2Client = new googleapis_1.google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI);
-        this.appleCalendarAPI = new appleCalendarAPI_1.AppleCalendarAPI(); // Initialize with necessary config
+    if (!membership) {
+        throw new UnauthorizedError('You do not have access to this household.');
     }
-    connectCalendar(userId, provider, authCode) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                let accessToken, refreshToken, expiresAt;
-                if (provider === 'google') {
-                    const { tokens } = yield this.googleOAuth2Client.getToken(authCode);
-                    accessToken = tokens.access_token;
-                    refreshToken = tokens.refresh_token;
-                    expiresAt = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
-                }
-                else if (provider === 'apple') {
-                    // Implement Apple Calendar authentication
-                    ({ accessToken, refreshToken, expiresAt } = yield this.appleCalendarAPI.authenticate(authCode));
-                }
-                else {
-                    throw new Error('Unsupported calendar provider');
-                }
-                const calendarIntegration = yield prisma.calendarIntegration.upsert({
-                    where: { userId },
-                    update: { provider, accessToken, refreshToken, expiresAt },
-                    create: { userId, provider, accessToken, refreshToken, expiresAt },
-                });
-                return calendarIntegration;
-            }
-            catch (error) {
-                logger_1.logger.error('Error connecting calendar:', error);
-                throw error;
-            }
-        });
-    }
-    disconnectCalendar(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield prisma.calendarIntegration.delete({ where: { userId } });
-            }
-            catch (error) {
-                logger_1.logger.error('Error disconnecting calendar:', error);
-                throw error;
-            }
-        });
-    }
-    syncEvents(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const integration = yield prisma.calendarIntegration.findUnique({ where: { userId } });
-                if (!integration)
-                    throw new Error('No calendar integration found for user');
-                if (integration.provider === 'google') {
-                    yield this.syncGoogleEvents(integration);
-                }
-                else if (integration.provider === 'apple') {
-                    yield this.syncAppleEvents(integration);
-                }
-            }
-            catch (error) {
-                logger_1.logger.error('Error syncing events:', error);
-                throw error;
-            }
-        });
-    }
-    syncGoogleEvents(integration) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // Implement Google Calendar sync logic
-            this.googleOAuth2Client.setCredentials({
-                access_token: integration.accessToken,
-                refresh_token: integration.refreshToken,
-            });
-            const calendar = googleapis_1.google.calendar({ version: 'v3', auth: this.googleOAuth2Client });
-            // Fetch events and sync with your database
-            // ...
-        });
-    }
-    syncAppleEvents(integration) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // Implement Apple Calendar sync logic
-            yield this.appleCalendarAPI.setCredentials(integration.accessToken, integration.refreshToken);
-            // Fetch events and sync with your database
-            // ...
-        });
-    }
-    getCalendarSyncStatus(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const integration = yield prisma.calendarIntegration.findUnique({ where: { userId } });
-                return {
-                    lastSynced: (integration === null || integration === void 0 ? void 0 : integration.updatedAt) || null,
-                    provider: (integration === null || integration === void 0 ? void 0 : integration.provider) || null,
-                };
-            }
-            catch (error) {
-                logger_1.logger.error('Error getting calendar sync status:', error);
-                throw error;
-            }
-        });
-    }
-    refreshTokenIfNeeded(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const integration = yield prisma.calendarIntegration.findUnique({ where: { userId } });
-                if (!integration || !integration.expiresAt)
-                    return;
-                const now = new Date();
-                if (integration.expiresAt > now)
-                    return;
-                if (integration.provider === 'google') {
-                    const { tokens } = yield this.googleOAuth2Client.refreshToken(integration.refreshToken);
-                    yield this.updateIntegration(userId, tokens.access_token, tokens.refresh_token, tokens.expiry_date);
-                }
-                else if (integration.provider === 'apple') {
-                    const { accessToken, refreshToken, expiresAt } = yield this.appleCalendarAPI.refreshToken(integration.refreshToken);
-                    yield this.updateIntegration(userId, accessToken, refreshToken, expiresAt);
-                }
-            }
-            catch (error) {
-                logger_1.logger.error('Error refreshing token:', error);
-                throw error;
-            }
-        });
-    }
-    updateIntegration(userId, accessToken, refreshToken, expiryDate) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield prisma.calendarIntegration.update({
-                where: { userId },
-                data: {
-                    accessToken,
-                    refreshToken,
-                    expiresAt: expiryDate ? new Date(expiryDate) : null,
+    const events = await prisma.event.findMany({
+        where: { householdId },
+        include: {
+            chore: true,
+            createdBy: {
+                select: {
+                    id: true,
+                    name: true,
                 },
-            });
-        });
+            },
+        },
+    });
+    return events;
+}
+/**
+ * Creates a new calendar event within a household.
+ * @param householdId - The ID of the household.
+ * @param data - The event data.
+ * @param userId - The ID of the user creating the event.
+ * @returns The created event.
+ * @throws UnauthorizedError if the user does not have ADMIN role.
+ */
+export async function createEvent(householdId, data, userId) {
+    // Verify user has ADMIN role
+    const membership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId,
+            },
+        },
+    });
+    if (!membership || membership.role !== HouseholdRole.ADMIN) {
+        throw new UnauthorizedError('You do not have permission to create events.');
+    }
+    const event = await prisma.event.create({
+        data: {
+            householdId,
+            title: data.title,
+            description: data.description,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            createdById: userId,
+            choreId: data.choreId, // Optional association with a chore
+        },
+        include: {
+            chore: true,
+            createdBy: {
+                select: {
+                    id: true,
+                    name: true,
+                },
+            },
+        },
+    });
+    // Emit real-time event for new calendar event
+    getIO().to(`household_${householdId}`).emit('calendar_update', { event });
+    return event;
+}
+/**
+ * Updates an existing calendar event.
+ * @param householdId - The ID of the household.
+ * @param eventId - The ID of the event to update.
+ * @param data - The updated event data.
+ * @param userId - The ID of the user performing the update.
+ * @returns The updated event.
+ * @throws UnauthorizedError if the user does not have ADMIN role.
+ * @throws NotFoundError if the event does not exist.
+ */
+export async function updateEvent(householdId, eventId, data, userId) {
+    // Verify user has ADMIN role
+    const membership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId,
+            },
+        },
+    });
+    if (!membership || membership.role !== HouseholdRole.ADMIN) {
+        throw new UnauthorizedError('You do not have permission to update events.');
+    }
+    // Check if event exists
+    const existingEvent = await prisma.event.findUnique({
+        where: { id: eventId },
+    });
+    if (!existingEvent) {
+        throw new NotFoundError('Event not found.');
+    }
+    // Update event
+    const updatedEvent = await prisma.event.update({
+        where: { id: eventId },
+        data: {
+            title: data.title,
+            description: data.description,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            choreId: data.choreId,
+        },
+        include: {
+            chore: true,
+            createdBy: {
+                select: {
+                    id: true,
+                    name: true,
+                },
+            },
+        },
+    });
+    // Emit real-time event for updated calendar event
+    getIO().to(`household_${householdId}`).emit('calendar_update', { event: updatedEvent });
+    return updatedEvent;
+}
+/**
+ * Deletes a calendar event from a household.
+ * @param householdId - The ID of the household.
+ * @param eventId - The ID of the event to delete.
+ * @param userId - The ID of the user performing the deletion.
+ * @throws UnauthorizedError if the user does not have ADMIN role.
+ * @throws NotFoundError if the event does not exist.
+ */
+export async function deleteEvent(householdId, eventId, userId) {
+    // Verify user has ADMIN role
+    const membership = await prisma.householdMember.findUnique({
+        where: {
+            userId_householdId: {
+                householdId,
+                userId,
+            },
+        },
+    });
+    if (!membership || membership.role !== HouseholdRole.ADMIN) {
+        throw new UnauthorizedError('You do not have permission to delete events.');
+    }
+    // Check if event exists
+    const event = await prisma.event.findUnique({
+        where: { id: eventId },
+    });
+    if (!event) {
+        throw new NotFoundError('Event not found.');
+    }
+    // Delete event
+    await prisma.event.delete({
+        where: { id: eventId },
+    });
+    // Emit real-time event for deleted calendar event
+    getIO().to(`household_${householdId}`).emit('calendar_update', { eventId });
+}
+/**
+ * Syncs the household calendar with the user's personal calendar.
+ * @param householdId - The ID of the household.
+ * @param userId - The ID of the user syncing their calendar.
+ * @param provider - The OAuth provider (e.g., GOOGLE).
+ * @param accessToken - The access token for the OAuth provider.
+ * @returns The result of the sync operation.
+ * @throws UnauthorizedError if synchronization fails.
+ */
+export async function syncWithPersonalCalendar(householdId, userId, provider, accessToken) {
+    // Fetch user's OAuth integration
+    const oauthIntegration = await prisma.oAuthIntegration.findUnique({
+        where: {
+            userId_provider: {
+                userId,
+                provider,
+            },
+        },
+    });
+    if (!oauthIntegration) {
+        throw new UnauthorizedError('OAuth integration not found for the user.');
+    }
+    // Depending on the provider, interact with their API
+    switch (provider) {
+        case OAuthProvider.GOOGLE:
+            // Example: Sync with Google Calendar using Google APIs
+            // You would need to implement actual API calls here
+            // This is a placeholder
+            const googleSyncResult = await syncWithGoogleCalendar(householdId, accessToken);
+            return googleSyncResult;
+        // Add cases for other providers like APPLE if needed
+        default:
+            throw new UnauthorizedError('Unsupported OAuth provider.');
     }
 }
-exports.calendarIntegrationService = new CalendarIntegrationService();
+/**
+ * Placeholder function to sync with Google Calendar.
+ * Implement actual Google Calendar API interaction here.
+ * @param householdId - The ID of the household.
+ * @param accessToken - The access token for Google APIs.
+ * @returns The result of the sync operation.
+ */
+async function syncWithGoogleCalendar(householdId, accessToken) {
+    // TODO: Implement Google Calendar API integration
+    // Example: Fetch events from Google Calendar and merge with household calendar
+    return { message: 'Google Calendar sync not yet implemented.' };
+}

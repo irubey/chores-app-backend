@@ -17,7 +17,7 @@ export class AuthController {
     try {
       const userData = req.body;
       const user = await AuthService.register(userData);
-      res.status(201).json(user);
+      res.status(201).json({ data: user });
     } catch (error) {
       next(error);
     }
@@ -33,15 +33,18 @@ export class AuthController {
     try {
       const { email, password } = req.body;
       const tokens = await AuthService.login(email, password);
+      
+      const { user, accessToken, refreshToken } = tokens; 
+
       res
-        .cookie('refreshToken', tokens.refreshToken, {
+        .cookie('refreshToken', refreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
           path: '/api/auth/refresh-token',
         })
         .status(200)
-        .json({ accessToken: tokens.accessToken });
+        .json({ data: { user, accessToken } });
     } catch (error) {
       next(error);
     }
@@ -67,7 +70,7 @@ export class AuthController {
           path: '/api/auth/refresh-token',
         })
         .status(200)
-        .json({ message: 'Logged out successfully.' });
+        .json({ data: { message: 'Logged out successfully.' } });
     } catch (error) {
       next(error);
     }
@@ -86,15 +89,20 @@ export class AuthController {
         throw new UnauthorizedError('No refresh token provided.');
       }
       const tokens = await AuthService.refreshToken(refreshToken);
+      
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = tokens; 
+
+
+
       res
-        .cookie('refreshToken', tokens.refreshToken, {
+        .cookie('refreshToken', newRefreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
           path: '/api/auth/refresh-token',
         })
         .status(200)
-        .json({ accessToken: tokens.accessToken });
+        .json({ data: { accessToken: newAccessToken } });
     } catch (error) {
       next(error);
     }

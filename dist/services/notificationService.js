@@ -1,156 +1,85 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
+import prisma from '../config/database';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { getIO } from '../sockets';
+/**
+ * Retrieves all notifications for a specific user.
+ * @param userId - The ID of the user.
+ * @returns A list of notifications.
+ * @throws UnauthorizedError if the user is not authenticated.
+ */
+export async function getNotifications(userId) {
+    if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+    }
+    const notifications = await prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
     });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.notificationService = exports.NotificationService = void 0;
-const client_1 = require("@prisma/client");
-const logger_1 = require("../utils/logger");
-const index_1 = require("../sockets/index");
-const prisma = new client_1.PrismaClient();
-class NotificationService {
-    createNotification(userId, type, message, choreId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const notification = yield prisma.notification.create({
-                    data: {
-                        userId,
-                        type,
-                        message,
-                        choreId,
-                    },
-                });
-                // Emit real-time notification
-                this.emitNotification(userId, notification);
-                return notification;
-            }
-            catch (error) {
-                logger_1.logger.error('Error creating notification:', error);
-                throw new Error('Failed to create notification');
-            }
-        });
-    }
-    getNotificationsForUser(userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                return yield prisma.notification.findMany({
-                    where: { userId },
-                    orderBy: { sentAt: 'desc' },
-                });
-            }
-            catch (error) {
-                logger_1.logger.error('Error fetching notifications for user:', error);
-                throw new Error('Failed to fetch notifications');
-            }
-        });
-    }
-    markNotificationAsRead(notificationId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                return yield prisma.notification.update({
-                    where: { id: notificationId },
-                    data: { read: true },
-                });
-            }
-            catch (error) {
-                logger_1.logger.error('Error marking notification as read:', error);
-                throw new Error('Failed to mark notification as read');
-            }
-        });
-    }
-    deleteNotification(notificationId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield prisma.notification.delete({
-                    where: { id: notificationId },
-                });
-            }
-            catch (error) {
-                logger_1.logger.error('Error deleting notification:', error);
-                throw new Error('Failed to delete notification');
-            }
-        });
-    }
-    createChoreAssignedNotification(choreId, assignedUserIds) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const chore = yield prisma.chore.findUnique({
-                    where: { id: choreId },
-                    include: { household: true },
-                });
-                if (!chore) {
-                    throw new Error('Chore not found');
-                }
-                for (const userId of assignedUserIds) {
-                    yield this.createNotification(userId, client_1.NotificationType.CHORE_ASSIGNED, `You've been assigned to "${chore.title}" in ${chore.household.name}`, choreId);
-                }
-            }
-            catch (error) {
-                logger_1.logger.error('Error creating chore assigned notification:', error);
-                throw new Error('Failed to create chore assigned notification');
-            }
-        });
-    }
-    createChoreDueSoonNotification(choreId, assignedUserIds) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const chore = yield prisma.chore.findUnique({
-                    where: { id: choreId },
-                    include: { household: true },
-                });
-                if (!chore) {
-                    throw new Error('Chore not found');
-                }
-                for (const userId of assignedUserIds) {
-                    yield this.createNotification(userId, client_1.NotificationType.CHORE_DUE_SOON, `"${chore.title}" in ${chore.household.name} is due soon`, choreId);
-                }
-            }
-            catch (error) {
-                logger_1.logger.error('Error creating chore due soon notification:', error);
-                throw new Error('Failed to create chore due soon notification');
-            }
-        });
-    }
-    createChoreCompletedNotification(choreId, completedByUserId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            try {
-                const chore = yield prisma.chore.findUnique({
-                    where: { id: choreId },
-                    include: { household: { include: { members: { include: { user: true } } } } },
-                });
-                if (!chore) {
-                    throw new Error('Chore not found');
-                }
-                const completedByUser = (_a = chore.household.members.find(member => member.userId === completedByUserId)) === null || _a === void 0 ? void 0 : _a.user;
-                if (!completedByUser) {
-                    throw new Error('User not found in household');
-                }
-                for (const member of chore.household.members) {
-                    if (member.userId !== completedByUserId) {
-                        yield this.createNotification(member.userId, client_1.NotificationType.CHORE_COMPLETED, `${completedByUser.name} completed "${chore.title}" in ${chore.household.name}`, choreId);
-                    }
-                }
-            }
-            catch (error) {
-                logger_1.logger.error('Error creating chore completed notification:', error);
-                throw new Error('Failed to create chore completed notification');
-            }
-        });
-    }
-    emitNotification(userId, notification) {
-        index_1.socketIo.to(userId).emit('notification', {
-            type: notification.type,
-            message: notification.message,
-            data: notification,
-        });
-    }
+    return notifications;
 }
-exports.NotificationService = NotificationService;
-exports.notificationService = new NotificationService();
+/**
+ * Creates a new notification for a user.
+ * @param data - The notification data.
+ * @returns The created notification.
+ * @throws NotFoundError if the user does not exist.
+ */
+export async function createNotification(data) {
+    const user = await prisma.user.findUnique({
+        where: { id: data.userId },
+    });
+    if (!user) {
+        throw new NotFoundError('User not found.');
+    }
+    const notification = await prisma.notification.create({
+        data: {
+            userId: data.userId,
+            type: data.type,
+            message: data.message,
+            isRead: data.isRead ?? false,
+        },
+    });
+    // Emit real-time event for new notification
+    getIO().to(`user_${data.userId}`).emit('notification_update', { notification });
+    return notification;
+}
+/**
+ * Marks a notification as read.
+ * @param userId - The ID of the user.
+ * @param notificationId - The ID of the notification.
+ * @returns The updated notification.
+ * @throws NotFoundError if the notification does not exist or does not belong to the user.
+ */
+export async function markAsRead(userId, notificationId) {
+    const notification = await prisma.notification.findUnique({
+        where: { id: notificationId },
+    });
+    if (!notification || notification.userId !== userId) {
+        throw new NotFoundError('Notification not found.');
+    }
+    const updatedNotification = await prisma.notification.update({
+        where: { id: notificationId },
+        data: { isRead: true },
+    });
+    // Emit real-time event for updated notification
+    getIO().to(`user_${userId}`).emit('notification_update', { notification: updatedNotification });
+    return updatedNotification;
+}
+/**
+ * Deletes a notification.
+ * @param userId - The ID of the user.
+ * @param notificationId - The ID of the notification.
+ * @throws NotFoundError if the notification does not exist or does not belong to the user.
+ */
+export async function deleteNotification(userId, notificationId) {
+    const notification = await prisma.notification.findUnique({
+        where: { id: notificationId },
+    });
+    if (!notification || notification.userId !== userId) {
+        throw new NotFoundError('Notification not found.');
+    }
+    await prisma.notification.delete({
+        where: { id: notificationId },
+    });
+    // Emit real-time event for deleted notification
+    getIO().to(`user_${userId}`).emit('notification_update', { notificationId });
+}

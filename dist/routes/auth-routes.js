@@ -1,12 +1,31 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const AuthController_1 = require("../controllers/AuthController");
-const validation_middleware_1 = require("../middlewares/validation-middleware");
-const validation_schemas_1 = require("../utils/validation-schemas");
-const router = (0, express_1.Router)();
-router.post('/register', (0, validation_middleware_1.validationMiddleware)(validation_schemas_1.registerSchema), AuthController_1.AuthController.register);
-router.post('/login', (0, validation_middleware_1.validationMiddleware)(validation_schemas_1.loginSchema), AuthController_1.AuthController.login);
-router.post('/refresh', AuthController_1.AuthController.refreshToken);
-router.post('/logout', AuthController_1.AuthController.logout);
-exports.default = router;
+import { Router } from 'express';
+import { AuthController } from '../controllers/AuthController';
+import { validate } from '../middlewares/validationMiddleware';
+import { registerUserSchema, loginUserSchema } from '../utils/validationSchemas';
+import { asyncHandler } from '../utils/asyncHandler';
+const router = Router();
+/**
+ * @route   POST /api/auth/register
+ * @desc    Register a new user
+ * @access  Public
+ */
+router.post('/register', validate(registerUserSchema), asyncHandler(AuthController.register));
+/**
+ * @route   POST /api/auth/login
+ * @desc    Authenticate user and get tokens
+ * @access  Public
+ */
+router.post('/login', validate(loginUserSchema), asyncHandler(AuthController.login));
+/**
+ * @route   POST /api/auth/logout
+ * @desc    Logout user and invalidate refresh token
+ * @access  Protected
+ */
+router.post('/logout', asyncHandler(AuthController.logout));
+/**
+ * @route   POST /api/auth/refresh-token
+ * @desc    Refresh access token using refresh token
+ * @access  Public
+ */
+router.post('/refresh-token', asyncHandler(AuthController.refreshToken));
+export default router;

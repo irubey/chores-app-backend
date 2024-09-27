@@ -3,7 +3,8 @@ import { RegisterUserDTO, LoginCredentials, CreateHouseholdDTO, AddMemberDTO, Up
 import { hashPassword, comparePasswords } from '../utils/passwordUtils';
 import { generateToken, generateRefreshToken } from '../utils/tokenUtils';
 import { NotFoundError, UnauthorizedError, BadRequestError } from '../middlewares/errorHandler';
-import { HouseholdRole } from '@prisma/client';
+import { HouseholdRole, Provider, User } from '@prisma/client';
+import logger from '../utils/logger';
 
 /**
  * Registers a new user.
@@ -122,7 +123,7 @@ export async function createHousehold(data: CreateHouseholdDTO, userId: string) 
 /**
  * Adds a new member to a household.
  * @param householdId - The ID of the household
- * @param userId - The ID of the user to add
+ * @param memberId - The ID of the user to add
  * @param role - The role of the new member
  * @param requestingUserId - The ID of the user performing the action
  * @returns The updated household
@@ -312,3 +313,93 @@ export async function deleteHousehold(householdId: string, requestingUserId: str
     where: { id: householdId },
   });
 }
+
+/**
+ * Handles finding or creating a user based on OAuth credentials.
+ */
+export const findOrCreateOAuthUser = {
+  /**
+   * Finds an existing user via OAuth or creates a new one.
+   * @param params - OAuth user parameters
+   * @returns The existing or newly created user
+   * @throws BadRequestError if unable to create user
+   */
+  findOrCreate: async (params: {
+    oauthProvider: Provider;
+    oauthId: string;
+    name: string;
+    email: string;
+  }): Promise<User> => {
+    const { oauthProvider, oauthId, name, email } = params;
+
+    // Check if an OAuthIntegration exists
+    let oauthIntegration = await prisma.oAuthIntegration.findUnique({
+      where: {
+        userId_provider: {
+          userId: oauthId,
+          provider: oauthProvider,
+        },
+      },
+    });
+
+    if (oauthIntegration) {
+      // Return the associated user
+      const user = await prisma.user.findUnique({
+        where: { id: oauthIntegration.userId },
+      });
+
+      if (user) {
+        return user;
+      } else {
+        // If OAuthIntegration exists but user does not, delete the OAuthIntegration
+        await prisma.oAuthIntegration.delete({
+          where: { id: oauthIntegration.id },
+        });
+      }
+    }
+
+    // If no OAuthIntegration, create a new user and OAuthIntegration
+    return await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email,
+          name,
+          profileImageURL: '', // Set default or pass as parameter if available
+        },
+      });
+
+      await tx.oAuthIntegration.create({
+        data: {
+          userId: newUser.id,
+          provider: oauthProvider,
+          accessToken: '', // Store accessToken if needed
+          refreshToken: '', // Store refreshToken if needed
+          expiresAt: null, // Set expiration if applicable
+        },
+      });
+
+      return newUser;
+    }).catch((error) => {
+      logger.error('Error in findOrCreateOAuthUser:', error);
+      throw new BadRequestError('Failed to create user via OAuth.');
+    });
+  },
+
+  /**
+   * Retrieves a user by their ID.
+   * @param userId - The ID of the user
+   * @returns The user object
+   * @throws NotFoundError if the user does not exist
+   */
+  getUserById: async (userId: string): Promise<User> => {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found.');
+    }
+
+    return user;
+  },
+};
