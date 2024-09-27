@@ -1,122 +1,136 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.householdController = exports.HouseholdController = void 0;
-const householdService_1 = require("../services/householdService");
-const validationSchemas_1 = require("../utils/validationSchemas");
-class HouseholdController {
-    // Get all households for the authenticated user
-    getHouseholds(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const userId = req.user.id;
-                const households = yield householdService_1.householdService.getHouseholdsForUser(userId);
-                res.json(households);
+import * as householdService from '../services/householdService';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+/**
+ * HouseholdController handles all CRUD operations related to households.
+ */
+export class HouseholdController {
+    /**
+     * Creates a new household.
+     * @param req Authenticated Express Request object containing household data
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async createHousehold(req, res, next) {
+        try {
+            const householdData = req.body;
+            const userId = req.user?.id;
+            if (!userId) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                res.status(500).json({ error: 'Failed to retrieve households' });
-            }
-        });
+            const household = await householdService.createHousehold(householdData, userId);
+            res.status(201).json(household);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    // Create a new household
-    createHousehold(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { error } = (0, validationSchemas_1.validateHouseholdCreation)(req.body);
-                if (error)
-                    return res.status(400).json({ error: error.details[0].message });
-                const userId = req.user.id;
-                const household = yield householdService_1.householdService.createHousehold(userId, req.body);
-                res.status(201).json(household);
+    /**
+     * Retrieves details of a specific household.
+     * @param req Authenticated Express Request object containing householdId
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async getHousehold(req, res, next) {
+        try {
+            const householdId = req.params.householdId;
+            const userId = req.user?.id;
+            if (!userId) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                res.status(500).json({ error: 'Failed to create household' });
+            const household = await householdService.getHouseholdById(householdId, userId);
+            if (!household) {
+                throw new NotFoundError('Household not found');
             }
-        });
+            res.status(200).json(household);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    // Get a specific household
-    getHousehold(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const householdId = req.params.id;
-                const household = yield householdService_1.householdService.getHouseholdById(householdId);
-                if (!household)
-                    return res.status(404).json({ error: 'Household not found' });
-                res.json(household);
+    /**
+     * Updates an existing household.
+     * @param req Authenticated Express Request object containing householdId and update data
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async updateHousehold(req, res, next) {
+        try {
+            const householdId = req.params.householdId;
+            const updateData = req.body;
+            const userId = req.user?.id;
+            if (!userId) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                res.status(500).json({ error: 'Failed to retrieve household' });
+            const updatedHousehold = await householdService.updateHousehold(householdId, updateData, userId);
+            if (!updatedHousehold) {
+                throw new NotFoundError('Household not found or you do not have permission to update it');
             }
-        });
+            res.status(200).json(updatedHousehold);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    // Update a household
-    updateHousehold(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { error } = (0, validationSchemas_1.validateHouseholdUpdate)(req.body);
-                if (error)
-                    return res.status(400).json({ error: error.details[0].message });
-                const householdId = req.params.id;
-                const updatedHousehold = yield householdService_1.householdService.updateHousehold(householdId, req.body);
-                if (!updatedHousehold)
-                    return res.status(404).json({ error: 'Household not found' });
-                res.json(updatedHousehold);
+    /**
+     * Deletes a household.
+     * @param req Authenticated Express Request object containing householdId
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async deleteHousehold(req, res, next) {
+        try {
+            const householdId = req.params.householdId;
+            const userId = req.user?.id;
+            if (!userId) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                res.status(500).json({ error: 'Failed to update household' });
-            }
-        });
+            await householdService.deleteHousehold(householdId, userId);
+            res.status(204).send();
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    // Delete a household
-    deleteHousehold(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const householdId = req.params.id;
-                const result = yield householdService_1.householdService.deleteHousehold(householdId);
-                if (!result)
-                    return res.status(404).json({ error: 'Household not found' });
-                res.status(204).send();
+    /**
+     * Adds a new member to the household.
+     * @param req Authenticated Express Request object containing householdId and member data
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async addMember(req, res, next) {
+        try {
+            const householdId = req.params.householdId;
+            const memberData = req.body;
+            const userId = req.user?.id;
+            if (!userId) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                res.status(500).json({ error: 'Failed to delete household' });
-            }
-        });
+            const newMember = await householdService.addMember(householdId, memberData, userId);
+            res.status(201).json(newMember);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    // Get members of a household
-    getHouseholdMembers(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const householdId = req.params.id;
-                const members = yield householdService_1.householdService.getHouseholdMembers(householdId);
-                res.json(members);
+    /**
+     * Removes a member from the household.
+     * @param req Authenticated Express Request object containing householdId and memberId
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async removeMember(req, res, next) {
+        try {
+            const householdId = req.params.householdId;
+            const memberId = req.params.memberId;
+            const userId = req.user?.id;
+            if (!userId) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                res.status(500).json({ error: 'Failed to retrieve household members' });
-            }
-        });
-    }
-    // Create an invitation for a household
-    createInvitation(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const householdId = req.params.id;
-                const { email } = req.body;
-                const invitation = yield householdService_1.householdService.createInvitation(householdId, email, req.user.id);
-                res.status(201).json(invitation);
-            }
-            catch (error) {
-                res.status(500).json({ error: 'Failed to create invitation' });
-            }
-        });
+            await householdService.removeMember(householdId, memberId, userId);
+            res.status(204).send();
+        }
+        catch (error) {
+            next(error);
+        }
     }
 }
-exports.HouseholdController = HouseholdController;
-exports.householdController = new HouseholdController();

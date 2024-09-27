@@ -1,18 +1,15 @@
 import express from 'express';
-import session from 'express-session';
 import passport from './config/passport';
 import {initializeSocket} from './sockets';
 import http from 'http';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { errorHandler } from './middlewares/errorHandler';
-import authMiddleware from './middlewares/authMiddleware';
 import rateLimitMiddleware from './middlewares/rateLimit';
 import { connectDatabase } from './config/database';
 import routes from './routes';
 import logger from './utils/logger';
-import { AuthenticatedRequest } from './types/index';
-import { initializeJobs } from './jobs'; // New import
+import { initializeJobs } from './jobs';
 
 // Initialize Express app
 const app = express();
@@ -43,21 +40,8 @@ app.use(express.urlencoded({ extended: true }));
 // Cookie Parser
 app.use(cookieParser());
 
-// Session Setup
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET!,
-    resave: false,
-    saveUninitialized: false,
-  })
-);
-
 // Initialize Passport
 app.use(passport.initialize());
-app.use(passport.session());
-
-// Authentication Middleware
-app.use((req, res, next) => authMiddleware(req as AuthenticatedRequest, res, next));
 
 // Routes
 app.use('/api', routes);
@@ -72,4 +56,9 @@ initializeJobs();
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
+});
+
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
 });

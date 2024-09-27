@@ -1,22 +1,23 @@
-#!/bin/bash
-set -e
+   # backend/entrypoint.sh
 
-# Wait for the database to be ready
-echo "Waiting for database to be ready..."
-until nc -z db 5432; do
-  sleep 1
-done
+   #!/bin/sh
 
-# Generate Prisma client
-npx prisma generate
+   # Wait for the database to be ready
+   echo "Waiting for PostgreSQL..."
 
-# Run migrations
-npx prisma migrate deploy
+   while ! nc -z db 5432; do
+     sleep 0.1
+   done
 
-# Seed the database (if you have a seeding script)
-npm run seed
+   echo "PostgreSQL started"
 
-# Start the application
-npm run start
+   # Run Prisma migrations
+   echo "Running Prisma migrations..."
+   npx prisma migrate deploy
 
-exec "$@"
+   # Run Prisma seed
+   echo "Running Prisma seed..."
+   npm run seed || echo "Prisma seed failed, but continuing..."
+
+   # Start the application
+   exec "$@"

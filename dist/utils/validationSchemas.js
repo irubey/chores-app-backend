@@ -1,272 +1,295 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.activityValidationRules = exports.auditLogSchema = exports.createOAuthIntegrationSchema = exports.attachmentSchema = exports.connectCalendarSchema = exports.calendarIntegrationSchema = exports.tagSchema = exports.updateEventSchema = exports.createEventSchema = exports.eventSchema = exports.createTransactionSchema = exports.updateExpenseSchema = exports.createExpenseSchema = exports.sharedFundTransactionSchema = exports.sharedFundSchema = exports.updateNotificationSchema = exports.createNotificationSchema = exports.notificationSchema = exports.replyMessageSchema = exports.createMessageSchema = exports.messageSchema = exports.updateSubtaskSchema = exports.createSubtaskSchema = exports.subtaskSchema = exports.updateChoreSchema = exports.createChoreSchema = exports.choreSchema = exports.householdInvitationSchema = exports.householdMemberSchema = exports.updateHouseholdSchema = exports.createHouseholdSchema = exports.householdSchema = exports.userPreferenceUpdateSchema = exports.userPreferenceSchema = exports.loginSchema = exports.registerSchema = exports.userSchema = void 0;
-const joi_1 = __importDefault(require("joi"));
-// User Validation Schemas
-exports.userSchema = joi_1.default.object({
-    email: joi_1.default.string().email().required(),
-    name: joi_1.default.string().min(2).max(50).required(),
-    profilePictureUrl: joi_1.default.string().uri().allow(null),
-    bio: joi_1.default.string().max(500).allow(null),
+import Joi from 'joi';
+import { UserRole, NotificationType, TransactionStatus } from '../types';
+/**
+ * Schema for creating a new chore.
+ */
+export const createChoreSchema = Joi.object({
+    title: Joi.string().required(),
+    description: Joi.string().optional(),
+    dueDate: Joi.date().optional(),
+    priority: Joi.number().integer().min(1).max(5).optional(),
+    recurrence: Joi.string().optional(),
+    assignedUserIds: Joi.array().items(Joi.string().uuid()).optional(),
+    subtasks: Joi.array().items(Joi.object({
+        title: Joi.string().required(),
+    })).optional(),
 });
-exports.registerSchema = joi_1.default.object({
-    username: joi_1.default.string().required(),
-    email: joi_1.default.string().email().required(),
-    password: joi_1.default.string().min(8).required(),
+/**
+ * Schema for creating a new message.
+ */
+export const createMessageSchema = Joi.object({
+    content: Joi.string().required(),
+    attachments: Joi.array().items(Joi.object({
+        url: Joi.string().uri().required(),
+        fileType: Joi.string().required(),
+    })).optional(),
 });
-exports.loginSchema = joi_1.default.object({
-    email: joi_1.default.string().email().required(),
-    password: joi_1.default.string().required(),
+/**
+ * Schema for updating an existing message.
+ */
+export const updateMessageSchema = Joi.object({
+    content: Joi.string().optional(),
+    attachments: Joi.array().items(Joi.object({
+        url: Joi.string().uri().required(),
+        fileType: Joi.string().required(),
+    })).optional(),
 });
-exports.userPreferenceSchema = joi_1.default.object({
-    choreAssignedNotif: joi_1.default.boolean(),
-    choreCompletedNotif: joi_1.default.boolean(),
-    choreDueSoonNotif: joi_1.default.boolean(),
-    householdInviteNotif: joi_1.default.boolean(),
-    defaultChorePriority: joi_1.default.string().valid('LOW', 'MEDIUM', 'HIGH'),
-    defaultChoreFrequency: joi_1.default.string().valid('DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM'),
-    theme: joi_1.default.string().valid('light', 'dark'),
-    language: joi_1.default.string().length(2),
-    timezone: joi_1.default.string(),
+/**
+ * Schema for creating a new thread.
+ */
+export const createThreadSchema = Joi.object({
+    content: Joi.string().required(),
 });
-exports.userPreferenceUpdateSchema = joi_1.default.object({
-    choreAssignedNotif: joi_1.default.boolean(),
-    choreCompletedNotif: joi_1.default.boolean(),
-    choreDueSoonNotif: joi_1.default.boolean(),
-    householdInviteNotif: joi_1.default.boolean(),
-    defaultChorePriority: joi_1.default.string().valid('LOW', 'MEDIUM', 'HIGH'),
-    defaultChoreFrequency: joi_1.default.string().valid('DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM'),
-    theme: joi_1.default.string().valid('light', 'dark'),
-    language: joi_1.default.string().length(2),
-    timezone: joi_1.default.string(),
+/**
+ * Schema for creating a new attachment.
+ */
+export const createAttachmentSchema = Joi.object({
+    url: Joi.string().uri().required(),
+    fileType: Joi.string().required(),
 });
-// Household Validation Schemas
-exports.householdSchema = joi_1.default.object({
-    name: joi_1.default.string().min(2).max(50).required(),
+export const registerUserSchema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().min(6).required(),
+    name: Joi.string().min(2).required(),
 });
-exports.createHouseholdSchema = joi_1.default.object({
-    name: joi_1.default.string().min(2).max(50).required(),
+export const loginUserSchema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required(),
 });
-exports.updateHouseholdSchema = joi_1.default.object({
-    name: joi_1.default.string().min(2).max(50).optional(),
+/**
+ * Schema for updating an existing chore.
+ */
+export const updateChoreSchema = Joi.object({
+    title: Joi.string().optional(),
+    description: Joi.string().optional(),
+    dueDate: Joi.date().optional(),
+    priority: Joi.number().integer().min(1).max(5).optional(),
+    status: Joi.string().valid('PENDING', 'IN_PROGRESS', 'COMPLETED').optional(),
+    recurrence: Joi.string().optional(),
+    assignedUserIds: Joi.array().items(Joi.string().uuid()).optional(),
+    subtasks: Joi.array().items(Joi.object({
+        title: Joi.string().optional(),
+        status: Joi.string().valid('PENDING', 'COMPLETED').optional(),
+    })).optional(),
 });
-// Household Member Validation Schemas
-exports.householdMemberSchema = joi_1.default.object({
-    userId: joi_1.default.string().uuid().required(),
-    role: joi_1.default.string().valid('ADMIN', 'MEMBER').required(),
+/**
+ * Schema for creating a new subtask.
+ */
+export const createSubtaskSchema = Joi.object({
+    title: Joi.string().required(),
 });
-// Household Invitation Validation Schemas
-exports.householdInvitationSchema = joi_1.default.object({
-    email: joi_1.default.string().email().required(),
+/**
+ * Schema for updating a subtask's status.
+ */
+export const updateSubtaskStatusSchema = Joi.object({
+    status: Joi.string().valid('PENDING', 'COMPLETED').required(),
 });
-// Chore Validation Schemas
-exports.choreSchema = joi_1.default.object({
-    title: joi_1.default.string().min(2).max(100).required(),
-    description: joi_1.default.string().max(500).allow(null),
-    timeEstimate: joi_1.default.number().integer().min(1).allow(null),
-    frequency: joi_1.default.string().valid('DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM').required(),
-    priority: joi_1.default.string().valid('LOW', 'MEDIUM', 'HIGH').default('MEDIUM'),
-    dueDate: joi_1.default.date().iso().allow(null),
-    assignedTo: joi_1.default.array().items(joi_1.default.string().uuid()),
-});
-exports.createChoreSchema = joi_1.default.object({
-    title: joi_1.default.string().min(2).max(100).required(),
-    description: joi_1.default.string().max(500).allow(null),
-    householdId: joi_1.default.string().uuid().required(),
-    dueDate: joi_1.default.date().iso().allow(null),
-    status: joi_1.default.string().valid('PENDING', 'IN_PROGRESS', 'COMPLETED').optional(),
-    recurrence: joi_1.default.string().optional(),
-    priority: joi_1.default.number().min(1).max(3).optional(),
-    assignedUserIds: joi_1.default.array().items(joi_1.default.string().uuid()).optional(),
-});
-exports.updateChoreSchema = joi_1.default.object({
-    title: joi_1.default.string().min(2).max(100).optional(),
-    description: joi_1.default.string().max(500).allow(null).optional(),
-    dueDate: joi_1.default.date().iso().allow(null).optional(),
-    status: joi_1.default.string().valid('PENDING', 'IN_PROGRESS', 'COMPLETED').optional(),
-    recurrence: joi_1.default.string().optional(),
-    priority: joi_1.default.number().min(1).max(3).optional(),
-    assignedUserIds: joi_1.default.array().items(joi_1.default.string().uuid()).optional(),
-});
-// Subtask Validation Schemas
-exports.subtaskSchema = joi_1.default.object({
-    title: joi_1.default.string().required(),
-    status: joi_1.default.string().valid('PENDING', 'COMPLETED').optional(),
-});
-exports.createSubtaskSchema = joi_1.default.object({
-    choreId: joi_1.default.string().uuid().required(),
-    title: joi_1.default.string().required(),
-    status: joi_1.default.string().valid('PENDING', 'COMPLETED').optional(),
-});
-exports.updateSubtaskSchema = joi_1.default.object({
-    title: joi_1.default.string().optional(),
-    status: joi_1.default.string().valid('PENDING', 'COMPLETED').optional(),
-});
-// Message Validation Schemas
-exports.messageSchema = joi_1.default.object({
-    content: joi_1.default.string().max(1000).required(),
-    parentMessageId: joi_1.default.string().uuid().allow(null),
-});
-exports.createMessageSchema = joi_1.default.object({
-    householdId: joi_1.default.string().uuid().required(),
-    authorId: joi_1.default.string().uuid().required(),
-    content: joi_1.default.string().required(),
-});
-exports.replyMessageSchema = joi_1.default.object({
-    content: joi_1.default.string().required(),
-});
-// Notification Validation Schemas
-exports.notificationSchema = joi_1.default.object({
-    type: joi_1.default.string().valid('CHORE_ASSIGNED', 'CHORE_COMPLETED', 'CHORE_DUE_SOON', 'HOUSEHOLD_INVITE').required(),
-    message: joi_1.default.string().max(200).allow(null),
-});
-exports.createNotificationSchema = joi_1.default.object({
-    type: joi_1.default.string().required(),
-    message: joi_1.default.string().required(),
-    userId: joi_1.default.string().uuid().required(),
-});
-exports.updateNotificationSchema = joi_1.default.object({
-    isRead: joi_1.default.boolean().optional(),
-});
-// Shared Expense Validation Schemas
-exports.sharedFundSchema = joi_1.default.object({
-    name: joi_1.default.string().min(2).max(50).required(),
-    initialBalance: joi_1.default.number().min(0),
-    currency: joi_1.default.string().length(3).default('USD'),
-});
-exports.sharedFundTransactionSchema = joi_1.default.object({
-    amount: joi_1.default.number().required(),
-    type: joi_1.default.string().valid('DEPOSIT', 'WITHDRAWAL').required(),
-    description: joi_1.default.string().max(200).allow(null),
-});
-exports.createExpenseSchema = joi_1.default.object({
-    name: joi_1.default.string().min(2).max(50).required(),
-    initialBalance: joi_1.default.number().min(0).optional(),
-    currency: joi_1.default.string().length(3).optional(),
-});
-exports.updateExpenseSchema = joi_1.default.object({
-    name: joi_1.default.string().min(2).max(50).optional(),
-    initialBalance: joi_1.default.number().min(0).optional(),
-    currency: joi_1.default.string().length(3).optional(),
-});
-exports.createTransactionSchema = joi_1.default.object({
-    expenseId: joi_1.default.string().uuid().required(),
-    amount: joi_1.default.number().required(),
-    type: joi_1.default.string().valid('DEPOSIT', 'WITHDRAWAL').required(),
-    description: joi_1.default.string().max(200).allow(null).optional(),
-});
-// Event Validation Schemas
-exports.eventSchema = joi_1.default.object({
-    title: joi_1.default.string().min(2).max(100).required(),
-    description: joi_1.default.string().max(500).allow(null),
-    startTime: joi_1.default.date().iso().required(),
-    endTime: joi_1.default.date().iso().greater(joi_1.default.ref('startTime')).required(),
-});
-exports.createEventSchema = joi_1.default.object({
-    title: joi_1.default.string().min(2).max(100).required(),
-    description: joi_1.default.string().max(500).allow(null).optional(),
-    startTime: joi_1.default.date().iso().required(),
-    endTime: joi_1.default.date().iso().greater(joi_1.default.ref('startTime')).required(),
-});
-exports.updateEventSchema = joi_1.default.object({
-    title: joi_1.default.string().min(2).max(100).optional(),
-    description: joi_1.default.string().max(500).allow(null).optional(),
-    startTime: joi_1.default.date().iso().optional(),
-    endTime: joi_1.default.date().iso().greater(joi_1.default.ref('startTime')).optional(),
-});
-// Tag Validation Schemas
-exports.tagSchema = joi_1.default.object({
-    name: joi_1.default.string().min(2).max(30).required(),
-    color: joi_1.default.string().regex(/^#[0-9A-Fa-f]{6}$/).allow(null),
-});
-// Calendar Integration Validation Schemas
-exports.calendarIntegrationSchema = joi_1.default.object({
-    provider: joi_1.default.string().valid('GOOGLE', 'APPLE').required(),
-    accessToken: joi_1.default.string().required(),
-    refreshToken: joi_1.default.string().allow(null),
-    expiresAt: joi_1.default.date().iso().allow(null),
-});
-exports.connectCalendarSchema = joi_1.default.object({
-    provider: joi_1.default.string().valid('GOOGLE', 'APPLE').required(),
-    accessToken: joi_1.default.string().required(),
-    refreshToken: joi_1.default.string().allow(null).optional(),
-    expiresAt: joi_1.default.date().iso().allow(null).optional(),
-});
-// Attachment Validation Schemas
-exports.attachmentSchema = joi_1.default.object({
-    filename: joi_1.default.string().required(),
-    mimeType: joi_1.default.string().required(),
-    size: joi_1.default.number().integer().positive().required(),
-});
-// OAuth Integration Validation Schemas
-exports.createOAuthIntegrationSchema = joi_1.default.object({
-    provider: joi_1.default.string().valid('GOOGLE', 'FACEBOOK', 'APPLE').required(),
-    accessToken: joi_1.default.string().required(),
-    refreshToken: joi_1.default.string().allow(null).optional(),
-    expiresAt: joi_1.default.date().iso().allow(null).optional(),
-});
-// Audit Log Validation Schemas
-exports.auditLogSchema = joi_1.default.object({
-    action: joi_1.default.string().required(),
-    details: joi_1.default.object().allow(null),
-});
-// Activity Validation Rules
-exports.activityValidationRules = {
-    getRecentActivities: joi_1.default.object({
-        householdId: joi_1.default.string().uuid().required(),
+/**
+ * Validation schema for creating a new expense.
+ */
+export const createExpenseSchema = Joi.object({
+    amount: Joi.number().positive().required()
+        .messages({
+        'number.base': `'amount' should be a type of 'number'`,
+        'number.positive': `'amount' must be a positive number`,
+        'any.required': `'amount' is a required field`,
     }),
-    getChoreActivities: joi_1.default.object({
-        choreId: joi_1.default.string().uuid().required(),
+    description: Joi.string().required()
+        .messages({
+        'string.base': `'description' should be a type of 'text'`,
+        'any.required': `'description' is a required field`,
     }),
-    getUserActivities: joi_1.default.object({
-        userId: joi_1.default.string().uuid().required(),
+    paidById: Joi.string().uuid().required()
+        .messages({
+        'string.base': `'paidById' should be a type of 'string'`,
+        'string.uuid': `'paidById' must be a valid UUID`,
+        'any.required': `'paidById' is a required field`,
     }),
-    createActivity: joi_1.default.object({
-        choreId: joi_1.default.string().uuid().required(),
-        userId: joi_1.default.string().uuid().required(),
-        action: joi_1.default.string().required(),
+    dueDate: Joi.date().optional()
+        .messages({
+        'date.base': `'dueDate' should be a valid date`,
     }),
-};
-// Export all schemas
-exports.default = {
-    userSchema: exports.userSchema,
-    registerSchema: exports.registerSchema,
-    loginSchema: exports.loginSchema,
-    userPreferenceSchema: exports.userPreferenceSchema,
-    userPreferenceUpdateSchema: exports.userPreferenceUpdateSchema,
-    householdSchema: exports.householdSchema,
-    createHouseholdSchema: exports.createHouseholdSchema,
-    updateHouseholdSchema: exports.updateHouseholdSchema,
-    householdMemberSchema: exports.householdMemberSchema,
-    householdInvitationSchema: exports.householdInvitationSchema,
-    choreSchema: exports.choreSchema,
-    createChoreSchema: exports.createChoreSchema,
-    updateChoreSchema: exports.updateChoreSchema,
-    subtaskSchema: exports.subtaskSchema,
-    createSubtaskSchema: exports.createSubtaskSchema,
-    updateSubtaskSchema: exports.updateSubtaskSchema,
-    messageSchema: exports.messageSchema,
-    createMessageSchema: exports.createMessageSchema,
-    replyMessageSchema: exports.replyMessageSchema,
-    notificationSchema: exports.notificationSchema,
-    createNotificationSchema: exports.createNotificationSchema,
-    updateNotificationSchema: exports.updateNotificationSchema,
-    sharedFundSchema: exports.sharedFundSchema,
-    sharedFundTransactionSchema: exports.sharedFundTransactionSchema,
-    createExpenseSchema: exports.createExpenseSchema,
-    updateExpenseSchema: exports.updateExpenseSchema,
-    createTransactionSchema: exports.createTransactionSchema,
-    eventSchema: exports.eventSchema,
-    createEventSchema: exports.createEventSchema,
-    updateEventSchema: exports.updateEventSchema,
-    tagSchema: exports.tagSchema,
-    calendarIntegrationSchema: exports.calendarIntegrationSchema,
-    connectCalendarSchema: exports.connectCalendarSchema,
-    attachmentSchema: exports.attachmentSchema,
-    createOAuthIntegrationSchema: exports.createOAuthIntegrationSchema,
-    auditLogSchema: exports.auditLogSchema,
-    activityValidationRules: exports.activityValidationRules,
-};
+    category: Joi.string().optional()
+        .messages({
+        'string.base': `'category' should be a type of 'string'`,
+    }),
+    splits: Joi.array().items(Joi.object({
+        userId: Joi.string().uuid().required()
+            .messages({
+            'string.base': `'userId' should be a type of 'string'`,
+            'string.uuid': `'userId' must be a valid UUID`,
+            'any.required': `'userId' is a required field`,
+        }),
+        amount: Joi.number().positive().required()
+            .messages({
+            'number.base': `'amount' should be a type of 'number'`,
+            'number.positive': `'amount' must be a positive number`,
+            'any.required': `'amount' is a required field`,
+        }),
+    })).optional()
+        .messages({
+        'array.base': `'splits' should be a type of 'array'`,
+    }),
+});
+/**
+ * Validation schema for updating an existing expense.
+ */
+export const updateExpenseSchema = Joi.object({
+    amount: Joi.number().positive()
+        .messages({
+        'number.base': `'amount' should be a type of 'number'`,
+        'number.positive': `'amount' must be a positive number`,
+    }),
+    description: Joi.string()
+        .messages({
+        'string.base': `'description' should be a type of 'text'`,
+    }),
+    dueDate: Joi.date()
+        .messages({
+        'date.base': `'dueDate' should be a valid date`,
+    }),
+    category: Joi.string()
+        .messages({
+        'string.base': `'category' should be a type of 'string'`,
+    }),
+    splits: Joi.array().items(Joi.object({
+        userId: Joi.string().uuid().required()
+            .messages({
+            'string.base': `'userId' should be a type of 'string'`,
+            'string.uuid': `'userId' must be a valid UUID`,
+            'any.required': `'userId' is a required field`,
+        }),
+        amount: Joi.number().positive().required()
+            .messages({
+            'number.base': `'amount' should be a type of 'number'`,
+            'number.positive': `'amount' must be a positive number`,
+            'any.required': `'amount' is a required field`,
+        }),
+    })).optional()
+        .messages({
+        'array.base': `'splits' should be a type of 'array'`,
+    }),
+});
+// Calendar Integration Schemas
+/**
+ * Schema for creating a new calendar event.
+ */
+export const createEventSchema = Joi.object({
+    title: Joi.string().required(),
+    description: Joi.string().optional(),
+    startTime: Joi.date().iso().required(),
+    endTime: Joi.date().iso().greater(Joi.ref('startTime')).required(),
+    choreId: Joi.string().uuid().optional(),
+});
+/**
+ * Schema for updating an existing calendar event.
+ */
+export const updateEventSchema = Joi.object({
+    title: Joi.string().optional(),
+    description: Joi.string().optional(),
+    startTime: Joi.date().iso().optional(),
+    endTime: Joi.date().iso().optional(),
+    choreId: Joi.string().uuid().allow(null).optional(),
+});
+/**
+ * Schema for syncing with a personal calendar.
+ */
+export const syncCalendarSchema = Joi.object({
+    provider: Joi.string().valid('GOOGLE').required(),
+    accessToken: Joi.string().required(),
+});
+/**
+ * Validation schema for creating a new household.
+ */
+export const createHouseholdSchema = Joi.object({
+    name: Joi.string().min(3).max(100).required(),
+});
+/**
+ * Validation schema for updating an existing household.
+ */
+export const updateHouseholdSchema = Joi.object({
+    name: Joi.string().min(3).max(100).optional(),
+});
+/**
+ * Validation schema for adding a new member to a household.
+ */
+export const addMemberSchema = Joi.object({
+    userId: Joi.string().uuid().required(),
+    role: Joi.string().valid(...Object.values(UserRole)).optional(),
+});
+/**
+ * Schema for creating a new notification.
+ */
+export const createNotificationSchema = Joi.object({
+    userId: Joi.string().uuid().required()
+        .messages({
+        'string.base': `'userId' should be a type of 'string'`,
+        'string.uuid': `'userId' must be a valid UUID`,
+        'any.required': `'userId' is a required field`,
+    }),
+    type: Joi.string()
+        .valid(...Object.values(NotificationType))
+        .required()
+        .messages({
+        'any.only': `'type' must be one of ${Object.values(NotificationType).join(', ')}`,
+        'any.required': `'type' is a required field`,
+    }),
+    message: Joi.string().required()
+        .messages({
+        'string.base': `'message' should be a type of 'string'`,
+        'any.required': `'message' is a required field`,
+    }),
+    isRead: Joi.boolean().optional()
+        .messages({
+        'boolean.base': `'isRead' should be a type of 'boolean'`,
+    }),
+});
+/**
+ * Schema for marking a notification as read.
+ */
+export const markAsReadSchema = Joi.object({
+// No body is expected, assuming it's a PATCH to /read endpoint
+}).unknown(true); // Allow other properties like params
+/**
+ * Schema for creating a new transaction.
+ */
+export const createTransactionSchema = Joi.object({
+    expenseId: Joi.string().uuid().required()
+        .messages({
+        'string.base': `'expenseId' should be a type of 'string'`,
+        'string.uuid': `'expenseId' must be a valid UUID`,
+        'any.required': `'expenseId' is a required field`,
+    }),
+    fromUserId: Joi.string().uuid().required()
+        .messages({
+        'string.base': `'fromUserId' should be a type of 'string'`,
+        'string.uuid': `'fromUserId' must be a valid UUID`,
+        'any.required': `'fromUserId' is a required field`,
+    }),
+    toUserId: Joi.string().uuid().required()
+        .messages({
+        'string.base': `'toUserId' should be a type of 'string'`,
+        'string.uuid': `'toUserId' must be a valid UUID`,
+        'any.required': `'toUserId' is a required field`,
+    }),
+    amount: Joi.number().positive().required()
+        .messages({
+        'number.base': `'amount' should be a type of 'number'`,
+        'number.positive': `'amount' must be a positive number`,
+        'any.required': `'amount' is a required field`,
+    }),
+    status: Joi.string().valid(...Object.values(TransactionStatus)).optional()
+        .messages({
+        'any.only': `'status' must be one of ${Object.values(TransactionStatus).join(', ')}`,
+    }),
+});
+/**
+ * Schema for updating a transaction's status.
+ */
+export const updateTransactionStatusSchema = Joi.object({
+    status: Joi.string().valid(TransactionStatus.COMPLETED, TransactionStatus.PENDING).required()
+        .messages({
+        'any.only': `'status' must be one of ${Object.values(TransactionStatus).join(', ')}`,
+        'any.required': `'status' is a required field`,
+    }),
+});

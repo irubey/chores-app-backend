@@ -5,7 +5,11 @@ import Redis from 'ioredis';
 import { logError } from '../utils/logger';
 
 // Initialize Redis client
-const redisClient = new Redis(process.env.REDIS_URL as string);
+const redisClient = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT as string || '6379', 10),
+  password: process.env.REDIS_PASSWORD || undefined,
+});
 
 // Define a type for the sendCommand function based on rate-limit-redis's SendCommandFn
 type SendCommandFn = (command: string, ...args: Array<string | number | Buffer>) => Promise<any>;

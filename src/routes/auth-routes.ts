@@ -3,6 +3,7 @@ import { AuthController } from '../controllers/AuthController';
 import { validate } from '../middlewares/validationMiddleware';
 import { registerUserSchema, loginUserSchema } from '../utils/validationSchemas';
 import { asyncHandler } from '../utils/asyncHandler';
+import authMiddleware from '../middlewares/authMiddleware';
 
 const router = Router();
 
@@ -35,6 +36,7 @@ router.post(
  */
 router.post(
   '/logout',
+  authMiddleware,
   asyncHandler(AuthController.logout)
 );
 

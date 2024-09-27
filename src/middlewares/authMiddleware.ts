@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { verifyToken, verifyRefreshToken, generateToken } from '../utils/tokenUtils';
+import { verifyAccessToken } from '../utils/tokenUtils';
 import { logError } from '../utils/logger';
 import { AppError } from './errorHandler';
 import prisma from '../config/database';
@@ -14,49 +14,19 @@ const authMiddleware: RequestHandler = async (req: Request, res: Response, next:
       throw new AppError('No token provided', 401);
     }
 
-    const decoded = verifyToken(accessToken);
+    const decoded = verifyAccessToken(accessToken);
 
-    if (decoded) {
-      const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-      if (!user) {
-        throw new AppError('User not found', 401);
-      }
-      // Cast req to AuthenticatedRequest to assign user
-      (req as AuthenticatedRequest).user = user;
-      return next();
+    if (!decoded) {
+      throw new AppError('Invalid or expired access token', 401);
     }
 
-    // If access token is invalid or expired, attempt to refresh
-    const refreshToken = req.cookies?.refreshToken;
-    if (!refreshToken) {
-      throw new AppError('No refresh token provided', 401);
-    }
-
-    const refreshPayload = verifyRefreshToken(refreshToken);
-    if (!refreshPayload) {
-      throw new AppError('Invalid refresh token', 401);
-    }
-
-    const user = await prisma.user.findUnique({ where: { id: refreshPayload.userId } });
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) {
       throw new AppError('User not found', 401);
     }
 
-    // Generate new access token
-    const newAccessToken = generateToken(user);
-    res.setHeader('Authorization', `Bearer ${newAccessToken}`);
-
-    // Assign user to request
+    // Cast req to AuthenticatedRequest to assign user
     (req as AuthenticatedRequest).user = user;
-
-    // Implement token rotation
-    const newRefreshToken = generateToken(user, '7d');
-    res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
-
     next();
   } catch (error) {
     logError('Authentication failed', error as Error);

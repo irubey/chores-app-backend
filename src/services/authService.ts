@@ -3,6 +3,7 @@ import { RegisterUserDTO, TokenPayload } from '../types';
 import { hash, compare } from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError } from '../middlewares/errorHandler';
+import authConfig from '../config/auth';
 
 /**
  * Generates an access token.
@@ -10,7 +11,7 @@ import { UnauthorizedError } from '../middlewares/errorHandler';
  * @returns The signed JWT access token.
  */
 function generateAccessToken(payload: TokenPayload): string {
-  return jwt.sign(payload, process.env.JWT_ACCESS_SECRET as string, { expiresIn: '15m' });
+  return jwt.sign(payload, authConfig.jwt.accessSecret, { expiresIn: authConfig.jwt.accessTokenExpiration });
 }
 
 /**
@@ -19,7 +20,7 @@ function generateAccessToken(payload: TokenPayload): string {
  * @returns The signed JWT refresh token.
  */
 function generateRefreshToken(payload: TokenPayload): string {
-  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET as string, { expiresIn: '7d' });
+  return jwt.sign(payload, authConfig.jwt.refreshSecret, { expiresIn: authConfig.jwt.refreshTokenExpiration });
 }
 
 /**
@@ -60,7 +61,7 @@ export class AuthService {
    * Logs in a user by verifying credentials and issuing tokens.
    * @param email - The user's email.
    * @param password - The user's password.
-   * @returns The access and refresh tokens.
+   * @returns The access and refresh tokens along with user data.
    * @throws UnauthorizedError if credentials are invalid.
    */
   static async login(email: string, password: string) {
@@ -84,7 +85,7 @@ export class AuthService {
 
     // Optionally, store refreshToken in DB or blacklist old tokens
 
-    return { accessToken, refreshToken };
+    return { user, accessToken, refreshToken }; // Return user along with tokens
   }
 
   /**
@@ -108,7 +109,7 @@ export class AuthService {
    */
   static async refreshToken(refreshToken: string) {
     try {
-      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET as string) as TokenPayload;
+      const decoded = jwt.verify(refreshToken, authConfig.jwt.refreshSecret) as TokenPayload;
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
       });

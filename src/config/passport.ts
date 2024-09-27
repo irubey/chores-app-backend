@@ -1,39 +1,50 @@
 import passport from 'passport';
-import { Strategy as GoogleStrategy, Profile as GoogleProfile } from 'passport-google-oauth20';
-import { Strategy as FacebookStrategy, Profile as FacebookProfile } from 'passport-facebook';
+import {
+  Strategy as GoogleStrategy,
+  Profile as GoogleProfile,
+} from 'passport-google-oauth20';
+import {
+  Strategy as FacebookStrategy,
+  Profile as FacebookProfile,
+} from 'passport-facebook';
 import { Strategy as AppleStrategy } from 'passport-apple';
 import { User } from '@prisma/client';
-import { userService } from '../services/userService';
-import config from './auth';
+import { findOrCreateOAuthUser } from '../services/userService';
+import authConfig from './auth';
 import logger from '../utils/logger';
 
-// Initialize Passport Strategies
+/**
+ * Initializes Passport strategies for Google, Facebook, and Apple OAuth.
+ */
 export const initializePassport = () => {
   // Google OAuth Strategy
   passport.use(
     new GoogleStrategy(
       {
-        clientID: config.google.clientId,
-        clientSecret: config.google.clientSecret,
-        callbackURL: '/api/auth/google/callback',
+        clientID: authConfig.google.clientId,
+        clientSecret: authConfig.google.clientSecret,
+        callbackURL: authConfig.google.callbackURL,
       },
       async (
         accessToken: string,
         refreshToken: string,
         profile: GoogleProfile,
-        done: (error: any, user?: User) => void
+        done: (error: any, user?: any) => void
       ) => {
         try {
-          const user = await userService.findOrCreateOAuthUser({
+          const user = await findOrCreateOAuthUser.findOrCreate({
             oauthProvider: 'GOOGLE',
             oauthId: profile.id,
             name: profile.displayName || '',
-            email: profile.emails && profile.emails[0]?.value ? profile.emails[0].value : '',
+            email:
+              profile.emails && profile.emails[0]?.value
+                ? profile.emails[0].value
+                : '',
           });
-          done(null, user);
+          return done(null, user);
         } catch (error) {
           logger.error('Error in Google OAuth strategy:', error);
-          done(error);
+          return done(error, false);
         }
       }
     )
@@ -43,28 +54,31 @@ export const initializePassport = () => {
   passport.use(
     new FacebookStrategy(
       {
-        clientID: config.facebook.clientId,
-        clientSecret: config.facebook.clientSecret,
-        callbackURL: '/api/auth/facebook/callback',
+        clientID: authConfig.facebook.clientId,
+        clientSecret: authConfig.facebook.clientSecret,
+        callbackURL: authConfig.facebook.callbackURL,
         profileFields: ['id', 'displayName', 'email'],
       },
       async (
         accessToken: string,
         refreshToken: string,
         profile: FacebookProfile,
-        done: (error: any, user?: User) => void
+        done: (error: any, user?: any) => void
       ) => {
         try {
-          const user = await userService.findOrCreateOAuthUser({
+          const user = await findOrCreateOAuthUser.findOrCreate({
             oauthProvider: 'FACEBOOK',
             oauthId: profile.id,
             name: profile.displayName || '',
-            email: profile.emails && profile.emails[0]?.value ? profile.emails[0].value : '',
+            email:
+              profile.emails && profile.emails[0]?.value
+                ? profile.emails[0].value
+                : '',
           });
-          done(null, user);
+          return done(null, user);
         } catch (error) {
           logger.error('Error in Facebook OAuth strategy:', error);
-          done(error);
+          return done(error, false);
         }
       }
     )
@@ -74,11 +88,11 @@ export const initializePassport = () => {
   passport.use(
     new AppleStrategy(
       {
-        clientID: config.apple.clientId,
-        teamID: config.apple.teamId,
-        keyID: config.apple.keyId,
-        privateKeyLocation: config.apple.privateKey,
-        callbackURL: '/api/auth/apple/callback',
+        clientID: authConfig.apple.clientId,
+        teamID: authConfig.apple.teamId,
+        keyID: authConfig.apple.keyId,
+        privateKeyString: authConfig.apple.privateKey,
+        callbackURL: authConfig.apple.callbackURL,
         passReqToCallback: true,
       },
       async (
@@ -87,50 +101,24 @@ export const initializePassport = () => {
         refreshToken: string,
         idToken: any,
         profile: any,
-        done: (error: any, user?: User) => void
+        done: (error: any, user?: any) => void
       ) => {
         try {
           const { sub: appleId, email } = idToken;
-          const user = await userService.findOrCreateOAuthUser({
+          const user = await findOrCreateOAuthUser.findOrCreate({
             oauthProvider: 'APPLE',
             oauthId: appleId,
             name: email ? email.split('@')[0] : '',
             email: email || '',
           });
-          done(null, user);
+          return done(null, user);
         } catch (error) {
           logger.error('Error in Apple OAuth strategy:', error);
-          done(error);
+          return done(error, false);
         }
       }
     )
   );
-
-  // Serialize User
-  passport.serializeUser((user: any, done) => {
-    if (user && user.id) {
-      done(null, user.id);
-    } else {
-      logger.error('User serialization failed');
-      done(new Error('User serialization failed'));
-    }
-  });
-
-  // Deserialize User
-  passport.deserializeUser(async (id: string, done) => {
-    try {
-      const user = await userService.findUserById(id);
-      if (user) {
-        done(null, user);
-      } else {
-        logger.warn(`User not found for id: ${id}`);
-        done(null, false);
-      }
-    } catch (error) {
-      logger.error('Error deserializing user:', error);
-      done(error);
-    }
-  });
 };
 
 export default passport;

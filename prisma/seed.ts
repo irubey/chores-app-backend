@@ -1,83 +1,222 @@
-import { PrismaClient, OAuthProvider, UserRole, ChoreFrequency} from '@prisma/client';
+import { PrismaClient, HouseholdRole, ChoreStatus, SubtaskStatus, TransactionStatus, User } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  if (process.env.NODE_ENV !== 'development') {
-    console.log('Seeding is only allowed in development environment');
+  // Check if the database is already seeded
+  const existingUsers = await prisma.user.findMany();
+  if (existingUsers.length > 0) {
+    console.log('Database already seeded. Skipping seed process.');
     return;
   }
 
-  // Create dev user
-  const devUser = await prisma.user.upsert({
-    where: { email: 'dev@example.com' },
-    update: {},
-    create: {
-      id: 'dev-user-id', // Match the ID used in devLogin
-      email: 'dev@example.com',
-      name: 'Dev User',
-      oauth_provider: OAuthProvider.GOOGLE, // Or any provider you prefer
-      oauth_id: 'dev_oauth_id',
-      role: UserRole.ADMIN,
-      preferences: {
+  // Create users
+  const users = await createUsers();
+
+  // Create household
+  const household = await createHousehold(users);
+
+  // Create chores
+  await createChores(household.id, users);
+
+  // Create expenses
+  await createExpenses(household.id, users);
+
+  // Create messages and threads
+  await createMessagesAndThreads(household.id, users);
+
+  // Create events
+  await createEvents(household.id, users);
+
+  console.log('Database has been seeded. 🌱');
+}
+
+async function createUsers(): Promise<User[]> {
+  const hashedPassword = await bcrypt.hash('Password123!', 12);
+
+  const userData = [
+    { email: 'alice@example.com', name: 'Alice Johnson' },
+    { email: 'bob@example.com', name: 'Bob Smith' },
+    { email: 'charlie@example.com', name: 'Charlie Brown' },
+  ];
+
+  const users = await Promise.all(
+    userData.map(data =>
+      prisma.user.upsert({
+        where: { email: data.email },
+        update: {},
         create: {
-          theme: 'light',
+          email: data.email,
+          passwordHash: hashedPassword,
+          name: data.name,
+          profileImageURL: `https://example.com/profiles/${data.name.toLowerCase().replace(' ', '_')}.jpg`,
+        },
+      })
+    )
+  );
+
+  return users;
+}
+
+async function createHousehold(users: User[]) {
+  const household = await prisma.household.create({
+    data: {
+      name: 'Awesome Apartment',
+      members: {
+        create: [
+          { userId: users[0].id, role: HouseholdRole.ADMIN },
+          { userId: users[1].id, role: HouseholdRole.MEMBER },
+          { userId: users[2].id, role: HouseholdRole.MEMBER },
+        ],
+      },
+    },
+  });
+
+  return household;
+}
+
+async function createChores(householdId: string, users: User[]) {
+  const chores = [
+    {
+      title: 'Clean the kitchen',
+      description: 'Wipe counters, clean sink, and mop floor',
+      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      status: ChoreStatus.PENDING,
+      priority: 2,
+      assignedUserIds: [users[0].id, users[1].id],
+    },
+    {
+      title: 'Take out trash',
+      description: 'Empty all trash bins and take to dumpster',
+      dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+      status: ChoreStatus.PENDING,
+      priority: 1,
+      assignedUserIds: [users[2].id],
+    },
+  ];
+
+  for (const chore of chores) {
+    await prisma.chore.create({
+      data: {
+        householdId,
+        ...chore,
+        assignedUsers: {
+          connect: chore.assignedUserIds.map(id => ({ id })),
+        },
+        subtasks: {
+          create: [
+            { title: 'Gather cleaning supplies', status: SubtaskStatus.PENDING },
+            { title: 'Clean surfaces', status: SubtaskStatus.PENDING },
+            { title: 'Put away cleaning supplies', status: SubtaskStatus.PENDING },
+          ],
+        },
+      },
+    });
+  }
+}
+
+async function createExpenses(householdId: string, users: User[]) {
+  const expenses = [
+    {
+      amount: 50.00,
+      description: 'Groceries',
+      paidById: users[0].id,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      category: 'Food',
+    },
+    {
+      amount: 30.00,
+      description: 'Cleaning supplies',
+      paidById: users[1].id,
+      dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      category: 'Household',
+    },
+  ];
+
+  for (const expense of expenses) {
+    await prisma.expense.create({
+      data: {
+        householdId,
+        ...expense,
+        splits: {
+          create: users.map(user => ({
+            userId: user.id,
+            amount: expense.amount / users.length,
+          })),
+        },
+        transactions: {
+          create: users
+            .filter(user => user.id !== expense.paidById)
+            .map(user => ({
+              fromUserId: user.id,
+              toUserId: expense.paidById,
+              amount: expense.amount / users.length,
+              status: TransactionStatus.PENDING,
+            })),
+        },
+      },
+    });
+  }
+}
+
+async function createMessagesAndThreads(householdId: string, users: User[]) {
+  const message = await prisma.message.create({
+    data: {
+      householdId,
+      authorId: users[0].id,
+      content: "Hey everyone, let's discuss our cleaning schedule!",
+      attachments: {
+        create: {
+          url: 'https://example.com/cleaning_schedule.pdf',
+          fileType: 'application/pdf',
         },
       },
     },
   });
 
-  // Create users
-  const user1 = await prisma.user.upsert({
-    where: { email: 'user1@example.com' },
-    update: {},
-    create: {
-      email: 'user1@example.com',
-      name: 'User One',
-      oauth_provider: OAuthProvider.GOOGLE,
-      oauth_id: 'google_123',
-      role: UserRole.ADMIN,
-    },
+  await prisma.thread.createMany({
+    data: [
+      {
+        messageId: message.id,
+        authorId: users[1].id,
+        content: "Sounds good! I'm free on weekends.",
+      },
+      {
+        messageId: message.id,
+        authorId: users[2].id,
+        content: "I can take care of the kitchen on Wednesdays.",
+      },
+    ],
   });
+}
 
-  const user2 = await prisma.user.upsert({
-    where: { email: 'user2@example.com' },
-    update: {},
-    create: {
-      email: 'user2@example.com',
-      name: 'User Two',
-      oauth_provider: OAuthProvider.FACEBOOK,
-      oauth_id: 'facebook_456',
-      role: UserRole.MEMBER,
-    },
+async function createEvents(householdId: string, users: User[]) {
+  await prisma.event.createMany({
+    data: [
+      {
+        householdId,
+        title: 'House Meeting',
+        description: 'Monthly catch-up and planning session',
+        startTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+        endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000),
+        createdById: users[0].id,
+      },
+      {
+        householdId,
+        title: 'Game Night',
+        description: 'Fun evening with board games',
+        startTime: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+        endTime: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000),
+        createdById: users[1].id,
+      },
+    ],
   });
-
-
-  const presetChoreTemplates = [
-    { title: "Vacuuming", description: "Vacuum all carpeted areas", time_estimate: 30, frequency: ChoreFrequency.WEEKLY, is_preset: true },
-    { title: "Doing the dishes", description: "Wash and put away all dishes", time_estimate: 20, frequency: ChoreFrequency.DAILY, is_preset: true },
-    { title: "Taking out the trash", description: "Empty all trash bins and replace bags", time_estimate: 10, frequency: ChoreFrequency.WEEKLY, is_preset: true },
-    { title: "Cleaning the bathroom", description: "Clean toilet, sink, and shower/bathtub", time_estimate: 45, frequency: ChoreFrequency.WEEKLY, is_preset: true },
-    { title: "Doing laundry", description: "Wash, dry, and fold clothes", time_estimate: 90, frequency: ChoreFrequency.WEEKLY, is_preset: true },
-    { title: "Grocery shopping", description: "Buy groceries for the household", time_estimate: 60, frequency: ChoreFrequency.WEEKLY, is_preset: true },
-    { title: "Mowing the lawn", description: "Mow the lawn and trim edges", time_estimate: 60, frequency: ChoreFrequency.WEEKLY, is_preset: true },
-    { title: "Dusting furniture", description: "Dust all surfaces in common areas", time_estimate: 30, frequency: ChoreFrequency.WEEKLY, is_preset: true },
-  ];
-
-  for (const template of presetChoreTemplates) {
-    await prisma.choreTemplate.upsert({
-      where: { title: template.title },
-      update: template,
-      create: template,
-    });
-  }
-
-  console.log('Seed data created successfully');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Error seeding the database:', e);
     process.exit(1);
   })
   .finally(async () => {

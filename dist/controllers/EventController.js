@@ -1,151 +1,110 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.eventController = exports.EventController = void 0;
-const eventService_1 = require("../services/eventService");
-const attachmentService_1 = require("../services/attachmentService");
-const ApiError_1 = require("../utils/ApiError");
-class EventController {
-    createEvent(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { householdId } = req.params;
-                const userId = req.user.id;
-                const eventData = req.body;
-                const newEvent = yield eventService_1.eventService.createEvent(householdId, userId, eventData);
-                res.status(201).json(newEvent);
+import * as eventService from '../services/eventService';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+/**
+ * EventController handles all CRUD operations related to events.
+ */
+export class EventController {
+    /**
+     * Retrieves all events for a specific household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async getEvents(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                if (error instanceof ApiError_1.ApiError) {
-                    res.status(error.statusCode).json({ error: error.message });
-                }
-                else {
-                    res.status(500).json({ error: 'Internal server error' });
-                }
-            }
-        });
+            const householdId = req.params.householdId;
+            const events = await eventService.getEvents(householdId, req.user.id);
+            res.status(200).json(events);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    getEvents(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { householdId } = req.params;
-                const events = yield eventService_1.eventService.getEventsByHousehold(householdId);
-                res.status(200).json(events);
+    /**
+     * Creates a new event within a household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async createEvent(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                if (error instanceof ApiError_1.ApiError) {
-                    res.status(error.statusCode).json({ error: error.message });
-                }
-                else {
-                    res.status(500).json({ error: 'Internal server error' });
-                }
-            }
-        });
+            const householdId = req.params.householdId;
+            const eventData = req.body;
+            const event = await eventService.createEvent(householdId, eventData, req.user.id);
+            res.status(201).json(event);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    getEvent(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { id } = req.params;
-                const event = yield eventService_1.eventService.getEventById(id);
-                if (!event) {
-                    return res.status(404).json({ error: 'Event not found' });
-                }
-                res.status(200).json(event);
+    /**
+     * Retrieves details of a specific event.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async getEventDetails(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                if (error instanceof ApiError_1.ApiError) {
-                    res.status(error.statusCode).json({ error: error.message });
-                }
-                else {
-                    res.status(500).json({ error: 'Internal server error' });
-                }
+            const { householdId, eventId } = req.params;
+            const event = await eventService.getEventById(householdId, eventId, req.user.id);
+            if (!event) {
+                throw new NotFoundError('Event not found');
             }
-        });
+            res.status(200).json(event);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    updateEvent(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { id } = req.params;
-                const userId = req.user.id;
-                const eventData = req.body;
-                const updatedEvent = yield eventService_1.eventService.updateEvent(id, userId, eventData);
-                res.status(200).json(updatedEvent);
+    /**
+     * Updates an existing event.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async updateEvent(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                if (error instanceof ApiError_1.ApiError) {
-                    res.status(error.statusCode).json({ error: error.message });
-                }
-                else {
-                    res.status(500).json({ error: 'Internal server error' });
-                }
+            const { householdId, eventId } = req.params;
+            const updateData = req.body;
+            const updatedEvent = await eventService.updateEvent(householdId, eventId, updateData, req.user.id);
+            if (!updatedEvent) {
+                throw new NotFoundError('Event not found or you do not have permission to update it');
             }
-        });
+            res.status(200).json(updatedEvent);
+        }
+        catch (error) {
+            next(error);
+        }
     }
-    deleteEvent(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { id } = req.params;
-                const userId = req.user.id;
-                yield eventService_1.eventService.deleteEvent(id, userId);
-                res.status(204).send();
+    /**
+     * Deletes an event from a household.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object
+     * @param next Express NextFunction for error handling
+     */
+    static async deleteEvent(req, res, next) {
+        try {
+            if (!req.user) {
+                throw new UnauthorizedError('Unauthorized');
             }
-            catch (error) {
-                if (error instanceof ApiError_1.ApiError) {
-                    res.status(error.statusCode).json({ error: error.message });
-                }
-                else {
-                    res.status(500).json({ error: 'Internal server error' });
-                }
-            }
-        });
-    }
-    addAttachment(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { eventId } = req.params;
-                const userId = req.user.id;
-                const file = req.file;
-                if (!file) {
-                    return res.status(400).json({ error: 'No file uploaded' });
-                }
-                const attachment = yield attachmentService_1.attachmentService.addAttachmentToEvent(eventId, userId, file);
-                res.status(201).json(attachment);
-            }
-            catch (error) {
-                if (error instanceof ApiError_1.ApiError) {
-                    res.status(error.statusCode).json({ error: error.message });
-                }
-                else {
-                    res.status(500).json({ error: 'Internal server error' });
-                }
-            }
-        });
-    }
-    getAttachments(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { eventId } = req.params;
-                const attachments = yield attachmentService_1.attachmentService.getAttachmentsByEvent(eventId);
-                res.status(200).json(attachments);
-            }
-            catch (error) {
-                if (error instanceof ApiError_1.ApiError) {
-                    res.status(error.statusCode).json({ error: error.message });
-                }
-                else {
-                    res.status(500).json({ error: 'Internal server error' });
-                }
-            }
-        });
+            const { householdId, eventId } = req.params;
+            await eventService.deleteEvent(householdId, eventId, req.user.id);
+            res.status(204).send();
+        }
+        catch (error) {
+            next(error);
+        }
     }
 }
-exports.EventController = EventController;
-exports.eventController = new EventController();

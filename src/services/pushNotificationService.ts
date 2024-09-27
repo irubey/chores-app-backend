@@ -2,18 +2,30 @@ import admin from 'firebase-admin';
 import prisma from '../config/database';
 
 /**
- * Initialize Firebase Admin SDK
- * Ensure that the service account key is properly configured in your environment.
- * You can set the environment variables FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.
+ * Initialize Firebase Admin SDK only if all required environment variables are present.
  */
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID!,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
-    }),
-  });
+const requiredFirebaseEnvVars = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
+
+const isPushNotificationsEnabled = process.env.ENABLE_PUSH_NOTIFICATIONS === 'true';
+const isFirebaseConfigured = requiredFirebaseEnvVars.every((varName) => !!process.env[varName]);
+
+if (isPushNotificationsEnabled && isFirebaseConfigured && !admin.apps.length) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID!,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
+      }),
+    });
+    console.log('Firebase Admin SDK initialized successfully.');
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK:', error);
+  }
+} else if (!isPushNotificationsEnabled) {
+  console.warn('Push notifications are disabled via configuration.');
+} else if (!isFirebaseConfigured) {
+  console.warn('Firebase environment variables are not fully set. Push notifications will be disabled.');
 }
 
 /**
@@ -29,6 +41,11 @@ export async function sendPushNotification(
   body: string,
   data?: { [key: string]: string }
 ): Promise<void> {
+  if (!isPushNotificationsEnabled || !isFirebaseConfigured) {
+    console.warn('Push notification service is not configured or disabled. Skipping notification.');
+    return;
+  }
+
   try {
     // Retrieve the user's device tokens from the database
     const user = await prisma.user.findUnique({
@@ -88,6 +105,11 @@ export async function sendPushNotification(
  * @param deviceToken - The device token to register.
  */
 export async function registerDeviceToken(userId: string, deviceToken: string): Promise<void> {
+  if (!isPushNotificationsEnabled || !isFirebaseConfigured) {
+    console.warn('Push notification service is not configured or disabled. Skipping device token registration.');
+    return;
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -120,6 +142,11 @@ export async function registerDeviceToken(userId: string, deviceToken: string): 
  * @param deviceToken - The device token to remove.
  */
 export async function removeDeviceToken(userId: string, deviceToken: string): Promise<void> {
+  if (!isPushNotificationsEnabled || !isFirebaseConfigured) {
+    console.warn('Push notification service is not configured or disabled. Skipping device token removal.');
+    return;
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },

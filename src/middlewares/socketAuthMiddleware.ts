@@ -24,21 +24,26 @@ const socketAuthMiddleware = async (
   socket: AuthenticatedSocket,
   next: (err?: ExtendedError) => void
 ) => {
-  const authHeader = socket.handshake.headers['authorization'];
-  const token = socket.handshake.auth.token || (authHeader && authHeader.split(' ')[1]);
+  let token = socket.handshake.auth.token || '';
+  console.log('Received token:', token);
+
   if (!token) {
     logger.warn('Authentication error: Token not provided');
     return next(new Error('Authentication error: Token not provided'));
   }
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: string };
+    console.log('Decoded token:', decoded);
+
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) {
       logger.warn('Authentication error: User not found');
       return next(new Error('Authentication error: User not found'));
     }
     socket.user = user;
-    // Join rooms based on user's households for targeted event broadcasting
+
+    // Join household rooms
     const householdMembers = await prisma.householdMember.findMany({
       where: { userId: user.id },
       select: { householdId: true },
@@ -50,6 +55,7 @@ const socketAuthMiddleware = async (
     next();
   } catch (error) {
     logger.error('Authentication error: Invalid token', { error });
+    console.error('JWT verification error:', error);
     return next(new Error('Authentication error: Invalid token'));
   }
 };

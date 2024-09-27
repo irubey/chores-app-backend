@@ -119,6 +119,31 @@ export interface PaginationOptions {
   limit: number;
 }
 
+/**
+ * Defines the structure for email options used in sending emails.
+ */
+export interface EmailOptions {
+  /**
+   * Recipient's email address.
+   */
+  to: string;
+
+  /**
+   * Subject of the email.
+   */
+  subject: string;
+
+  /**
+   * Plain text content of the email.
+   */
+  text?: string;
+
+  /**
+   * HTML content of the email.
+   */
+  html?: string;
+}
+
 // Data Transfer Objects (DTOs)
 
 /**
