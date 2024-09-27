@@ -7,8 +7,21 @@ async function main() {
   // Check if the database is already seeded
   const existingUsers = await prisma.user.findMany();
   if (existingUsers.length > 0) {
-    console.log('Database already seeded. Skipping seed process.');
-    return;
+    console.log('Clearing existing data...');
+    // Delete data in the correct order to avoid foreign key constraint issues
+    await prisma.thread.deleteMany();
+    await prisma.message.deleteMany();
+    await prisma.attachment.deleteMany();
+    await prisma.subtask.deleteMany();
+    await prisma.chore.deleteMany();
+    await prisma.transaction.deleteMany();
+    await prisma.expenseSplit.deleteMany();
+    await prisma.expense.deleteMany();
+    await prisma.event.deleteMany();
+    await prisma.householdMember.deleteMany();
+    await prisma.household.deleteMany();
+    await prisma.user.deleteMany();
+    console.log('Existing data cleared.');
   }
 
   // Create users
@@ -97,12 +110,13 @@ async function createChores(householdId: string, users: User[]) {
   ];
 
   for (const chore of chores) {
+    const { assignedUserIds, ...choreData } = chore;
     await prisma.chore.create({
       data: {
         householdId,
-        ...chore,
+        ...choreData,
         assignedUsers: {
-          connect: chore.assignedUserIds.map(id => ({ id })),
+          connect: assignedUserIds.map(id => ({ id })),
         },
         subtasks: {
           create: [

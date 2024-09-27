@@ -1,7 +1,7 @@
 import prisma from '../config/database';
 import { RegisterUserDTO, LoginCredentials, CreateHouseholdDTO, AddMemberDTO, UpdateHouseholdDTO } from '../types';
 import { hashPassword, comparePasswords } from '../utils/passwordUtils';
-import { generateToken, generateRefreshToken } from '../utils/tokenUtils';
+import { generateAccessToken, generateRefreshToken } from '../utils/tokenUtils';
 import { NotFoundError, UnauthorizedError, BadRequestError } from '../middlewares/errorHandler';
 import { HouseholdRole, Provider, User } from '@prisma/client';
 import logger from '../utils/logger';
@@ -57,7 +57,7 @@ export async function loginUser(credentials: LoginCredentials) {
     throw new UnauthorizedError('Invalid email or password.');
   }
 
-  const accessToken = generateToken(user);
+  const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 
   // Optionally, you can store the refresh token in the database
@@ -403,3 +403,36 @@ export const findOrCreateOAuthUser = {
     return user;
   },
 };
+
+/**
+ * Retrieves all households for a user.
+ * @param userId - The ID of the user
+ * @returns An array of households the user is a member of
+ */
+export async function getUserHouseholds(userId: string) {
+  const households = await prisma.household.findMany({
+    where: {
+      members: {
+        some: {
+          userId: userId
+        }
+      }
+    },
+    include: {
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              profileImageURL: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return households;
+}

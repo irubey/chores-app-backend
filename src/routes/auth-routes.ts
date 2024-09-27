@@ -50,4 +50,15 @@ router.post(
   asyncHandler(AuthController.refreshToken)
 );
 
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get current user
+ * @access  Protected
+ */
+router.get(
+  '/me',
+  authMiddleware,
+  asyncHandler(AuthController.getCurrentUser)
+);
+
 export default router;

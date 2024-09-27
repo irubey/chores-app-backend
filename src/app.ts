@@ -15,6 +15,17 @@ import { initializeJobs } from './jobs';
 const app = express();
 const server = http.createServer(app);
 
+// CORS Middleware
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'], 
+}));
+
+// Handle Preflight Requests
+app.options('*', cors());
+
 // Initialize Socket.io
 const io = initializeSocket(server);
 
@@ -25,13 +36,6 @@ connectDatabase();
 
 // Rate Limiting Middleware
 app.use(rateLimitMiddleware);
-
-// CORS Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-}));
 
 // Body Parsers
 app.use(express.json());
@@ -62,3 +66,5 @@ server.listen(PORT, () => {
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
+
+

@@ -83,9 +83,10 @@ export class AuthService {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // Optionally, store refreshToken in DB or blacklist old tokens
+    // Remove sensitive information before sending
+    const { passwordHash, ...userWithoutPassword } = user;
 
-    return { user, accessToken, refreshToken }; // Return user along with tokens
+    return { user: userWithoutPassword, accessToken, refreshToken };
   }
 
   /**
