@@ -13,7 +13,7 @@ const router = Router({ mergeParams: true });
  * @desc    Retrieve all chores for a specific household
  * @access  Protected
  */
-router.get('/', authMiddleware, asyncHandler(ChoreController.getChores));
+router.get('/', authMiddleware, rbacMiddleware('READ'), asyncHandler(ChoreController.getChores));
 
 /**
  * @route   POST /api/households/:householdId/chores
@@ -23,7 +23,7 @@ router.get('/', authMiddleware, asyncHandler(ChoreController.getChores));
 router.post(
   '/',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   validate(createChoreSchema),
   asyncHandler(ChoreController.createChore)
 );
@@ -33,17 +33,17 @@ router.post(
  * @desc    Retrieve details of a specific chore
  * @access  Protected
  */
-router.get('/:choreId', authMiddleware, asyncHandler(ChoreController.getChoreDetails));
+router.get('/:choreId', authMiddleware, rbacMiddleware('READ'), asyncHandler(ChoreController.getChoreDetails));
 
 /**
  * @route   PATCH /api/households/:householdId/chores/:choreId
  * @desc    Update an existing chore
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.patch(
   '/:choreId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(updateChoreSchema),
   asyncHandler(ChoreController.updateChore)
 );
@@ -56,7 +56,7 @@ router.patch(
 router.delete(
   '/:choreId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(ChoreController.deleteChore)
 );
 
@@ -64,7 +64,7 @@ router.delete(
 router.post(
   '/:choreId/subtasks',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(createSubtaskSchema),
   asyncHandler(ChoreController.addSubtask)
 );
@@ -72,7 +72,7 @@ router.post(
 router.patch(
   '/:choreId/subtasks/:subtaskId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(updateSubtaskStatusSchema),
   asyncHandler(ChoreController.updateSubtaskStatus)
 );
@@ -80,8 +80,32 @@ router.patch(
 router.delete(
   '/:choreId/subtasks/:subtaskId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(ChoreController.deleteSubtask)
+);
+
+/**
+ * @route   POST /api/households/:householdId/chores/:choreId/swap-request
+ * @desc    Request a chore swap
+ * @access  Protected, Write access required
+ */
+router.post(
+  '/:choreId/swap-request',
+  authMiddleware,
+  rbacMiddleware('WRITE'),
+  asyncHandler(ChoreController.requestChoreSwap)
+);
+
+/**
+ * @route   PATCH /api/households/:householdId/chores/:choreId/swap-approve
+ * @desc    Approve a chore swap request
+ * @access  Protected, Write access required
+ */
+router.patch(
+  '/:choreId/swap-approve',
+  authMiddleware,
+  rbacMiddleware('WRITE'),
+  asyncHandler(ChoreController.approveChoreSwap)
 );
 
 export default router;

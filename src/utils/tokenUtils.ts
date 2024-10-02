@@ -2,14 +2,10 @@ import jwt from 'jsonwebtoken';
 import { User } from '@prisma/client';
 
 // Load environment variables
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
-const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '1d';
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || '';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || '';
+const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '15m';
 const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION || '7d';
-
-if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
-  throw new Error('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be defined in environment variables');
-}
 
 interface TokenPayload {
   userId: string;
@@ -18,8 +14,6 @@ interface TokenPayload {
 
 /**
  * Generate an access JWT token for a user
- * @param user The user object
- * @returns The generated JWT access token
  */
 export const generateAccessToken = (user: User, expiresIn: string = JWT_EXPIRATION): string => {
   const payload: TokenPayload = {
@@ -32,8 +26,6 @@ export const generateAccessToken = (user: User, expiresIn: string = JWT_EXPIRATI
 
 /**
  * Generate a refresh JWT token for a user
- * @param user The user object
- * @returns The generated JWT refresh token
  */
 export const generateRefreshToken = (user: User, expiresIn: string = JWT_REFRESH_EXPIRATION): string => {
   const payload: TokenPayload = {
@@ -46,8 +38,6 @@ export const generateRefreshToken = (user: User, expiresIn: string = JWT_REFRESH
 
 /**
  * Verify and decode an access JWT token
- * @param token The JWT token to verify
- * @returns The decoded token payload or null if invalid
  */
 export const verifyAccessToken = (token: string): TokenPayload | null => {
   try {
@@ -60,8 +50,6 @@ export const verifyAccessToken = (token: string): TokenPayload | null => {
 
 /**
  * Verify and decode a refresh JWT token
- * @param token The JWT refresh token to verify
- * @returns The decoded token payload or null if invalid
  */
 export const verifyRefreshToken = (token: string): TokenPayload | null => {
   try {
@@ -74,8 +62,6 @@ export const verifyRefreshToken = (token: string): TokenPayload | null => {
 
 /**
  * Extract the token from the Authorization header
- * @param authHeader The Authorization header value
- * @returns The extracted token or null if not found
  */
 export const extractTokenFromHeader = (authHeader: string | undefined): string | null => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

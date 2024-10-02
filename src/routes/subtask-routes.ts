@@ -11,12 +11,12 @@ const router = Router({ mergeParams: true });
 /**
  * @route   POST /api/households/:householdId/chores/:choreId/subtasks
  * @desc    Add a new subtask to a specific chore
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.post(
   '/:choreId/subtasks',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(createSubtaskSchema),
   asyncHandler(SubtaskController.addSubtask)
 );
@@ -24,12 +24,12 @@ router.post(
 /**
  * @route   PATCH /api/households/:householdId/chores/:choreId/subtasks/:subtaskId
  * @desc    Update the status of a specific subtask
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.patch(
   '/:choreId/subtasks/:subtaskId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(updateSubtaskStatusSchema),
   asyncHandler(SubtaskController.updateSubtaskStatus)
 );
@@ -37,12 +37,12 @@ router.patch(
 /**
  * @route   DELETE /api/households/:householdId/chores/:choreId/subtasks/:subtaskId
  * @desc    Delete a specific subtask from a chore
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/:choreId/subtasks/:subtaskId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(SubtaskController.deleteSubtask)
 );
 

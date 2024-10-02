@@ -152,4 +152,81 @@ export class HouseholdController {
       next(error);
     }
   }
+
+  /**
+   * Retrieves all households selected by the authenticated user.
+   * @param req Authenticated request containing user ID.
+   * @param res Response with the list of selected households.
+   * @param next Next function for error handling.
+   */
+  static async getSelectedHouseholds(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      const selectedHouseholds = await householdService.getSelectedHouseholds(userId);
+      res.status(200).json(selectedHouseholds);
+    } catch (error) {
+      next(error);
+    }
+  }
+  /**
+   * Toggles the selection state of a household member.
+   * @param req Authenticated request containing householdId, memberId, and selection data.
+   * @param res Response with the updated household member.
+   * @param next Next function for error handling.
+   */
+  static async toggleHouseholdSelection(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { householdId, memberId } = req.params;
+      const { isSelected } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      // Ensure the memberId matches the authenticated user
+      if (memberId !== userId) {
+        throw new UnauthorizedError('You can only update your own household selection');
+      }
+
+      const updatedMember = await householdService.updateHouseholdMemberSelection(householdId, memberId, isSelected);
+      res.status(200).json(updatedMember);
+    } catch (error) {
+      next(error);
+    }
+
+  }
+
+  /**
+   * Updates the status of a household member.
+   * @param req Authenticated request containing householdId, memberId, and status data.
+   * @param res Response with the updated household member.
+   * @param next Next function for error handling.
+   */
+  static async updateMemberStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { householdId, memberId } = req.params;
+      const { status } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      // Ensure the memberId matches the authenticated user
+      if (memberId !== userId) {
+        throw new UnauthorizedError('You can only update your own status');
+      }
+
+      const updatedMember = await householdService.updateMemberStatus(householdId, memberId, status);
+      res.status(200).json(updatedMember);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

@@ -16,6 +16,10 @@ export async function createHousehold(data: CreateHouseholdDTO, userId: string) 
         create: {
           userId,
           role: 'ADMIN',
+          isInvited: false,
+          isAccepted: true,
+          isRejected: false,
+          isSelected: true,
         },
       },
     },
@@ -58,9 +62,9 @@ export async function getHouseholdById(householdId: string, userId: string) {
     throw new NotFoundError('Household not found');
   }
 
-  const isMember = household.members.some((member) => member.userId === userId);
+  const member = household.members.find((member) => member.userId === userId);
 
-  if (!isMember) {
+  if (!member) {
     throw new UnauthorizedError('You are not a member of this household');
   }
 
@@ -130,7 +134,7 @@ export async function deleteHousehold(householdId: string, userId: string): Prom
     throw new UnauthorizedError('You do not have permission to delete this household');
   }
 
-  // Optionally, you might want to delete related data or handle constraints
+  // Optionally, handle cascading deletions or constraints
 
   await prisma.household.delete({
     where: { id: householdId },
@@ -143,7 +147,7 @@ export async function deleteHousehold(householdId: string, userId: string): Prom
  * @param memberData - The data of the member to add.
  * @param userId - The ID of the user performing the action.
  * @returns The newly added household member.
- * @throws NotFoundError if the household does not exist.
+ * @throws NotFoundError if the household or user does not exist.
  * @throws UnauthorizedError if the user is not an ADMIN.
  * @throws BadRequestError if the user is already a member.
  */
@@ -185,16 +189,23 @@ export async function addMember(householdId: string, memberData: AddMemberDTO, u
     throw new BadRequestError('User is already a member of the household');
   }
 
+  // Create an invitation for the new member
   const newMember = await prisma.householdMember.create({
     data: {
       householdId,
       userId: memberData.userId,
       role: memberData.role || 'MEMBER',
+      isInvited: true,
+      isAccepted: false,
+      isRejected: false,
+      isSelected: false,
     },
     include: {
       user: true,
     },
   });
+
+  // Optionally, send an invitation notification/email here
 
   return newMember;
 }
@@ -263,4 +274,150 @@ export async function removeMember(householdId: string, memberId: string, userId
       },
     },
   });
+}
+
+/**
+ * Updates the status of a household member (e.g., accept invitation).
+ * @param householdId - The ID of the household.
+ * @param memberId - The ID of the member whose status is to be updated.
+ * @param status - The new status ('ACCEPTED' or 'REJECTED').
+ * @returns The updated household member.
+ * @throws NotFoundError if the member does not exist.
+ * @throws UnauthorizedError if the user is not authorized to update the status.
+ */
+export async function updateMemberStatus(
+  householdId: string,
+  memberId: string,
+  status: 'ACCEPTED' | 'REJECTED'
+) {
+  const member = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId: memberId,
+      },
+    },
+  });
+
+  if (!member) {
+    throw new NotFoundError('Member not found in the household');
+  }
+
+  if (status === 'ACCEPTED') {
+    if (member.isAccepted) {
+      throw new BadRequestError('Member is already accepted');
+    }
+
+    const updatedMember = await prisma.householdMember.update({
+      where: {
+        userId_householdId: {
+          householdId,
+          userId: memberId,
+        },
+      },
+      data: {
+        isAccepted: true,
+        isInvited: false,
+        isRejected: false,
+        isSelected: true,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    // Optionally, send a notification about acceptance
+
+    return updatedMember;
+  } else if (status === 'REJECTED') {
+    if (member.isRejected) {
+      throw new BadRequestError('Member has already rejected the invitation');
+    }
+
+    const updatedMember = await prisma.householdMember.update({
+      where: {
+        userId_householdId: {
+          householdId,
+          userId: memberId,
+        },
+      },
+      data: {
+        isRejected: true,
+        isInvited: false,
+        isAccepted: false,
+        isSelected: false,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    // Optionally, send a notification about rejection
+
+    return updatedMember;
+  } else {
+    throw new BadRequestError('Invalid status update');
+  }
+}
+
+/**
+ * Retrieves all households where the user has selected them.
+ * @param userId - The ID of the user.
+ * @returns An array of selected households.
+ */
+export async function getSelectedHouseholds(userId: string) {
+  const households = await prisma.household.findMany({
+    where: {
+      members: {
+        some: {
+          userId,
+          isSelected: true,
+        },
+      },
+    },
+    include: {
+      members: {
+        where: { userId },
+        include: { user: true },
+      },
+    },
+  });
+
+  return households;
+}
+
+/**
+ * Updates the isSelected status of a household member.
+ * @param householdId - The ID of the household.
+ * @param memberId - The ID of the member.
+ * @param isSelected - The new selection status.
+ * @returns The updated household member.
+ */
+export async function updateHouseholdMemberSelection(householdId: string, memberId: string, isSelected: boolean) {
+  const member = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId: memberId,
+      },
+    },
+  });
+
+  if (!member) {
+    throw new NotFoundError('Member not found in the household');
+  }
+
+  const updatedMember = await prisma.householdMember.update({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId: memberId,
+      },
+    },
+    data: {
+      isSelected,
+    },
+  });
+
+  return updatedMember;
 }

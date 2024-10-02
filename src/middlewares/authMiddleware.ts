@@ -1,31 +1,29 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { verifyAccessToken } from '../utils/tokenUtils';
+import { AuthService } from '../services/authService';
 import { logError } from '../utils/logger';
 import { AppError } from './errorHandler';
 import prisma from '../config/database';
 import { AuthenticatedRequest } from '../types';
 
+/**
+ * Authentication middleware to protect routes.
+ */
 const authMiddleware: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authHeader = req.headers['authorization'];
-    const accessToken = typeof authHeader === 'string' ? authHeader.split(' ')[1] : null;
+    const accessToken = req.cookies.accessToken;
 
     if (!accessToken) {
       throw new AppError('No token provided', 401);
     }
 
-    const decoded = verifyAccessToken(accessToken);
-
-    if (!decoded) {
-      throw new AppError('Invalid or expired access token', 401);
-    }
+    const decoded = AuthService.verifyAccessToken(accessToken);
 
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) {
       throw new AppError('User not found', 401);
     }
 
-    // Cast req to AuthenticatedRequest to assign user
+    // Assign user to request object
     (req as AuthenticatedRequest).user = user;
     next();
   } catch (error) {

@@ -17,6 +17,8 @@ import {
   Event,
   ExpenseSplit,
   Notification as PrismaNotification,
+  ChoreSwapRequest as PrismaChoreSwapRequest,
+  ChoreSwapRequestStatus as PrismaChoreSwapRequestStatus,
 } from '@prisma/client';
 
 // Enums
@@ -142,6 +144,17 @@ export interface EmailOptions {
    * HTML content of the email.
    */
   html?: string;
+}
+
+// Add this interface in the interfaces section
+export interface ChoreSwapRequest {
+  id: string;
+  choreId: string;
+  requestingUserId: string;
+  targetUserId: string;
+  status: PrismaChoreSwapRequestStatus;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Data Transfer Objects (DTOs)
@@ -366,6 +379,17 @@ export interface UpdateTransactionDTO {
   status: TransactionStatus;
 }
 
+// Add this DTO in the DTOs section
+export interface CreateChoreSwapRequestDTO {
+  choreId: string;
+  targetUserId: string;
+}
+
+// Add this DTO in the DTOs section
+export interface UpdateChoreSwapRequestDTO {
+  status: PrismaChoreSwapRequestStatus;
+}
+
 // Utility Types
 export type UserWithoutPassword = Omit<User, 'passwordHash'>;
 
@@ -514,6 +538,8 @@ export {
   TransactionStatus,
   NotificationType,
   Provider,
+  ChoreSwapRequest as PrismaChoreSwapRequest,
+  ChoreSwapRequestStatus as PrismaChoreSwapRequestStatus,
 } from '@prisma/client';
 
 

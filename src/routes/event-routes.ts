@@ -18,12 +18,12 @@ router.get('/', authMiddleware, asyncHandler(EventController.getEvents));
 /**
  * @route   POST /api/households/:householdId/events
  * @desc    Create a new event within a household
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.post(
   '/',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(createEventSchema),
   asyncHandler(EventController.createEvent)
 );
@@ -38,12 +38,12 @@ router.get('/:eventId', authMiddleware, asyncHandler(EventController.getEventDet
 /**
  * @route   PATCH /api/households/:householdId/events/:eventId
  * @desc    Update an existing event
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.patch(
   '/:eventId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(updateEventSchema),
   asyncHandler(EventController.updateEvent)
 );
@@ -51,12 +51,12 @@ router.patch(
 /**
  * @route   DELETE /api/households/:householdId/events/:eventId
  * @desc    Delete an event from a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/:eventId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(EventController.deleteEvent)
 );
 

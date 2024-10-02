@@ -44,12 +44,12 @@ router.post(
 /**
  * @route   PATCH /api/households/:householdId
  * @desc    Update household details
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.patch(
   '/households/:householdId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   validate(updateHouseholdSchema),
   asyncHandler(UserController.updateHousehold)
 );
@@ -57,12 +57,12 @@ router.patch(
 /**
  * @route   POST /api/households/:householdId/members
  * @desc    Add a new member to a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.post(
   '/households/:householdId/members',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   validate(addMemberSchema),
   asyncHandler(UserController.addMember)
 );
@@ -70,24 +70,24 @@ router.post(
 /**
  * @route   DELETE /api/households/:householdId/members/:memberId
  * @desc    Remove a member from a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/households/:householdId/members/:memberId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(UserController.removeMember)
 );
 
 /**
  * @route   DELETE /api/households/:householdId
  * @desc    Delete a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/households/:householdId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(UserController.deleteHousehold)
 );
 

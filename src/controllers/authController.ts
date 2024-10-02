@@ -32,17 +32,9 @@ export class AuthController {
   static async login(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { email, password } = req.body;
-      const { user, accessToken, refreshToken } = await AuthService.login(email, password);
+      const user = await AuthService.login(email, password, res);
       
-      res
-        .cookie('refreshToken', refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          path: '/api/auth/refresh-token',
-        })
-        .status(200)
-        .json({ data: { user, accessToken } });
+      res.status(200).json({ data: user });
     } catch (error) {
       next(error);
     }
@@ -56,19 +48,8 @@ export class AuthController {
    */
   static async logout(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = req.user?.id;
-      if (userId) {
-        await AuthService.logout(userId);
-      }
-      res
-        .clearCookie('refreshToken', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          path: '/api/auth/refresh-token',
-        })
-        .status(200)
-        .json({ data: { message: 'Logged out successfully.' } });
+      await AuthService.logout(res);
+      res.status(200).json({ data: { message: 'Logged out successfully.' } });
     } catch (error) {
       next(error);
     }
@@ -86,21 +67,9 @@ export class AuthController {
       if (!refreshToken) {
         throw new UnauthorizedError('No refresh token provided.');
       }
-      const tokens = await AuthService.refreshToken(refreshToken);
+      const newAccessToken = await AuthService.refreshToken(refreshToken, res);
       
-      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = tokens; 
-
-
-
-      res
-        .cookie('refreshToken', newRefreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          path: '/api/auth/refresh-token',
-        })
-        .status(200)
-        .json({ data: { accessToken: newAccessToken } });
+      res.status(200).json({ data: { message: 'Token refreshed successfully.' } });
     } catch (error) {
       next(error);
     }
@@ -123,3 +92,4 @@ export class AuthController {
     }
   }
 }
+

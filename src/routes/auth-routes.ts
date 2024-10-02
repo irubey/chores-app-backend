@@ -20,7 +20,7 @@ router.post(
 
 /**
  * @route   POST /api/auth/login
- * @desc    Authenticate user and get tokens
+ * @desc    Authenticate user and set cookies
  * @access  Public
  */
 router.post(
@@ -31,7 +31,7 @@ router.post(
 
 /**
  * @route   POST /api/auth/logout
- * @desc    Logout user and invalidate refresh token
+ * @desc    Logout user and clear auth cookies
  * @access  Protected
  */
 router.post(
@@ -42,7 +42,7 @@ router.post(
 
 /**
  * @route   POST /api/auth/refresh-token
- * @desc    Refresh access token using refresh token
+ * @desc    Refresh access token using refresh token from cookies
  * @access  Public
  */
 router.post(

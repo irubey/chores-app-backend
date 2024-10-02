@@ -4,29 +4,60 @@ import { hash, compare } from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError } from '../middlewares/errorHandler';
 import authConfig from '../config/auth';
-
-/**
- * Generates an access token.
- * @param payload - The token payload.
- * @returns The signed JWT access token.
- */
-function generateAccessToken(payload: TokenPayload): string {
-  return jwt.sign(payload, authConfig.jwt.accessSecret, { expiresIn: authConfig.jwt.accessTokenExpiration });
-}
-
-/**
- * Generates a refresh token.
- * @param payload - The token payload.
- * @returns The signed JWT refresh token.
- */
-function generateRefreshToken(payload: TokenPayload): string {
-  return jwt.sign(payload, authConfig.jwt.refreshSecret, { expiresIn: authConfig.jwt.refreshTokenExpiration });
-}
+import { Response } from 'express';
 
 /**
  * AuthService handles the business logic for authentication.
  */
 export class AuthService {
+  private static generateAccessToken(payload: TokenPayload): string {
+    return jwt.sign(payload, authConfig.jwt.accessSecret, { expiresIn: authConfig.jwt.accessTokenExpiration });
+  }
+
+  private static generateRefreshToken(payload: TokenPayload): string {
+    return jwt.sign(payload, authConfig.jwt.refreshSecret, { expiresIn: authConfig.jwt.refreshTokenExpiration });
+  }
+
+  private static verifyToken(token: string, secret: string): TokenPayload {
+    try {
+      return jwt.verify(token, secret) as TokenPayload;
+    } catch (error) {
+      throw new UnauthorizedError('Invalid or expired token.');
+    }
+  }
+
+  /**
+   * Sets HTTP-only cookies for access and refresh tokens.
+   * @param res Express Response object
+   * @param accessToken - The access token
+   * @param refreshToken - The refresh token
+   */
+  private static setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      path: '/',
+    });
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+    });
+  }
+
+  /**
+   * Clears authentication cookies.
+   * @param res Express Response object
+   */
+  private static clearAuthCookies(res: Response): void {
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/' });
+  }
+
   /**
    * Registers a new user.
    * @param userData - The registration data.
@@ -61,10 +92,11 @@ export class AuthService {
    * Logs in a user by verifying credentials and issuing tokens.
    * @param email - The user's email.
    * @param password - The user's password.
-   * @returns The access and refresh tokens along with user data.
+   * @param res - Express Response object to set cookies.
+   * @returns The user data.
    * @throws UnauthorizedError if credentials are invalid.
    */
-  static async login(email: string, password: string) {
+  static async login(email: string, password: string, res: Response) {
     const user = await prisma.user.findUnique({
       where: { email },
     });
@@ -80,53 +112,62 @@ export class AuthService {
     }
 
     const payload: TokenPayload = { userId: user.id, email: user.email };
-    const accessToken = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken(payload);
+    const accessToken = this.generateAccessToken(payload);
+    const refreshToken = this.generateRefreshToken(payload);
+
+    this.setAuthCookies(res, accessToken, refreshToken);
 
     // Remove sensitive information before sending
     const { passwordHash, ...userWithoutPassword } = user;
 
-    return { user: userWithoutPassword, accessToken, refreshToken };
+    return userWithoutPassword;
   }
 
   /**
-   * Logs out a user by invalidating the refresh token.
-   * @param userId - The ID of the user to log out.
+   * Logs out a user by clearing the refresh token cookie.
+   * @param res Express Response object to clear cookies.
    * @returns void
-   * @throws Error if logout fails.
    */
-  static async logout(userId: string) {
-    // To implement: Invalidate refresh tokens, if stored in DB
-    // e.g., prisma.refreshToken.deleteMany({ where: { userId } });
-    // For simplicity, assuming stateless tokens that are cleared on client side
+  static async logout(res: Response): Promise<void> {
+    this.clearAuthCookies(res);
+    // Optionally, implement token blacklisting here
     return;
   }
 
   /**
    * Refreshes the access token using a valid refresh token.
    * @param refreshToken - The refresh token.
-   * @returns New access and refresh tokens.
+   * @param res - Express Response object to set new cookies.
+   * @returns New access token.
    * @throws UnauthorizedError if refresh token is invalid or expired.
    */
-  static async refreshToken(refreshToken: string) {
-    try {
-      const decoded = jwt.verify(refreshToken, authConfig.jwt.refreshSecret) as TokenPayload;
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-      });
-      if (!user) {
-        throw new UnauthorizedError('Invalid refresh token.');
-      }
+  static async refreshToken(refreshToken: string, res: Response) {
+    const decoded = this.verifyToken(refreshToken, authConfig.jwt.refreshSecret);
 
-      const newPayload: TokenPayload = { userId: user.id, email: user.email };
-      const newAccessToken = generateAccessToken(newPayload);
-      const newRefreshToken = generateRefreshToken(newPayload);
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
 
-      // Optionally, invalidate the old refresh token and store the new one
-
-      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
-    } catch (error) {
-      throw new UnauthorizedError('Invalid or expired refresh token.');
+    if (!user) {
+      throw new UnauthorizedError('Invalid refresh token.');
     }
+
+    const newPayload: TokenPayload = { userId: user.id, email: user.email };
+    const newAccessToken = this.generateAccessToken(newPayload);
+    const newRefreshToken = this.generateRefreshToken(newPayload);
+
+    this.setAuthCookies(res, newAccessToken, newRefreshToken);
+
+    return newAccessToken;
+  }
+
+  /**
+   * Verifies the access token.
+   * @param accessToken - The access token.
+   * @returns The decoded payload.
+   * @throws UnauthorizedError if token is invalid or expired.
+   */
+  static verifyAccessToken(accessToken: string): TokenPayload {
+    return this.verifyToken(accessToken, authConfig.jwt.accessSecret);
   }
 }

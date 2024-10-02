@@ -25,12 +25,12 @@ router.get(
 /**
  * @route   POST /api/households/:householdId/calendar
  * @desc    Create a new calendar event within a household
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.post(
   '/',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(createEventSchema),
   asyncHandler(CalendarIntegrationController.createEvent)
 );
@@ -38,12 +38,12 @@ router.post(
 /**
  * @route   PATCH /api/households/:householdId/calendar/:eventId
  * @desc    Update an existing calendar event
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.patch(
   '/:eventId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(updateEventSchema),
   asyncHandler(CalendarIntegrationController.updateEvent)
 );
@@ -51,12 +51,12 @@ router.patch(
 /**
  * @route   DELETE /api/households/:householdId/calendar/:eventId
  * @desc    Delete a calendar event from a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/:eventId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(CalendarIntegrationController.deleteEvent)
 );
 
