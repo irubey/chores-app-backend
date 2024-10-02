@@ -38,12 +38,12 @@ router.get(
 /**
  * @route   PATCH /api/households/:householdId
  * @desc    Update an existing household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.patch(
   '/:householdId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   validate(updateHouseholdSchema),
   asyncHandler(HouseholdController.updateHousehold)
 );
@@ -51,24 +51,24 @@ router.patch(
 /**
  * @route   DELETE /api/households/:householdId
  * @desc    Delete a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/:householdId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(HouseholdController.deleteHousehold)
 );
 
 /**
  * @route   POST /api/households/:householdId/members
  * @desc    Add a new member to the household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.post(
   '/:householdId/members',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   validate(addMemberSchema),
   asyncHandler(HouseholdController.addMember)
 );
@@ -76,13 +76,46 @@ router.post(
 /**
  * @route   DELETE /api/households/:householdId/members/:memberId
  * @desc    Remove a member from the household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/:householdId/members/:memberId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(HouseholdController.removeMember)
+);
+
+/**
+ * @route   PATCH /api/households/:householdId/members/:memberId/status
+ * @desc    Update the status of a household member (e.g., accept invitation)
+ * @access  Protected
+ */
+router.patch(
+  '/:householdId/members/:memberId/status',
+  authMiddleware,
+  asyncHandler(HouseholdController.updateMemberStatus)
+);
+
+/**
+ * @route   GET /api/households/selected
+ * @desc    Retrieve all households selected by the user
+ * @access  Protected
+ */
+router.get(
+  '/selected',
+  authMiddleware,
+  asyncHandler(HouseholdController.getSelectedHouseholds)
+);
+
+/**
+ * @route   PATCH /api/households/:householdId/members/:memberId/selection
+ * @desc    Toggle the selection state of a household for a member
+ * @access  Protected
+ */
+router.patch(
+  '/:householdId/members/:memberId/selection',
+  authMiddleware,
+  asyncHandler(HouseholdController.toggleHouseholdSelection)
 );
 
 export default router;

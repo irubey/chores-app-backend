@@ -18,11 +18,12 @@ router.get('/', authMiddleware, asyncHandler(TransactionController.getTransactio
 /**
  * @route   POST /api/households/:householdId/transactions
  * @desc    Create a new transaction within a household
- * @access  Protected, Admin and involved users
+ * @access  Protected, Write access required
  */
 router.post(
   '/',
   authMiddleware,
+  rbacMiddleware('WRITE'),
   validate(createTransactionSchema),
   asyncHandler(TransactionController.createTransaction)
 );
@@ -30,11 +31,12 @@ router.post(
 /**
  * @route   PATCH /api/households/:householdId/transactions/:transactionId
  * @desc    Update the status of a specific transaction
- * @access  Protected, Admin and involved users
+ * @access  Protected, Write access required
  */
 router.patch(
   '/:transactionId',
   authMiddleware,
+  rbacMiddleware('WRITE'),
   validate(updateTransactionStatusSchema),
   asyncHandler(TransactionController.updateTransactionStatus)
 );
@@ -42,12 +44,12 @@ router.patch(
 /**
  * @route   DELETE /api/households/:householdId/transactions/:transactionId
  * @desc    Delete a transaction from a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/:transactionId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(TransactionController.deleteTransaction)
 );
 

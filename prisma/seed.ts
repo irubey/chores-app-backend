@@ -1,4 +1,4 @@
-import { PrismaClient, HouseholdRole, ChoreStatus, SubtaskStatus, TransactionStatus, User } from '@prisma/client';
+import { PrismaClient, HouseholdRole, ChoreStatus, SubtaskStatus, TransactionStatus, NotificationType, Provider } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -9,9 +9,11 @@ async function main() {
   if (existingUsers.length > 0) {
     console.log('Clearing existing data...');
     // Delete data in the correct order to avoid foreign key constraint issues
+    await prisma.oAuthIntegration.deleteMany();
+    await prisma.notification.deleteMany();
     await prisma.thread.deleteMany();
-    await prisma.message.deleteMany();
     await prisma.attachment.deleteMany();
+    await prisma.message.deleteMany();
     await prisma.subtask.deleteMany();
     await prisma.chore.deleteMany();
     await prisma.transaction.deleteMany();
@@ -42,10 +44,16 @@ async function main() {
   // Create events
   await createEvents(household.id, users);
 
+  // Create notifications
+  await createNotifications(users);
+
+  // Create OAuth integrations
+  await createOAuthIntegrations(users[0].id);
+
   console.log('Database has been seeded. 🌱');
 }
 
-async function createUsers(): Promise<User[]> {
+async function createUsers(): Promise<any[]> {
   const hashedPassword = await bcrypt.hash('Password123!', 12);
 
   const userData = [
@@ -56,14 +64,13 @@ async function createUsers(): Promise<User[]> {
 
   const users = await Promise.all(
     userData.map(data =>
-      prisma.user.upsert({
-        where: { email: data.email },
-        update: {},
-        create: {
+      prisma.user.create({
+        data: {
           email: data.email,
           passwordHash: hashedPassword,
           name: data.name,
           profileImageURL: `https://example.com/profiles/${data.name.toLowerCase().replace(' ', '_')}.jpg`,
+          deviceTokens: ['sample_device_token'],
         },
       })
     )
@@ -72,15 +79,15 @@ async function createUsers(): Promise<User[]> {
   return users;
 }
 
-async function createHousehold(users: User[]) {
+async function createHousehold(users: any[]) {
   const household = await prisma.household.create({
     data: {
       name: 'Awesome Apartment',
       members: {
         create: [
-          { userId: users[0].id, role: HouseholdRole.ADMIN },
-          { userId: users[1].id, role: HouseholdRole.MEMBER },
-          { userId: users[2].id, role: HouseholdRole.MEMBER },
+          { userId: users[0].id, role: HouseholdRole.ADMIN, isAccepted: true },
+          { userId: users[1].id, role: HouseholdRole.MEMBER, isAccepted: true },
+          { userId: users[2].id, role: HouseholdRole.MEMBER, isInvited: true },
         ],
       },
     },
@@ -89,7 +96,7 @@ async function createHousehold(users: User[]) {
   return household;
 }
 
-async function createChores(householdId: string, users: User[]) {
+async function createChores(householdId: string, users: any[]) {
   const chores = [
     {
       title: 'Clean the kitchen',
@@ -130,7 +137,7 @@ async function createChores(householdId: string, users: User[]) {
   }
 }
 
-async function createExpenses(householdId: string, users: User[]) {
+async function createExpenses(householdId: string, users: any[]) {
   const expenses = [
     {
       amount: 50.00,
@@ -174,7 +181,7 @@ async function createExpenses(householdId: string, users: User[]) {
   }
 }
 
-async function createMessagesAndThreads(householdId: string, users: User[]) {
+async function createMessagesAndThreads(householdId: string, users: any[]) {
   const message = await prisma.message.create({
     data: {
       householdId,
@@ -205,7 +212,7 @@ async function createMessagesAndThreads(householdId: string, users: User[]) {
   });
 }
 
-async function createEvents(householdId: string, users: User[]) {
+async function createEvents(householdId: string, users: any[]) {
   await prisma.event.createMany({
     data: [
       {
@@ -225,6 +232,43 @@ async function createEvents(householdId: string, users: User[]) {
         createdById: users[1].id,
       },
     ],
+  });
+}
+
+async function createNotifications(users: any[]) {
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: users[0].id,
+        type: NotificationType.CHORE,
+        message: 'New chore assigned: Clean the kitchen',
+        isRead: false,
+      },
+      {
+        userId: users[1].id,
+        type: NotificationType.EXPENSE,
+        message: 'New expense added: Groceries ($50.00)',
+        isRead: false,
+      },
+      {
+        userId: users[2].id,
+        type: NotificationType.MESSAGE,
+        message: 'New message in Awesome Apartment',
+        isRead: false,
+      },
+    ],
+  });
+}
+
+async function createOAuthIntegrations(userId: string) {
+  await prisma.oAuthIntegration.create({
+    data: {
+      userId,
+      provider: Provider.GOOGLE,
+      accessToken: 'sample_access_token',
+      refreshToken: 'sample_refresh_token',
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+    },
   });
 }
 

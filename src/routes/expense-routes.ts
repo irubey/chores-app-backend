@@ -18,12 +18,12 @@ router.get('/', authMiddleware, asyncHandler(ExpenseController.getExpenses));
 /**
  * @route   POST /api/households/:householdId/expenses
  * @desc    Create a new expense within a household
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.post(
   '/',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(createExpenseSchema),
   asyncHandler(ExpenseController.createExpense)
 );
@@ -38,12 +38,12 @@ router.get('/:expenseId', authMiddleware, asyncHandler(ExpenseController.getExpe
 /**
  * @route   PATCH /api/households/:householdId/expenses/:expenseId
  * @desc    Update an existing expense
- * @access  Protected, Admin only
+ * @access  Protected, Write access required
  */
 router.patch(
   '/:expenseId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('WRITE'),
   validate(updateExpenseSchema),
   asyncHandler(ExpenseController.updateExpense)
 );
@@ -51,12 +51,12 @@ router.patch(
 /**
  * @route   DELETE /api/households/:householdId/expenses/:expenseId
  * @desc    Delete an expense from a household
- * @access  Protected, Admin only
+ * @access  Protected, Admin access required
  */
 router.delete(
   '/:expenseId',
   authMiddleware,
-  rbacMiddleware(['ADMIN']),
+  rbacMiddleware('ADMIN'),
   asyncHandler(ExpenseController.deleteExpense)
 );
 

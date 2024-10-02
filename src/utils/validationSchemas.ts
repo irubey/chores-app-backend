@@ -1,5 +1,6 @@
 import Joi from 'joi';
 import { UserRole, NotificationType, TransactionStatus } from '../types';
+import { HouseholdRole } from '@prisma/client';
 
 /**
  * Schema for creating a new chore.
@@ -231,22 +232,41 @@ export const syncCalendarSchema = Joi.object({
  * Validation schema for creating a new household.
  */
 export const createHouseholdSchema = Joi.object({
-  name: Joi.string().min(3).max(100).required(),
+  name: Joi.string().min(3).max(100).required()
+    .messages({
+      'string.base': `'name' should be a type of 'text'`,
+      'string.min': `'name' should have a minimum length of {#limit}`,
+      'string.max': `'name' should have a maximum length of {#limit}`,
+      'any.required': `'name' is a required field`,
+    }),
 });
 
 /**
  * Validation schema for updating an existing household.
  */
 export const updateHouseholdSchema = Joi.object({
-  name: Joi.string().min(3).max(100).optional(),
+  name: Joi.string().min(3).max(100).optional()
+    .messages({
+      'string.base': `'name' should be a type of 'text'`,
+      'string.min': `'name' should have a minimum length of {#limit}`,
+      'string.max': `'name' should have a maximum length of {#limit}`,
+    }),
 });
 
 /**
  * Validation schema for adding a new member to a household.
  */
 export const addMemberSchema = Joi.object({
-  userId: Joi.string().uuid().required(),
-  role: Joi.string().valid(...Object.values(UserRole)).optional(),
+  userId: Joi.string().uuid().required()
+    .messages({
+      'string.base': `'userId' should be a type of 'string'`,
+      'string.uuid': `'userId' must be a valid UUID`,
+      'any.required': `'userId' is a required field`,
+    }),
+  role: Joi.string().valid(...Object.values(HouseholdRole)).optional()
+    .messages({
+      'any.only': `'role' must be one of ${Object.values(HouseholdRole).join(', ')}`,
+    }),
 });
 
 /**
