@@ -1,7 +1,8 @@
 import { Response, NextFunction } from 'express';
 import * as expenseService from '../services/expenseService';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { NotFoundError, UnauthorizedError, BadRequestError } from '../middlewares/errorHandler';
 import { AuthenticatedRequest } from '../types';
+import path from 'path';
 
 /**
  * ExpenseController handles all CRUD operations related to expenses.
@@ -105,6 +106,36 @@ export class ExpenseController {
       const { householdId, expenseId } = req.params;
       await expenseService.deleteExpense(householdId, expenseId, req.user.id);
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Uploads a receipt file for a specific expense.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async uploadReceipt(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+
+      const { householdId, expenseId } = req.params;
+
+      if (!req.file) {
+        throw new BadRequestError('No file uploaded');
+      }
+
+      const filePath = path.join('uploads/receipts/', req.file.filename);
+      const fileType = req.file.mimetype;
+
+      // Call the service to handle database and storage logic
+      const receipt = await expenseService.uploadReceipt(householdId, expenseId, req.user.id, filePath, fileType);
+
+      res.status(201).json(receipt);
     } catch (error) {
       next(error);
     }

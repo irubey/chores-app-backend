@@ -1,4 +1,4 @@
-import { Expense, ExpenseSplit, HouseholdRole } from '@prisma/client';
+import { Expense, ExpenseSplit, HouseholdRole, Receipt } from '@prisma/client';
 import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
 import prisma from '../config/database';
 import { CreateExpenseDTO, UpdateExpenseDTO, CreateExpenseSplitDTO, UpdateExpenseSplitDTO } from '../types/index';
@@ -261,3 +261,43 @@ export async function deleteExpense(
   // Emit real-time event for deleted expense
   getIO().to(`household_${householdId}`).emit('expense_update', { expenseId });
 }
+
+/**
+ * Uploads a receipt for a specific expense.
+ * @param householdId ID of the household
+ * @param expenseId ID of the expense
+ * @param userId ID of the user uploading the receipt
+ * @param filePath Path where the receipt file is stored
+ * @param fileType MIME type of the uploaded file
+ * @returns The created Receipt object
+ */
+export const uploadReceipt = async (
+  householdId: string,
+  expenseId: string,
+  userId: string,
+  filePath: string,
+  fileType: string
+): Promise<Receipt> => {
+  // Optional: Verify if the user has access to the household and expense
+
+  // Check if the expense exists and belongs to the household
+  const expense = await prisma.expense.findUnique({
+    where: { id: expenseId },
+    include: { household: true },
+  });
+
+  if (!expense || expense.householdId !== householdId) {
+    throw new NotFoundError('Expense not found');
+  }
+
+  // Create the Receipt record in the database
+  const receipt = await prisma.receipt.create({
+    data: {
+      expenseId: expenseId,
+      url: filePath, // Adjust based on how you serve files (e.g., via a static server)
+      fileType: fileType,
+    },
+  });
+
+  return receipt;
+};
