@@ -72,6 +72,10 @@ model Household {
   name        String
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  currency    String            @default("USD")
+  icon        String?
+  timezone    String            @default("UTC")
+  language    String            @default("en")
 
   members     HouseholdMember[]
   messages    Message[]
@@ -186,6 +190,7 @@ model Expense {
   paidBy        User           @relation(fields: [paidById], references: [id])
   splits        ExpenseSplit[]
   transactions  Transaction[]
+  receipts      Receipt[]
 }
 
 model ExpenseSplit {
@@ -280,4 +285,14 @@ enum ChoreSwapRequestStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+model Receipt {
+  id          String    @id @default(uuid())
+  expenseId   String
+  url         String
+  fileType    String
+  createdAt   DateTime  @default(now())
+
+  expense     Expense   @relation(fields: [expenseId], references: [id])
 }
