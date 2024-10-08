@@ -1,7 +1,7 @@
 import { Event, HouseholdRole, Chore } from '@prisma/client';
 import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
 import prisma from '../config/database';
-import { CreateEventDTO, UpdateEventDTO } from '../types/index';
+import { CreateEventDTO, UpdateEventDTO, UpdateEventStatusDTO } from '../types/index';
 import { getIO } from '../sockets';
 
 /**
@@ -73,10 +73,18 @@ export async function createEvent(
       endTime: data.endTime,
       createdById: userId,
       choreId: data.choreId || null,
+      recurrence: data.recurrence,
+      customRecurrence: data.customRecurrence,
+      category: data.category,
+      isAllDay: data.isAllDay,
+      location: data.location,
+      isPrivate: data.isPrivate,
+      status: 'SCHEDULED',
     },
     include: {
       chore: true,
       createdBy: true,
+      reminders: true,
     },
   });
 
@@ -177,10 +185,17 @@ export async function updateEvent(
       startTime: data.startTime,
       endTime: data.endTime,
       choreId: data.choreId !== undefined ? data.choreId : undefined,
+      recurrence: data.recurrence,
+      customRecurrence: data.customRecurrence,
+      category: data.category,
+      isAllDay: data.isAllDay,
+      location: data.location,
+      isPrivate: data.isPrivate,
     },
     include: {
       chore: true,
       createdBy: true,
+      reminders: true,
     },
   });
 
@@ -235,4 +250,56 @@ export async function deleteEvent(
 
   // Emit real-time event for deleted event
   getIO().to(`household_${householdId}`).emit('event_update', { eventId });
+}
+
+/**
+ * Updates the status of an event.
+ * @param householdId - The ID of the household.
+ * @param eventId - The ID of the event to update.
+ * @param data - The updated event status data.
+ * @param userId - The ID of the user performing the update.
+ * @returns The updated event.
+ * @throws UnauthorizedError if the user does not have WRITE role.
+ * @throws NotFoundError if the event does not exist.
+ */
+export async function updateEventStatus(
+  householdId: string,
+  eventId: string,
+  data: UpdateEventStatusDTO,
+  userId: string
+): Promise<Event> {
+  // Verify user has WRITE role in the household
+  const membership = await prisma.householdMember.findUnique({
+    where: {
+      userId_householdId: {
+        householdId,
+        userId,
+      },
+    },
+  });
+
+  if (!membership || membership.role === HouseholdRole.MEMBER) {
+    throw new UnauthorizedError('You do not have permission to update this event status.');
+  }
+
+  const event = await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      status: data.status,
+    },
+    include: {
+      chore: true,
+      createdBy: true,
+      reminders: true,
+    },
+  });
+
+  if (!event) {
+    throw new NotFoundError('Event not found or you do not have permission to update it.');
+  }
+
+  // Emit real-time event for updated event status
+  getIO().to(`household_${householdId}`).emit('event_update', { event });
+
+  return event;
 }

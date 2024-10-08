@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import * as eventService from '../services/eventService';
 import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import { AuthenticatedRequest, CreateEventDTO, UpdateEventDTO } from '../types';
+import { AuthenticatedRequest, CreateEventDTO, UpdateEventDTO, UpdateEventStatusDTO } from '../types';
 
 /**
  * EventController handles all CRUD operations related to events.
@@ -105,6 +105,29 @@ export class EventController {
       const { householdId, eventId } = req.params;
       await eventService.deleteEvent(householdId, eventId, req.user.id);
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Updates the status of an event.
+   * @param req Authenticated Express Request object
+   * @param res Express Response object
+   * @param next Express NextFunction for error handling
+   */
+  static async updateEventStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Unauthorized');
+      }
+      const { householdId, eventId } = req.params;
+      const updateData: UpdateEventStatusDTO = req.body;
+      const updatedEvent = await eventService.updateEventStatus(householdId, eventId, updateData, req.user.id);
+      if (!updatedEvent) {
+        throw new NotFoundError('Event not found or you do not have permission to update it');
+      }
+      res.status(200).json(updatedEvent);
     } catch (error) {
       next(error);
     }

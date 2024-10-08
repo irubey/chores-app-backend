@@ -19,6 +19,10 @@ import {
   Notification as PrismaNotification,
   ChoreSwapRequest as PrismaChoreSwapRequest,
   ChoreSwapRequestStatus as PrismaChoreSwapRequestStatus,
+  EventRecurrence,
+  EventCategory,
+  EventStatus,
+  DaysOfWeek,
 } from '@prisma/client';
 
 // Enums
@@ -119,6 +123,10 @@ export interface OAuthTokenPayload extends TokenPayload {
 export interface PaginationOptions {
   page: number;
   limit: number;
+}
+
+export interface UpdateEventStatusDTO {
+  status: EventStatus;
 }
 
 /**
@@ -295,6 +303,12 @@ export interface CreateEventDTO {
   endTime: Date;
   createdById: string;
   choreId?: string | null;
+  recurrence: EventRecurrence;
+  customRecurrence?: DaysOfWeek[];
+  category: EventCategory;
+  isAllDay: boolean;
+  location?: string;
+  isPrivate: boolean;
 }
 
 /**
@@ -306,6 +320,12 @@ export interface UpdateEventDTO {
   startTime?: Date;
   endTime?: Date;
   choreId?: string | null;
+  recurrence?: EventRecurrence;
+  customRecurrence?: DaysOfWeek[];
+  category?: EventCategory;
+  isAllDay?: boolean;
+  location?: string;
+  isPrivate?: boolean;
 }
 
 /**
@@ -507,14 +527,12 @@ export interface EventUpdateEvent {
 export type PartialUpdateChoreDTO = Partial<UpdateChoreDTO>;
 export type ChorePickDTO = Pick<Chore, 'id' | 'title' | 'status'>;
 
-
 // Expense with splits for reminders
 export type ExpenseWithSplits = Expense & {
   splits: (ExpenseSplit & {
     user: User;
   })[];
 };
-
 
 // Prisma Models and enums Export
 export {
@@ -540,6 +558,10 @@ export {
   Provider,
   ChoreSwapRequest as PrismaChoreSwapRequest,
   ChoreSwapRequestStatus as PrismaChoreSwapRequestStatus,
+  EventRecurrence,
+  EventCategory,
+  EventStatus,
+  DaysOfWeek,
 } from '@prisma/client';
 
 
