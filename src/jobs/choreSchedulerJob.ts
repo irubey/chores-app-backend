@@ -1,6 +1,5 @@
 import prisma from '../config/database';
-import { HouseholdRole } from '@prisma/client';
-import { ChoreFrequency } from '../types';
+import { HouseholdRole, EventRecurrence, ChoreStatus, EventStatus, EventCategory } from '@prisma/client';
 
 /**
  * Automatically schedules rotating chores for households.
@@ -31,17 +30,21 @@ export async function scheduleRotatingChores() {
       }
 
       for (const chore of household.chores) {
-        switch (chore.recurrence) {
-          case ChoreFrequency.DAILY:
-            await createChoreInstance(household.id, chore);
+        const recurrence = chore.recurrence as EventRecurrence;
+        switch (recurrence) {
+          case EventRecurrence.DAILY:
+            await createChoreInstance(household.id, chore, 1);
             break;
-          case ChoreFrequency.WEEKLY:
-            // Implement weekly scheduling logic
+          case EventRecurrence.WEEKLY:
+            await createChoreInstance(household.id, chore, 7);
             break;
-          case ChoreFrequency.MONTHLY:
-            // Implement monthly scheduling logic
+          case EventRecurrence.MONTHLY:
+            await createChoreInstance(household.id, chore, 30);
             break;
-          case ChoreFrequency.CUSTOM:
+          case EventRecurrence.YEARLY:
+            await createChoreInstance(household.id, chore, 365);
+            break;
+          case EventRecurrence.CUSTOM:
             // Implement custom scheduling logic
             break;
           default:
@@ -57,12 +60,12 @@ export async function scheduleRotatingChores() {
 }
 
 /**
- * Creates a new instance of a chore.
+ * Creates a new instance of a chore and associated event.
  * @param householdId - The ID of the household.
  * @param chore - The chore to instantiate.
+ * @param daysToAdd - Number of days to add for the next occurrence.
  */
-async function createChoreInstance(householdId: string, chore: any) {
-  // Logic to assign chore to a member
+async function createChoreInstance(householdId: string, chore: any, daysToAdd: number) {
   const members = await prisma.householdMember.findMany({
     where: { householdId },
   });
@@ -75,15 +78,35 @@ async function createChoreInstance(householdId: string, chore: any) {
   // Simple rotation logic based on the number of existing chore instances
   const assignedUser = members[Math.floor(Math.random() * members.length)].userId;
 
-  await prisma.chore.create({
+  const startTime = new Date();
+  const endTime = new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // Default to 1 day duration
+
+  // Create the Event first
+  const createdEvent = await prisma.event.create({
+    data: {
+      householdId,
+      title: `Chore: ${chore.title}`,
+      description: chore.description,
+      startTime,
+      endTime,
+      createdById: assignedUser,
+      recurrence: chore.recurrence as EventRecurrence,
+      category: EventCategory.CHORE,
+      status: EventStatus.SCHEDULED,
+    },
+  });
+
+  // Now create the Chore and link it to the Event
+  const createdChore = await prisma.chore.create({
     data: {
       householdId,
       title: chore.title,
       description: chore.description,
-      dueDate: new Date(), // Set appropriate due date
-      status: 'PENDING',
+      dueDate: new Date(startTime.getTime() + daysToAdd * 24 * 60 * 60 * 1000),
+      status: ChoreStatus.PENDING,
       recurrence: chore.recurrence,
       priority: chore.priority,
+      eventId: createdEvent.id,
       assignedUsers: {
         connect: [{ id: assignedUser }],
       },
@@ -91,4 +114,5 @@ async function createChoreInstance(householdId: string, chore: any) {
   });
 
   console.log(`Chore "${chore.title}" assigned to user ${assignedUser} in household ${householdId}.`);
+  console.log(`Associated event created with ID: ${createdEvent.id}`);
 }

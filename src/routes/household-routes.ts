@@ -1,14 +1,14 @@
-import { Router } from 'express';
-import { HouseholdController } from '../controllers/HouseholdController';
-import authMiddleware from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
+import { Router } from "express";
+import { HouseholdController } from "../controllers/HouseholdController";
+import authMiddleware from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
 import {
   createHouseholdSchema,
   updateHouseholdSchema,
   addMemberSchema,
-} from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router();
 
@@ -18,7 +18,7 @@ const router = Router();
  * @access  Protected
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
   validate(createHouseholdSchema),
   asyncHandler(HouseholdController.createHousehold)
@@ -30,7 +30,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  '/:householdId',
+  "/:householdId",
   authMiddleware,
   asyncHandler(HouseholdController.getHousehold)
 );
@@ -41,9 +41,9 @@ router.get(
  * @access  Protected, Admin access required
  */
 router.patch(
-  '/:householdId',
+  "/:householdId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware("ADMIN"),
   validate(updateHouseholdSchema),
   asyncHandler(HouseholdController.updateHousehold)
 );
@@ -54,9 +54,9 @@ router.patch(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:householdId',
+  "/:householdId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware("ADMIN"),
   asyncHandler(HouseholdController.deleteHousehold)
 );
 
@@ -66,9 +66,9 @@ router.delete(
  * @access  Protected, Admin access required
  */
 router.post(
-  '/:householdId/members',
+  "/:householdId/members",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware("ADMIN"),
   validate(addMemberSchema),
   asyncHandler(HouseholdController.addMember)
 );
@@ -79,9 +79,9 @@ router.post(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:householdId/members/:memberId',
+  "/:householdId/members/:memberId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware("ADMIN"),
   asyncHandler(HouseholdController.removeMember)
 );
 
@@ -91,7 +91,7 @@ router.delete(
  * @access  Protected
  */
 router.patch(
-  '/:householdId/members/:memberId/status',
+  "/:householdId/members/:memberId/status",
   authMiddleware,
   asyncHandler(HouseholdController.updateMemberStatus)
 );
@@ -102,7 +102,7 @@ router.patch(
  * @access  Protected
  */
 router.get(
-  '/selected',
+  "/selected",
   authMiddleware,
   asyncHandler(HouseholdController.getSelectedHouseholds)
 );
@@ -113,9 +113,20 @@ router.get(
  * @access  Protected
  */
 router.patch(
-  '/:householdId/members/:memberId/selection',
+  "/:householdId/members/:memberId/selection",
   authMiddleware,
   asyncHandler(HouseholdController.toggleHouseholdSelection)
+);
+
+/**
+ * @route   GET /api/households
+ * @desc    Retrieve all households for the authenticated user
+ * @access  Protected
+ */
+router.get(
+  "/",
+  authMiddleware,
+  asyncHandler(HouseholdController.getUserHouseholds)
 );
 
 export default router;

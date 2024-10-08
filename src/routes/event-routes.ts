@@ -60,4 +60,16 @@ router.delete(
   asyncHandler(EventController.deleteEvent)
 );
 
+/**
+ * @route   PATCH /api/households/:householdId/events/:eventId/status
+ * @desc    Update the status of an event
+ * @access  Protected, Write access required
+ */
+router.patch(
+  '/:eventId/status',
+  authMiddleware,
+  rbacMiddleware('WRITE'),
+  asyncHandler(EventController.updateEventStatus)
+);
+
 export default router;
