@@ -1,6 +1,6 @@
-import Joi from 'joi';
-import { UserRole, NotificationType, TransactionStatus } from '../types';
-import { HouseholdRole } from '@prisma/client';
+import Joi from "joi";
+import { UserRole, NotificationType, TransactionStatus } from "../types";
+import { HouseholdRole } from "@prisma/client";
 
 /**
  * Schema for creating a new chore.
@@ -12,11 +12,13 @@ export const createChoreSchema = Joi.object({
   priority: Joi.number().integer().min(1).max(5).optional(),
   recurrence: Joi.string().optional(),
   assignedUserIds: Joi.array().items(Joi.string().uuid()).optional(),
-  subtasks: Joi.array().items(
-    Joi.object({
-      title: Joi.string().required(),
-    })
-  ).optional(),
+  subtasks: Joi.array()
+    .items(
+      Joi.object({
+        title: Joi.string().required(),
+      })
+    )
+    .optional(),
 });
 
 /**
@@ -24,12 +26,14 @@ export const createChoreSchema = Joi.object({
  */
 export const createMessageSchema = Joi.object({
   content: Joi.string().required(),
-  attachments: Joi.array().items(
-    Joi.object({
-      url: Joi.string().uri().required(),
-      fileType: Joi.string().required(),
-    })
-  ).optional(),
+  attachments: Joi.array()
+    .items(
+      Joi.object({
+        url: Joi.string().uri().required(),
+        fileType: Joi.string().required(),
+      })
+    )
+    .optional(),
 });
 
 /**
@@ -37,12 +41,14 @@ export const createMessageSchema = Joi.object({
  */
 export const updateMessageSchema = Joi.object({
   content: Joi.string().optional(),
-  attachments: Joi.array().items(
-    Joi.object({
-      url: Joi.string().uri().required(),
-      fileType: Joi.string().required(),
-    })
-  ).optional(),
+  attachments: Joi.array()
+    .items(
+      Joi.object({
+        url: Joi.string().uri().required(),
+        fileType: Joi.string().required(),
+      })
+    )
+    .optional(),
 });
 
 /**
@@ -79,15 +85,17 @@ export const updateChoreSchema = Joi.object({
   description: Joi.string().optional(),
   dueDate: Joi.date().optional(),
   priority: Joi.number().integer().min(1).max(5).optional(),
-  status: Joi.string().valid('PENDING', 'IN_PROGRESS', 'COMPLETED').optional(),
+  status: Joi.string().valid("PENDING", "IN_PROGRESS", "COMPLETED").optional(),
   recurrence: Joi.string().optional(),
   assignedUserIds: Joi.array().items(Joi.string().uuid()).optional(),
-  subtasks: Joi.array().items(
-    Joi.object({
-      title: Joi.string().optional(),
-      status: Joi.string().valid('PENDING', 'COMPLETED').optional(),
-    })
-  ).optional(),
+  subtasks: Joi.array()
+    .items(
+      Joi.object({
+        title: Joi.string().optional(),
+        status: Joi.string().valid("PENDING", "COMPLETED").optional(),
+      })
+    )
+    .optional(),
 });
 
 /**
@@ -101,56 +109,51 @@ export const createSubtaskSchema = Joi.object({
  * Schema for updating a subtask's status.
  */
 export const updateSubtaskStatusSchema = Joi.object({
-  status: Joi.string().valid('PENDING', 'COMPLETED').required(),
+  status: Joi.string().valid("PENDING", "COMPLETED").required(),
 });
 
 /**
  * Validation schema for creating a new expense.
  */
 export const createExpenseSchema = Joi.object({
-  amount: Joi.number().positive().required()
-    .messages({
-      'number.base': `'amount' should be a type of 'number'`,
-      'number.positive': `'amount' must be a positive number`,
-      'any.required': `'amount' is a required field`,
-    }),
-  description: Joi.string().required()
-    .messages({
-      'string.base': `'description' should be a type of 'text'`,
-      'any.required': `'description' is a required field`,
-    }),
-  paidById: Joi.string().uuid().required()
-    .messages({
-      'string.base': `'paidById' should be a type of 'string'`,
-      'string.uuid': `'paidById' must be a valid UUID`,
-      'any.required': `'paidById' is a required field`,
-    }),
-  dueDate: Joi.date().optional()
-    .messages({
-      'date.base': `'dueDate' should be a valid date`,
-    }),
-  category: Joi.string().optional()
-    .messages({
-      'string.base': `'category' should be a type of 'string'`,
-    }),
-  splits: Joi.array().items(
-    Joi.object({
-      userId: Joi.string().uuid().required()
-        .messages({
-          'string.base': `'userId' should be a type of 'string'`,
-          'string.uuid': `'userId' must be a valid UUID`,
-          'any.required': `'userId' is a required field`,
+  amount: Joi.number().positive().required().messages({
+    "number.base": `'amount' should be a type of 'number'`,
+    "number.positive": `'amount' must be a positive number`,
+    "any.required": `'amount' is a required field`,
+  }),
+  description: Joi.string().required().messages({
+    "string.base": `'description' should be a type of 'text'`,
+    "any.required": `'description' is a required field`,
+  }),
+  paidById: Joi.string().uuid().required().messages({
+    "string.base": `'paidById' should be a type of 'string'`,
+    "string.uuid": `'paidById' must be a valid UUID`,
+    "any.required": `'paidById' is a required field`,
+  }),
+  dueDate: Joi.date().optional().messages({
+    "date.base": `'dueDate' should be a valid date`,
+  }),
+  category: Joi.string().optional().messages({
+    "string.base": `'category' should be a type of 'string'`,
+  }),
+  splits: Joi.array()
+    .items(
+      Joi.object({
+        userId: Joi.string().uuid().required().messages({
+          "string.base": `'userId' should be a type of 'string'`,
+          "string.uuid": `'userId' must be a valid UUID`,
+          "any.required": `'userId' is a required field`,
         }),
-      amount: Joi.number().positive().required()
-        .messages({
-          'number.base': `'amount' should be a type of 'number'`,
-          'number.positive': `'amount' must be a positive number`,
-          'any.required': `'amount' is a required field`,
+        amount: Joi.number().positive().required().messages({
+          "number.base": `'amount' should be a type of 'number'`,
+          "number.positive": `'amount' must be a positive number`,
+          "any.required": `'amount' is a required field`,
         }),
-    })
-  ).optional()
+      })
+    )
+    .optional()
     .messages({
-      'array.base': `'splits' should be a type of 'array'`,
+      "array.base": `'splits' should be a type of 'array'`,
     }),
 });
 
@@ -158,41 +161,37 @@ export const createExpenseSchema = Joi.object({
  * Validation schema for updating an existing expense.
  */
 export const updateExpenseSchema = Joi.object({
-  amount: Joi.number().positive()
-    .messages({
-      'number.base': `'amount' should be a type of 'number'`,
-      'number.positive': `'amount' must be a positive number`,
-    }),
-  description: Joi.string()
-    .messages({
-      'string.base': `'description' should be a type of 'text'`,
-    }),
-  dueDate: Joi.date()
-    .messages({
-      'date.base': `'dueDate' should be a valid date`,
-    }),
-  category: Joi.string()
-    .messages({
-      'string.base': `'category' should be a type of 'string'`,
-    }),
-  splits: Joi.array().items(
-    Joi.object({
-      userId: Joi.string().uuid().required()
-        .messages({
-          'string.base': `'userId' should be a type of 'string'`,
-          'string.uuid': `'userId' must be a valid UUID`,
-          'any.required': `'userId' is a required field`,
+  amount: Joi.number().positive().messages({
+    "number.base": `'amount' should be a type of 'number'`,
+    "number.positive": `'amount' must be a positive number`,
+  }),
+  description: Joi.string().messages({
+    "string.base": `'description' should be a type of 'text'`,
+  }),
+  dueDate: Joi.date().messages({
+    "date.base": `'dueDate' should be a valid date`,
+  }),
+  category: Joi.string().messages({
+    "string.base": `'category' should be a type of 'string'`,
+  }),
+  splits: Joi.array()
+    .items(
+      Joi.object({
+        userId: Joi.string().uuid().required().messages({
+          "string.base": `'userId' should be a type of 'string'`,
+          "string.uuid": `'userId' must be a valid UUID`,
+          "any.required": `'userId' is a required field`,
         }),
-      amount: Joi.number().positive().required()
-        .messages({
-          'number.base': `'amount' should be a type of 'number'`,
-          'number.positive': `'amount' must be a positive number`,
-          'any.required': `'amount' is a required field`,
+        amount: Joi.number().positive().required().messages({
+          "number.base": `'amount' should be a type of 'number'`,
+          "number.positive": `'amount' must be a positive number`,
+          "any.required": `'amount' is a required field`,
         }),
-    })
-  ).optional()
+      })
+    )
+    .optional()
     .messages({
-      'array.base': `'splits' should be a type of 'array'`,
+      "array.base": `'splits' should be a type of 'array'`,
     }),
 });
 
@@ -205,7 +204,7 @@ export const createEventSchema = Joi.object({
   title: Joi.string().required(),
   description: Joi.string().optional(),
   startTime: Joi.date().iso().required(),
-  endTime: Joi.date().iso().greater(Joi.ref('startTime')).required(),
+  endTime: Joi.date().iso().greater(Joi.ref("startTime")).required(),
   choreId: Joi.string().uuid().optional(),
 });
 
@@ -224,7 +223,7 @@ export const updateEventSchema = Joi.object({
  * Schema for syncing with a personal calendar.
  */
 export const syncCalendarSchema = Joi.object({
-  provider: Joi.string().valid('GOOGLE').required(),
+  provider: Joi.string().valid("GOOGLE").required(),
   accessToken: Joi.string().required(),
 });
 
@@ -232,69 +231,58 @@ export const syncCalendarSchema = Joi.object({
  * Validation schema for creating a new household.
  */
 export const createHouseholdSchema = Joi.object({
-  name: Joi.string().min(3).max(100).required()
-    .messages({
-      'string.base': `'name' should be a type of 'text'`,
-      'string.min': `'name' should have a minimum length of {#limit}`,
-      'string.max': `'name' should have a maximum length of {#limit}`,
-      'any.required': `'name' is a required field`,
-    }),
+  name: Joi.string().min(3).max(100).required().messages({
+    "string.base": `'name' should be a type of 'text'`,
+    "string.min": `'name' should have a minimum length of {#limit}`,
+    "string.max": `'name' should have a maximum length of {#limit}`,
+    "any.required": `'name' is a required field`,
+  }),
 });
 
 /**
  * Validation schema for updating an existing household.
  */
 export const updateHouseholdSchema = Joi.object({
-  name: Joi.string().min(3).max(100).optional()
-    .messages({
-      'string.base': `'name' should be a type of 'text'`,
-      'string.min': `'name' should have a minimum length of {#limit}`,
-      'string.max': `'name' should have a maximum length of {#limit}`,
-    }),
+  name: Joi.string().min(3).max(100).optional().messages({
+    "string.base": `'name' should be a type of 'text'`,
+    "string.min": `'name' should have a minimum length of {#limit}`,
+    "string.max": `'name' should have a maximum length of {#limit}`,
+  }),
 });
 
 /**
  * Validation schema for adding a new member to a household.
  */
 export const addMemberSchema = Joi.object({
-  userId: Joi.string().uuid().required()
-    .messages({
-      'string.base': `'userId' should be a type of 'string'`,
-      'string.uuid': `'userId' must be a valid UUID`,
-      'any.required': `'userId' is a required field`,
-    }),
-  role: Joi.string().valid(...Object.values(HouseholdRole)).optional()
-    .messages({
-      'any.only': `'role' must be one of ${Object.values(HouseholdRole).join(', ')}`,
-    }),
+  email: Joi.string().email().required(),
+  role: Joi.string().valid("ADMIN", "MEMBER").optional(),
 });
 
 /**
  * Schema for creating a new notification.
  */
 export const createNotificationSchema = Joi.object({
-  userId: Joi.string().uuid().required()
-    .messages({
-      'string.base': `'userId' should be a type of 'string'`,
-      'string.uuid': `'userId' must be a valid UUID`,
-      'any.required': `'userId' is a required field`,
-    }),
+  userId: Joi.string().uuid().required().messages({
+    "string.base": `'userId' should be a type of 'string'`,
+    "string.uuid": `'userId' must be a valid UUID`,
+    "any.required": `'userId' is a required field`,
+  }),
   type: Joi.string()
     .valid(...Object.values(NotificationType))
     .required()
     .messages({
-      'any.only': `'type' must be one of ${Object.values(NotificationType).join(', ')}`,
-      'any.required': `'type' is a required field`,
+      "any.only": `'type' must be one of ${Object.values(NotificationType).join(
+        ", "
+      )}`,
+      "any.required": `'type' is a required field`,
     }),
-  message: Joi.string().required()
-    .messages({
-      'string.base': `'message' should be a type of 'string'`,
-      'any.required': `'message' is a required field`,
-    }),
-  isRead: Joi.boolean().optional()
-    .messages({
-      'boolean.base': `'isRead' should be a type of 'boolean'`,
-    }),
+  message: Joi.string().required().messages({
+    "string.base": `'message' should be a type of 'string'`,
+    "any.required": `'message' is a required field`,
+  }),
+  isRead: Joi.boolean().optional().messages({
+    "boolean.base": `'isRead' should be a type of 'boolean'`,
+  }),
 });
 
 /**
@@ -308,33 +296,33 @@ export const markAsReadSchema = Joi.object({
  * Schema for creating a new transaction.
  */
 export const createTransactionSchema = Joi.object({
-  expenseId: Joi.string().uuid().required()
+  expenseId: Joi.string().uuid().required().messages({
+    "string.base": `'expenseId' should be a type of 'string'`,
+    "string.uuid": `'expenseId' must be a valid UUID`,
+    "any.required": `'expenseId' is a required field`,
+  }),
+  fromUserId: Joi.string().uuid().required().messages({
+    "string.base": `'fromUserId' should be a type of 'string'`,
+    "string.uuid": `'fromUserId' must be a valid UUID`,
+    "any.required": `'fromUserId' is a required field`,
+  }),
+  toUserId: Joi.string().uuid().required().messages({
+    "string.base": `'toUserId' should be a type of 'string'`,
+    "string.uuid": `'toUserId' must be a valid UUID`,
+    "any.required": `'toUserId' is a required field`,
+  }),
+  amount: Joi.number().positive().required().messages({
+    "number.base": `'amount' should be a type of 'number'`,
+    "number.positive": `'amount' must be a positive number`,
+    "any.required": `'amount' is a required field`,
+  }),
+  status: Joi.string()
+    .valid(...Object.values(TransactionStatus))
+    .optional()
     .messages({
-      'string.base': `'expenseId' should be a type of 'string'`,
-      'string.uuid': `'expenseId' must be a valid UUID`,
-      'any.required': `'expenseId' is a required field`,
-    }),
-  fromUserId: Joi.string().uuid().required()
-    .messages({
-      'string.base': `'fromUserId' should be a type of 'string'`,
-      'string.uuid': `'fromUserId' must be a valid UUID`,
-      'any.required': `'fromUserId' is a required field`,
-    }),
-  toUserId: Joi.string().uuid().required()
-    .messages({
-      'string.base': `'toUserId' should be a type of 'string'`,
-      'string.uuid': `'toUserId' must be a valid UUID`,
-      'any.required': `'toUserId' is a required field`,
-    }),
-  amount: Joi.number().positive().required()
-    .messages({
-      'number.base': `'amount' should be a type of 'number'`,
-      'number.positive': `'amount' must be a positive number`,
-      'any.required': `'amount' is a required field`,
-    }),
-  status: Joi.string().valid(...Object.values(TransactionStatus)).optional()
-    .messages({
-      'any.only': `'status' must be one of ${Object.values(TransactionStatus).join(', ')}`,
+      "any.only": `'status' must be one of ${Object.values(
+        TransactionStatus
+      ).join(", ")}`,
     }),
 });
 
@@ -342,9 +330,13 @@ export const createTransactionSchema = Joi.object({
  * Schema for updating a transaction's status.
  */
 export const updateTransactionStatusSchema = Joi.object({
-  status: Joi.string().valid(TransactionStatus.COMPLETED, TransactionStatus.PENDING).required()
+  status: Joi.string()
+    .valid(TransactionStatus.COMPLETED, TransactionStatus.PENDING)
+    .required()
     .messages({
-      'any.only': `'status' must be one of ${Object.values(TransactionStatus).join(', ')}`,
-      'any.required': `'status' is a required field`,
+      "any.only": `'status' must be one of ${Object.values(
+        TransactionStatus
+      ).join(", ")}`,
+      "any.required": `'status' is a required field`,
     }),
 });

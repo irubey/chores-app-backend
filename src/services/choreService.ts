@@ -1,40 +1,69 @@
-import { Chore, Subtask, HouseholdRole } from '@prisma/client';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import prisma from '../config/database';
-import { CreateChoreDTO, UpdateChoreDTO, CreateSubtaskDTO, ChoreSwapRequest } from '../types';
-import { getIO } from '../sockets';
+import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import prisma from "../config/database";
+import {
+  CreateChoreDTO,
+  UpdateChoreDTO,
+  CreateSubtaskDTO,
+  ChoreSwapRequest,
+  Subtask,
+  ChoreWithAssignees,
+} from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import {
+  HouseholdRole,
+  ChoreStatus,
+  ChoreSwapRequestStatus,
+  SubtaskStatus,
+  ChoreAction,
+} from "@shared/enums";
+import { getIO } from "../sockets";
+import {
+  transformChoreToChoreWithAssignees,
+  transformChoresToChoresWithAssignees,
+  transformSubtaskInput,
+  transformSubtask,
+  transformChoreSwapRequest,
+  PrismaChoreSwapRequest,
+} from "../utils/transformers/choreTransformer";
+import {
+  PrismaChoreWithRelations,
+  PrismaSubtask,
+} from "../utils/transformers/transformerTypes";
+import { verifyMembership } from "./authService";
+
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
 
 /**
  * Retrieves all chores for a specific household.
  * @param householdId - The ID of the household.
  * @param userId - The ID of the requesting user.
- * @returns A list of chores.
+ * @returns An array of ChoreWithAssignees and subtasks.
  * @throws UnauthorizedError if the user is not a household member.
  */
-export async function getChores(householdId: string, userId: string): Promise<Chore[]> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+export async function getChores(
+  householdId: string,
+  userId: string
+): Promise<ApiResponse<ChoreWithAssignees[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError('You do not have access to this household.');
-  }
-
-  const chores = await prisma.chore.findMany({
+  const chores = (await prisma.chore.findMany({
     where: { householdId },
     include: {
       subtasks: true,
-      assignedUsers: true,
+      assignedUsers: {
+        include: { user: true },
+      },
     },
-  });
+  })) as PrismaChoreWithRelations[];
 
-  return chores;
+  const transformedChores = transformChoresToChoresWithAssignees(chores);
+  return wrapResponse(transformedChores);
 }
 
 /**
@@ -49,46 +78,46 @@ export async function createChore(
   householdId: string,
   data: CreateChoreDTO,
   userId: string
-): Promise<Chore> {
-  // Verify user has WRITE access in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+): Promise<ApiResponse<ChoreWithAssignees>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership || (membership.role !== HouseholdRole.ADMIN && membership.role !== HouseholdRole.MEMBER)) {
-    throw new UnauthorizedError('You do not have permission to create a chore.');
-  }
-
-  const chore = await prisma.chore.create({
+  const chore = (await prisma.chore.create({
     data: {
       householdId,
       title: data.title,
       description: data.description,
       dueDate: data.dueDate,
       priority: data.priority,
-      recurrence: data.recurrence,
+      status: data.status || ChoreStatus.PENDING,
+      recurrenceRuleId: data.recurrenceRuleId,
       assignedUsers: {
         connect: data.assignedUserIds?.map((id) => ({ id })) || [],
       },
       subtasks: {
-        create: data.subtasks?.map((subtask: CreateSubtaskDTO) => ({ title: subtask.title })) || [],
+        create:
+          data.subtasks?.map((subtask: CreateSubtaskDTO) => ({
+            title: subtask.title,
+            status: subtask.status || SubtaskStatus.PENDING,
+          })) || [],
       },
     },
     include: {
       subtasks: true,
-      assignedUsers: true,
+      assignedUsers: {
+        include: { user: true },
+      },
     },
-  });
+  })) as PrismaChoreWithRelations;
 
-  // Emit real-time event for new chore
-  getIO().to(`household_${householdId}`).emit('chore_update', { chore });
+  const transformedChore = transformChoreToChoreWithAssignees(chore);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("chore_update", { chore: transformedChore });
 
-  return chore;
+  return wrapResponse(transformedChore);
 }
 
 /**
@@ -104,34 +133,28 @@ export async function getChoreById(
   householdId: string,
   choreId: string,
   userId: string
-): Promise<Chore> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+): Promise<ApiResponse<ChoreWithAssignees>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError('You do not have access to this household.');
-  }
-
-  const chore = await prisma.chore.findUnique({
+  const chore = (await prisma.chore.findUnique({
     where: { id: choreId },
     include: {
       subtasks: true,
-      assignedUsers: true,
+      assignedUsers: {
+        include: { user: true },
+      },
     },
-  });
+  })) as PrismaChoreWithRelations;
 
   if (!chore) {
-    throw new NotFoundError('Chore not found.');
+    throw new NotFoundError("Chore not found.");
   }
 
-  return chore;
+  const transformedChore = transformChoreToChoreWithAssignees(chore);
+  return wrapResponse(transformedChore);
 }
 
 /**
@@ -149,30 +172,13 @@ export async function updateChore(
   choreId: string,
   data: UpdateChoreDTO,
   userId: string
-): Promise<Chore> {
-  // Verify user has WRITE access in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+): Promise<ApiResponse<ChoreWithAssignees>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership || (membership.role !== HouseholdRole.ADMIN && membership.role !== HouseholdRole.MEMBER)) {
-    throw new UnauthorizedError('You do not have permission to update this chore.');
-  }
-
-  // Ensure that all subtasks have a defined title
-  const formattedSubtasks = data.subtasks?.map((subtask) => {
-    if (!subtask.title) {
-      throw new Error('Subtask title is required.');
-    }
-    return { title: subtask.title };
-  });
-
-  const chore = await prisma.chore.update({
+  const chore = (await prisma.chore.update({
     where: { id: choreId },
     data: {
       title: data.title,
@@ -180,35 +186,35 @@ export async function updateChore(
       dueDate: data.dueDate,
       priority: data.priority,
       status: data.status,
-      recurrence: data.recurrence,
+      recurrenceRuleId: data.recurrenceRuleId,
       assignedUsers: {
         set: data.assignedUserIds?.map((id) => ({ id })) || [],
       },
       subtasks: data.subtasks
         ? {
             deleteMany: {},
-            create: formattedSubtasks!,
+            create: data.subtasks.map(transformSubtaskInput),
           }
         : undefined,
     },
     include: {
       subtasks: true,
-      assignedUsers: true,
+      assignedUsers: {
+        include: { user: true },
+      },
     },
-  });
+  })) as PrismaChoreWithRelations;
 
-  if (!chore) {
-    throw new NotFoundError('Chore not found or you do not have permission to update it.');
-  }
+  const transformedChore = transformChoreToChoreWithAssignees(chore);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("chore_update", { chore: transformedChore });
 
-  // Emit real-time event for updated chore
-  getIO().to(`household_${householdId}`).emit('chore_update', { chore });
-
-  return chore;
+  return wrapResponse(transformedChore);
 }
 
 /**
- * Deletes a chore from a household.
+ * Soft deletes a chore from a household.
  * @param householdId - The ID of the household.
  * @param choreId - The ID of the chore to delete.
  * @param userId - The ID of the user performing the deletion.
@@ -220,34 +226,27 @@ export async function deleteChore(
   choreId: string,
   userId: string
 ): Promise<void> {
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to delete this chore.');
-  }
-
-  const chore = await prisma.chore.findUnique({
-    where: { id: choreId },
-  });
+  const chore = await prisma.chore.findUnique({ where: { id: choreId } });
 
   if (!chore) {
-    throw new NotFoundError('Chore not found.');
+    throw new NotFoundError("Chore not found.");
   }
 
-  await prisma.chore.delete({
-    where: { id: choreId },
-  });
+  await prisma.chore.delete({ where: { id: choreId } });
 
-  // Emit real-time event for deleted chore
-  getIO().to(`household_${householdId}`).emit('chore_update', { choreId });
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("chore_update", { choreId, deleted: true });
+
+  await prisma.choreHistory.create({
+    data: {
+      choreId,
+      action: ChoreAction.DELETED,
+      changedById: userId,
+    },
+  });
 }
 
 /**
@@ -263,42 +262,32 @@ export async function deleteChore(
 export async function addSubtask(
   householdId: string,
   choreId: string,
-  subtaskData: { title: string },
+  data: CreateSubtaskDTO,
   userId: string
-): Promise<Subtask> {
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+): Promise<ApiResponse<Subtask>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to add a subtask.');
-  }
-
-  const chore = await prisma.chore.findUnique({
-    where: { id: choreId },
-  });
+  const chore = await prisma.chore.findUnique({ where: { id: choreId } });
 
   if (!chore) {
-    throw new NotFoundError('Chore not found.');
+    throw new NotFoundError("Chore not found.");
   }
 
-  const subtask = await prisma.subtask.create({
+  const subtask = (await prisma.subtask.create({
     data: {
       choreId,
-      title: subtaskData.title,
+      title: data.title,
+      description: data.description || null,
+      status: data.status || SubtaskStatus.PENDING,
     },
-  });
+  })) as PrismaSubtask;
 
-  // Emit real-time event for the new subtask
-  getIO().to(`household_${householdId}`).emit('chore_update', { choreId, subtask });
+  const transformedSubtask = transformSubtask(subtask);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("chore_update", { choreId, subtask: transformedSubtask });
 
-  return subtask;
+  return wrapResponse(transformedSubtask);
 }
 
 /**
@@ -316,36 +305,29 @@ export async function updateSubtaskStatus(
   householdId: string,
   choreId: string,
   subtaskId: string,
-  status: 'PENDING' | 'COMPLETED',
+  status: SubtaskStatus,
   userId: string
-): Promise<Subtask> {
-  // Verify user has WRITE access in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+): Promise<ApiResponse<Subtask>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership || (membership.role !== HouseholdRole.ADMIN && membership.role !== HouseholdRole.MEMBER)) {
-    throw new UnauthorizedError('You do not have permission to update this subtask.');
-  }
-
-  const subtask = await prisma.subtask.update({
+  const subtask = (await prisma.subtask.update({
     where: { id: subtaskId },
     data: { status },
-  });
+  })) as PrismaSubtask;
 
   if (!subtask) {
-    throw new NotFoundError('Subtask not found.');
+    throw new NotFoundError("Subtask not found.");
   }
 
-  // Emit real-time event for updated subtask status
-  getIO().to(`household_${householdId}`).emit('chore_update', { choreId, subtask });
+  const transformedSubtask = transformSubtask(subtask);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("chore_update", { choreId, subtask: transformedSubtask });
 
-  return subtask;
+  return wrapResponse(transformedSubtask);
 }
 
 /**
@@ -363,34 +345,19 @@ export async function deleteSubtask(
   subtaskId: string,
   userId: string
 ): Promise<void> {
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to delete this subtask.');
-  }
-
-  const subtask = await prisma.subtask.findUnique({
-    where: { id: subtaskId },
-  });
+  const subtask = await prisma.subtask.findUnique({ where: { id: subtaskId } });
 
   if (!subtask) {
-    throw new NotFoundError('Subtask not found.');
+    throw new NotFoundError("Subtask not found.");
   }
 
-  await prisma.subtask.delete({
-    where: { id: subtaskId },
-  });
+  await prisma.subtask.delete({ where: { id: subtaskId } });
 
-  // Emit real-time event for deleted subtask
-  getIO().to(`household_${householdId}`).emit('chore_update', { choreId, subtaskId });
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("chore_update", { choreId, subtaskId });
 }
 
 export async function requestChoreSwap(
@@ -398,25 +365,20 @@ export async function requestChoreSwap(
   choreId: string,
   requestingUserId: string,
   targetUserId: string
-): Promise<ChoreSwapRequest> {
-  // Verify both users are members of the household
-  const [requestingMember, targetMember] = await Promise.all([
-    prisma.householdMember.findUnique({
-      where: { userId_householdId: { userId: requestingUserId, householdId } },
-    }),
-    prisma.householdMember.findUnique({
-      where: { userId_householdId: { userId: targetUserId, householdId } },
-    }),
+): Promise<ApiResponse<ChoreSwapRequest>> {
+  await verifyMembership(householdId, requestingUserId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
   ]);
-
-  if (!requestingMember || !targetMember) {
-    throw new UnauthorizedError('One or both users are not members of this household.');
-  }
+  await verifyMembership(householdId, targetUserId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
   const chore = await prisma.chore.findUnique({ where: { id: choreId } });
 
   if (!chore) {
-    throw new NotFoundError('Chore not found.');
+    throw new NotFoundError("Chore not found.");
   }
 
   const swapRequest = await prisma.choreSwapRequest.create({
@@ -424,14 +386,18 @@ export async function requestChoreSwap(
       choreId,
       requestingUserId,
       targetUserId,
-      status: 'PENDING',
+      status: ChoreSwapRequestStatus.PENDING,
     },
   });
 
-  // Emit real-time event for new swap request
-  getIO().to(`household_${householdId}`).emit('chore_swap_request', { swapRequest });
+  const transformedSwapRequest = transformChoreSwapRequest(
+    swapRequest as PrismaChoreSwapRequest
+  );
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("chore_swap_request", { swapRequest: transformedSwapRequest });
 
-  return swapRequest;
+  return wrapResponse(transformedSwapRequest);
 }
 
 export async function approveChoreSwap(
@@ -440,50 +406,92 @@ export async function approveChoreSwap(
   swapRequestId: string,
   approved: boolean,
   approvingUserId: string
-): Promise<Chore> {
-  const swapRequest = await prisma.choreSwapRequest.findUnique({
-    where: { id: swapRequestId },
-    include: { chore: true },
-  });
+): Promise<ApiResponse<ChoreWithAssignees>> {
+  await verifyMembership(householdId, approvingUserId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!swapRequest || swapRequest.choreId !== choreId) {
-    throw new NotFoundError('Swap request not found or does not match the chore.');
-  }
+  return prisma.$transaction(async (prismaTransaction) => {
+    const swapRequest = await prismaTransaction.choreSwapRequest.findUnique({
+      where: { id: swapRequestId },
+      include: { chore: true },
+    });
 
-  if (swapRequest.targetUserId !== approvingUserId) {
-    throw new UnauthorizedError('You are not authorized to approve this swap request.');
-  }
+    if (!swapRequest || swapRequest.choreId !== choreId) {
+      throw new NotFoundError(
+        "Swap request not found or does not match the chore."
+      );
+    }
 
-  if (approved) {
-    const updatedChore = await prisma.chore.update({
-      where: { id: choreId },
-      data: {
-        assignedUsers: {
-          disconnect: { id: swapRequest.requestingUserId },
-          connect: { id: swapRequest.targetUserId },
+    if (swapRequest.targetUserId !== approvingUserId) {
+      throw new UnauthorizedError(
+        "You are not authorized to approve this swap request."
+      );
+    }
+
+    let updatedChore;
+    let updatedSwapRequest;
+
+    if (approved) {
+      updatedChore = await prismaTransaction.chore.update({
+        where: { id: choreId },
+        data: {
+          assignedUsers: {
+            disconnect: {
+              choreId_userId: { choreId, userId: swapRequest.requestingUserId },
+            },
+            connect: {
+              choreId_userId: { choreId, userId: swapRequest.targetUserId },
+            },
+          },
         },
-      },
-      include: { assignedUsers: true, subtasks: true },
-    });
+        include: {
+          assignedUsers: { include: { user: true } },
+          subtasks: true,
+        },
+      });
 
-    await prisma.choreSwapRequest.update({
-      where: { id: swapRequestId },
-      data: { status: 'APPROVED' },
-    });
+      updatedSwapRequest = await prismaTransaction.choreSwapRequest.update({
+        where: { id: swapRequestId },
+        data: { status: ChoreSwapRequestStatus.APPROVED },
+      });
+    } else {
+      updatedSwapRequest = await prismaTransaction.choreSwapRequest.update({
+        where: { id: swapRequestId },
+        data: { status: ChoreSwapRequestStatus.REJECTED },
+      });
 
-    // Emit real-time event for approved swap
-    getIO().to(`household_${householdId}`).emit('chore_swap_approved', { choreId, updatedChore });
+      updatedChore = await prismaTransaction.chore.findUnique({
+        where: { id: choreId },
+        include: {
+          assignedUsers: { include: { user: true } },
+          subtasks: true,
+        },
+      });
 
-    return updatedChore;
-  } else {
-    await prisma.choreSwapRequest.update({
-      where: { id: swapRequestId },
-      data: { status: 'REJECTED' },
-    });
+      if (!updatedChore) {
+        throw new NotFoundError("Chore not found.");
+      }
+    }
 
-    // Emit real-time event for rejected swap
-    getIO().to(`household_${householdId}`).emit('chore_swap_rejected', { choreId, swapRequestId });
+    const transformedChore = transformChoreToChoreWithAssignees(updatedChore);
+    const transformedSwapRequest =
+      transformChoreSwapRequest(updatedSwapRequest);
 
-    return swapRequest.chore;
-  }
+    if (approved) {
+      getIO().to(`household_${householdId}`).emit("chore_swap_approved", {
+        choreId,
+        updatedChore: transformedChore,
+        swapRequest: transformedSwapRequest,
+      });
+    } else {
+      getIO().to(`household_${householdId}`).emit("chore_swap_rejected", {
+        choreId,
+        swapRequest: transformedSwapRequest,
+      });
+    }
+
+    return wrapResponse(transformedChore);
+  });
 }

@@ -1,7 +1,13 @@
-import { Response, NextFunction } from 'express';
-import * as choreService from '../services/choreService';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import { AuthenticatedRequest, CreateSubtaskDTO, Subtask, ChoreSwapRequest } from '../types';
+import { Response, NextFunction } from "express";
+import * as choreService from "../services/choreService";
+import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import {
+  CreateChoreDTO,
+  UpdateChoreDTO,
+  CreateSubtaskDTO,
+} from "@shared/types";
+import { AuthenticatedRequest } from "../types";
+import { SubtaskStatus } from "@shared/enums";
 
 /**
  * ChoreController handles all CRUD operations related to chores.
@@ -9,17 +15,24 @@ import { AuthenticatedRequest, CreateSubtaskDTO, Subtask, ChoreSwapRequest } fro
 export class ChoreController {
   /**
    * Retrieves all chores for a specific household.
-   * @param req Authenticated Express Request object
+   * @param req Authenticated Express Request object containing householdId
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async getChores(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async getChores(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const householdId = req.params.householdId;
-      const chores = await choreService.getChores(householdId, req.user.id);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const chores = await choreService.getChores(householdId, userId);
       res.status(200).json(chores);
     } catch (error) {
       next(error);
@@ -27,19 +40,30 @@ export class ChoreController {
   }
 
   /**
-   * Creates a new chore within a household.
-   * @param req Authenticated Express Request object
+   * Creates a new chore.
+   * @param req Authenticated Express Request object containing chore data
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async createChore(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async createChore(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const householdId = req.params.householdId;
-      const choreData = req.body;
-      const chore = await choreService.createChore(householdId, choreData, req.user.id);
+      const choreData: CreateChoreDTO = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const chore = await choreService.createChore(
+        householdId,
+        choreData,
+        userId
+      );
       res.status(201).json(chore);
     } catch (error) {
       next(error);
@@ -48,20 +72,28 @@ export class ChoreController {
 
   /**
    * Retrieves details of a specific chore.
-   * @param req Authenticated Express Request object
+   * @param req Authenticated Express Request object containing householdId and choreId
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async getChoreDetails(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async getChoreDetails(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const { householdId, choreId } = req.params;
-      const chore = await choreService.getChoreById(householdId, choreId, req.user.id);
-      if (!chore) {
-        throw new NotFoundError('Chore not found');
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
       }
+
+      const chore = await choreService.getChoreById(
+        householdId,
+        choreId,
+        userId
+      );
       res.status(200).json(chore);
     } catch (error) {
       next(error);
@@ -70,21 +102,30 @@ export class ChoreController {
 
   /**
    * Updates an existing chore.
-   * @param req Authenticated Express Request object
+   * @param req Authenticated Express Request object containing householdId, choreId, and update data
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async updateChore(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async updateChore(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const { householdId, choreId } = req.params;
-      const updateData = req.body;
-      const updatedChore = await choreService.updateChore(householdId, choreId, updateData, req.user.id);
-      if (!updatedChore) {
-        throw new NotFoundError('Chore not found or you do not have permission to update it');
+      const updateData: UpdateChoreDTO = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
       }
+
+      const updatedChore = await choreService.updateChore(
+        householdId,
+        choreId,
+        updateData,
+        userId
+      );
       res.status(200).json(updatedChore);
     } catch (error) {
       next(error);
@@ -92,18 +133,25 @@ export class ChoreController {
   }
 
   /**
-   * Deletes a chore from a household.
-   * @param req Authenticated Express Request object
+   * Deletes a chore.
+   * @param req Authenticated Express Request object containing householdId and choreId
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async deleteChore(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async deleteChore(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const { householdId, choreId } = req.params;
-      await choreService.deleteChore(householdId, choreId, req.user.id);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      await choreService.deleteChore(householdId, choreId, userId);
       res.status(204).send();
     } catch (error) {
       next(error);
@@ -111,20 +159,32 @@ export class ChoreController {
   }
 
   /**
-   * Adds a subtask to a specific chore.
-   * @param req Authenticated Express Request object
+   * Adds a subtask to a chore.
+   * @param req Authenticated Express Request object containing householdId, choreId, and subtask data
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async addSubtask(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async addSubtask(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const { householdId, choreId } = req.params;
       const subtaskData: CreateSubtaskDTO = req.body;
-      const subtask: Subtask = await choreService.addSubtask(householdId, choreId, subtaskData, req.user.id);
-      res.status(201).json(subtask);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const newSubtask = await choreService.addSubtask(
+        householdId,
+        choreId,
+        subtaskData,
+        userId
+      );
+      res.status(201).json(newSubtask);
     } catch (error) {
       next(error);
     }
@@ -132,27 +192,31 @@ export class ChoreController {
 
   /**
    * Updates the status of a subtask.
-   * @param req Authenticated Express Request object
+   * @param req Authenticated Express Request object containing householdId, choreId, subtaskId, and status
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async updateSubtaskStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async updateSubtaskStatus(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const { householdId, choreId, subtaskId } = req.params;
       const { status } = req.body;
-      const updatedSubtask: Subtask = await choreService.updateSubtaskStatus(
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const updatedSubtask = await choreService.updateSubtaskStatus(
         householdId,
         choreId,
         subtaskId,
-        status,
-        req.user.id
+        status as SubtaskStatus,
+        userId
       );
-      if (!updatedSubtask) {
-        throw new NotFoundError('Subtask not found or you do not have permission to update it');
-      }
       res.status(200).json(updatedSubtask);
     } catch (error) {
       next(error);
@@ -161,17 +225,24 @@ export class ChoreController {
 
   /**
    * Deletes a subtask from a chore.
-   * @param req Authenticated Express Request object
+   * @param req Authenticated Express Request object containing householdId, choreId, and subtaskId
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async deleteSubtask(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async deleteSubtask(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const { householdId, choreId, subtaskId } = req.params;
-      await choreService.deleteSubtask(householdId, choreId, subtaskId, req.user.id);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      await choreService.deleteSubtask(householdId, choreId, subtaskId, userId);
       res.status(204).send();
     } catch (error) {
       next(error);
@@ -180,18 +251,30 @@ export class ChoreController {
 
   /**
    * Requests a chore swap.
-   * @param req Authenticated Express Request object
+   * @param req Authenticated Express Request object containing householdId, choreId, and targetUserId
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async requestChoreSwap(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async requestChoreSwap(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
       const { householdId, choreId } = req.params;
       const { targetUserId } = req.body;
-      const swapRequest: ChoreSwapRequest = await choreService.requestChoreSwap(householdId, choreId, req.user.id, targetUserId);
+      const requestingUserId = req.user?.id;
+
+      if (!requestingUserId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const swapRequest = await choreService.requestChoreSwap(
+        householdId,
+        choreId,
+        requestingUserId,
+        targetUserId
+      );
       res.status(201).json(swapRequest);
     } catch (error) {
       next(error);
@@ -199,20 +282,33 @@ export class ChoreController {
   }
 
   /**
-   * Approves a chore swap request.
-   * @param req Authenticated Express Request object
+   * Approves or rejects a chore swap request.
+   * @param req Authenticated Express Request object containing householdId, choreId, swapRequestId, and approved status
    * @param res Express Response object
    * @param next Express NextFunction for error handling
    */
-  static async approveChoreSwap(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async approveChoreSwap(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+      const { householdId, choreId, swapRequestId } = req.params;
+      const { approved } = req.body;
+      const approvingUserId = req.user?.id;
+
+      if (!approvingUserId) {
+        throw new UnauthorizedError("Unauthorized");
       }
-      const { householdId, choreId } = req.params;
-      const { swapRequestId, approved } = req.body;
-      const result = await choreService.approveChoreSwap(householdId, choreId, swapRequestId, approved, req.user.id);
-      res.status(200).json(result);
+
+      const updatedChore = await choreService.approveChoreSwap(
+        householdId,
+        choreId,
+        swapRequestId,
+        approved,
+        approvingUserId
+      );
+      res.status(200).json(updatedChore);
     } catch (error) {
       next(error);
     }

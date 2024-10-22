@@ -1,8 +1,56 @@
-import { Expense, ExpenseSplit, HouseholdRole, Receipt } from '@prisma/client';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import prisma from '../config/database';
-import { CreateExpenseDTO, UpdateExpenseDTO, CreateExpenseSplitDTO, UpdateExpenseSplitDTO } from '../types/index';
-import { getIO } from '../sockets';
+import prisma from "../config/database";
+import {
+  CreateExpenseDTO,
+  UpdateExpenseDTO,
+  CreateExpenseSplitDTO,
+  UpdateExpenseSplitDTO,
+  CreateTransactionDTO,
+  UpdateTransactionDTO,
+  CreateReceiptDTO,
+  CreateExpenseHistoryDTO,
+  Expense,
+  ExpenseSplit,
+  Transaction,
+  Receipt,
+  ExpenseHistory,
+  ExpenseWithSplits,
+  HouseholdExpense,
+} from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import {
+  NotFoundError,
+  UnauthorizedError,
+  BadRequestError,
+} from "../middlewares/errorHandler";
+import {
+  HouseholdRole,
+  ExpenseCategory,
+  TransactionStatus,
+  ExpenseAction,
+} from "@shared/enums";
+import { verifyMembership } from "./authService";
+import {
+  transformExpense,
+  transformExpenseWithSplits,
+  transformHouseholdExpense,
+  transformExpenseSplit,
+  transformTransaction,
+  transformReceipt,
+  transformExpenseHistory,
+} from "../utils/transformers/expenseTransformer";
+import {
+  PrismaExpenseSplit,
+  PrismaTransaction,
+  PrismaReceipt,
+  PrismaExpenseHistory,
+  PrismaExpense,
+} from "../utils/transformers/transformerTypes";
+import { getIO } from "../sockets";
+
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
 
 /**
  * Retrieves all expenses for a specific household.
@@ -11,20 +59,14 @@ import { getIO } from '../sockets';
  * @returns A list of expenses.
  * @throws UnauthorizedError if the user is not a household member.
  */
-export async function getExpenses(householdId: string, userId: string): Promise<Expense[]> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw new UnauthorizedError('You do not have access to this household.');
-  }
+export async function getExpenses(
+  householdId: string,
+  userId: string
+): Promise<ApiResponse<Expense[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
   const expenses = await prisma.expense.findMany({
     where: { householdId },
@@ -35,7 +77,10 @@ export async function getExpenses(householdId: string, userId: string): Promise<
     },
   });
 
-  return expenses;
+  const transformedExpenses = expenses.map((expense) =>
+    transformExpense(expense as PrismaExpense)
+  );
+  return wrapResponse(transformedExpenses);
 }
 
 /**
@@ -50,56 +95,54 @@ export async function createExpense(
   householdId: string,
   data: CreateExpenseDTO,
   userId: string
-): Promise<Expense> {
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
+): Promise<ApiResponse<Expense>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
+
+  const expense = await prisma.$transaction(async (prismaClient) => {
+    const createdExpense = await prismaClient.expense.create({
+      data: {
+        householdId: data.householdId,
+        amount: data.amount,
+        description: data.description,
+        dueDate: data.dueDate,
+        category: data.category,
+        paidById: data.paidById,
       },
-    },
-  });
-
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to create an expense.');
-  }
-
-  // Ensure that all splits have defined userId and amount
-  if (data.splits) {
-    data.splits.forEach((split: CreateExpenseSplitDTO) => {
-      if (!split.userId || split.amount == null) {
-        throw new Error('Each split must have a userId and amount.');
-      }
+      include: {
+        paidBy: true,
+      },
     });
-  }
 
-  const expense = await prisma.expense.create({
-    data: {
-      householdId: data.householdId,
-      amount: data.amount,
-      description: data.description,
-      dueDate: data.dueDate,
-      category: data.category,
-      paidById: data.paidById, // Changed from 'paidBy' to 'paidById'
-      splits: {
-        create: data.splits?.map((split: CreateExpenseSplitDTO) => ({
+    if (data.splits && data.splits.length > 0) {
+      await prismaClient.expenseSplit.createMany({
+        data: data.splits.map((split: CreateExpenseSplitDTO) => ({
+          expenseId: createdExpense.id,
           userId: split.userId,
           amount: split.amount,
-        })) || [],
+        })),
+      });
+    }
+
+    return prismaClient.expense.findUnique({
+      where: { id: createdExpense.id },
+      include: {
+        splits: true,
+        paidBy: true,
+        transactions: true,
       },
-    },
-    include: {
-      splits: true,
-      paidBy: true,
-      transactions: true,
-    },
+    });
   });
 
-  // Emit real-time event for new expense
-  getIO().to(`household_${householdId}`).emit('expense_update', { expense });
+  if (!expense) {
+    throw new BadRequestError("Failed to create expense.");
+  }
 
-  return expense;
+  const transformedExpense = transformExpense(expense as PrismaExpense);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("expense_update", { expense: transformedExpense });
+
+  return wrapResponse(transformedExpense);
 }
 
 /**
@@ -115,20 +158,11 @@ export async function getExpenseById(
   householdId: string,
   expenseId: string,
   userId: string
-): Promise<Expense> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw new UnauthorizedError('You do not have access to this household.');
-  }
+): Promise<ApiResponse<Expense>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
   const expense = await prisma.expense.findUnique({
     where: { id: expenseId },
@@ -140,10 +174,11 @@ export async function getExpenseById(
   });
 
   if (!expense) {
-    throw new NotFoundError('Expense not found.');
+    throw new NotFoundError("Expense not found.");
   }
 
-  return expense;
+  const transformedExpense = transformExpense(expense as PrismaExpense);
+  return wrapResponse(transformedExpense);
 }
 
 /**
@@ -161,29 +196,8 @@ export async function updateExpense(
   expenseId: string,
   data: UpdateExpenseDTO,
   userId: string
-): Promise<Expense> {
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to update this expense.');
-  }
-
-  // Ensure that all splits have defined userId and amount
-  if (data.splits) {
-    data.splits.forEach((split: UpdateExpenseSplitDTO) => {
-      if (!split.userId || split.amount == null) {
-        throw new Error('Each split must have a userId and amount.');
-      }
-    });
-  }
+): Promise<ApiResponse<Expense>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
   const expense = await prisma.expense.update({
     where: { id: expenseId },
@@ -209,14 +223,12 @@ export async function updateExpense(
     },
   });
 
-  if (!expense) {
-    throw new NotFoundError('Expense not found or you do not have permission to update it.');
-  }
+  const transformedExpense = transformExpense(expense as PrismaExpense);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("expense_update", { expense: transformedExpense });
 
-  // Emit real-time event for updated expense
-  getIO().to(`household_${householdId}`).emit('expense_update', { expense });
-
-  return expense;
+  return wrapResponse(transformedExpense);
 }
 
 /**
@@ -231,35 +243,18 @@ export async function deleteExpense(
   householdId: string,
   expenseId: string,
   userId: string
-): Promise<void> {
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to delete this expense.');
-  }
-
-  const expense = await prisma.expense.findUnique({
-    where: { id: expenseId },
-  });
-
-  if (!expense) {
-    throw new NotFoundError('Expense not found.');
-  }
+): Promise<ApiResponse<void>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
   await prisma.expense.delete({
     where: { id: expenseId },
   });
 
-  // Emit real-time event for deleted expense
-  getIO().to(`household_${householdId}`).emit('expense_update', { expenseId });
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("expense_update", { expenseId, deleted: true });
+
+  return wrapResponse(undefined);
 }
 
 /**
@@ -267,37 +262,114 @@ export async function deleteExpense(
  * @param householdId ID of the household
  * @param expenseId ID of the expense
  * @param userId ID of the user uploading the receipt
- * @param filePath Path where the receipt file is stored
- * @param fileType MIME type of the uploaded file
+ * @param data Receipt data
  * @returns The created Receipt object
  */
-export const uploadReceipt = async (
+export async function uploadReceipt(
   householdId: string,
   expenseId: string,
   userId: string,
-  filePath: string,
-  fileType: string
-): Promise<Receipt> => {
-  // Optional: Verify if the user has access to the household and expense
+  data: CreateReceiptDTO
+): Promise<ApiResponse<Receipt>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  // Check if the expense exists and belongs to the household
-  const expense = await prisma.expense.findUnique({
-    where: { id: expenseId },
-    include: { household: true },
-  });
-
-  if (!expense || expense.householdId !== householdId) {
-    throw new NotFoundError('Expense not found');
-  }
-
-  // Create the Receipt record in the database
   const receipt = await prisma.receipt.create({
     data: {
       expenseId: expenseId,
-      url: filePath, // Adjust based on how you serve files (e.g., via a static server)
-      fileType: fileType,
+      url: data.url,
+      fileType: data.fileType,
     },
   });
 
-  return receipt;
-};
+  const transformedReceipt = transformReceipt(receipt as PrismaReceipt);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("receipt_uploaded", { receipt: transformedReceipt });
+
+  return wrapResponse(transformedReceipt);
+}
+
+/**
+ * Retrieves all receipts for a specific expense.
+ * @param householdId ID of the household
+ * @param expenseId ID of the expense
+ * @param userId ID of the requesting user
+ * @returns Array of Receipt objects
+ */
+export async function getReceipts(
+  householdId: string,
+  expenseId: string,
+  userId: string
+): Promise<ApiResponse<Receipt[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const receipts = await prisma.receipt.findMany({
+    where: { expenseId },
+  });
+
+  const transformedReceipts = receipts.map((receipt) =>
+    transformReceipt(receipt as PrismaReceipt)
+  );
+  return wrapResponse(transformedReceipts);
+}
+
+/**
+ * Deletes a specific receipt by ID.
+ * @param householdId ID of the household
+ * @param expenseId ID of the expense
+ * @param receiptId ID of the receipt to delete
+ * @param userId ID of the user performing the deletion
+ */
+export async function deleteReceipt(
+  householdId: string,
+  expenseId: string,
+  receiptId: string,
+  userId: string
+): Promise<ApiResponse<void>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
+
+  await prisma.receipt.delete({
+    where: { id: receiptId },
+  });
+
+  getIO().to(`household_${householdId}`).emit("receipt_deleted", { receiptId });
+
+  return wrapResponse(undefined);
+}
+
+/**
+ * Retrieves a specific receipt for an expense.
+ * @param householdId ID of the household
+ * @param expenseId ID of the expense
+ * @param receiptId ID of the receipt
+ * @param userId ID of the requesting user
+ * @returns The Receipt object
+ */
+export async function getReceiptById(
+  householdId: string,
+  expenseId: string,
+  receiptId: string,
+  userId: string
+): Promise<ApiResponse<Receipt>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const receipt = await prisma.receipt.findUnique({
+    where: { id: receiptId },
+  });
+
+  if (!receipt || receipt.expenseId !== expenseId) {
+    throw new NotFoundError("Receipt not found.");
+  }
+
+  const transformedReceipt = transformReceipt(receipt as PrismaReceipt);
+  return wrapResponse(transformedReceipt);
+}
