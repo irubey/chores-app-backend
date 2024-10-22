@@ -74,6 +74,17 @@ router.post(
 );
 
 /**
+ * @route   GET /api/households/:householdId/members
+ * @desc    Retrieve all members of a specific household
+ * @access  Protected
+ */
+router.get(
+  "/:householdId/members",
+  authMiddleware,
+  asyncHandler(HouseholdController.getMembers)
+);
+
+/**
  * @route   DELETE /api/households/:householdId/members/:memberId
  * @desc    Remove a member from the household
  * @access  Protected, Admin access required
@@ -94,6 +105,17 @@ router.patch(
   "/:householdId/members/:memberId/status",
   authMiddleware,
   asyncHandler(HouseholdController.updateMemberStatus)
+);
+
+/**
+ * @route   PATCH /api/households/:householdId/members/:memberId
+ * @desc    Update a household member role
+ * @access  Protected
+ */
+router.patch(
+  "/:householdId/members/:memberId/role",
+  authMiddleware,
+  asyncHandler(HouseholdController.updateMemberRole)
 );
 
 /**
@@ -127,6 +149,40 @@ router.get(
   "/",
   authMiddleware,
   asyncHandler(HouseholdController.getUserHouseholds)
+);
+
+/**
+ * @route POST /api/households/invitations/accept
+ * @desc Accept a household invitation
+ * @access Protected
+ */
+router.post(
+  "/invitations/accept",
+  authMiddleware,
+  asyncHandler(HouseholdController.acceptInvitation)
+);
+
+/**
+ * @route POST /api/households/invitations/reject
+ * @desc Reject a household invitation
+ * @access Protected
+ */
+router.post(
+  "/invitations/reject",
+  authMiddleware,
+  asyncHandler(HouseholdController.rejectInvitation)
+);
+
+/**
+ * @route POST /api/households/:householdId/invitations
+ * @desc Send a household invitation to a user
+ * @access Protected, Admin access required
+ */
+router.post(
+  "/:householdId/invitations",
+  authMiddleware,
+  rbacMiddleware("ADMIN"),
+  asyncHandler(HouseholdController.sendInvitation)
 );
 
 export default router;
