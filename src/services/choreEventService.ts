@@ -3,6 +3,11 @@ import {
   CreateEventDTO,
   EventWithDetails,
   UpdateEventDTO,
+  Event,
+  EventReminder,
+  EventUpdateEvent,
+  UpdateEventStatusDTO,
+  CalendarEventHistory,
 } from "@shared/types";
 import { ApiResponse } from "@shared/interfaces";
 import {
@@ -14,8 +19,19 @@ import {
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import { getIO } from "../sockets";
 import { verifyMembership } from "./authService";
-import { transformEventWithDetails } from "../utils/transformers/eventTransformer";
-import { PrismaEvent } from "../utils/transformers/transformerPrismaTypes";
+import {
+  transformEventWithDetails,
+  transformCreateEventDTO,
+  transformEvent,
+  transformEventReminder,
+  transformUpdateEventDTO,
+} from "../utils/transformers/eventTransformer";
+import {
+  PrismaEventBase,
+  PrismaEventWithFullRelations,
+  PrismaEventMinimal,
+  PrismaEventReminderWithRelations,
+} from "../utils/transformers/transformerPrismaTypes";
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -51,7 +67,7 @@ export async function getChoreEvents(
     HouseholdRole.MEMBER,
   ]);
 
-  const events = await prisma.event.findMany({
+  const events = (await prisma.event.findMany({
     where: {
       householdId,
       choreId,
@@ -60,23 +76,22 @@ export async function getChoreEvents(
     include: {
       reminders: true,
       createdBy: true,
+      household: true,
       chore: {
         include: {
           subtasks: true,
-          assignedUsers: {
+          assignments: {
             include: {
               user: true,
             },
           },
         },
       },
+      history: true,
     },
-  });
+  })) as PrismaEventWithFullRelations[];
 
-  const transformedEvents = events.map((event) =>
-    transformEventWithDetails(event as PrismaEvent)
-  );
-
+  const transformedEvents = events.map(transformEventWithDetails);
   return wrapResponse(transformedEvents);
 }
 
@@ -103,20 +118,15 @@ export async function createChoreEvent(
       throw new NotFoundError("Chore not found.");
     }
 
-    const newEvent = await tx.event.create({
+    const newEvent = (await tx.event.create({
       data: {
-        householdId,
-        title: data.title,
-        description: data.description ?? null,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        createdById: userId,
-        category: EventCategory.CHORE,
-        choreId,
-        isAllDay: data.isAllDay,
-        location: data.location ?? null,
-        isPrivate: data.isPrivate,
-        status: EventStatus.SCHEDULED,
+        ...transformCreateEventDTO({
+          ...data,
+          householdId,
+          createdById: userId,
+          choreId,
+          category: EventCategory.CHORE,
+        }),
         reminders: data.reminders
           ? {
               create: data.reminders,
@@ -126,20 +136,21 @@ export async function createChoreEvent(
       include: {
         reminders: true,
         createdBy: true,
+        household: true,
         chore: {
           include: {
             subtasks: true,
-            assignedUsers: {
+            assignments: {
               include: {
                 user: true,
               },
             },
           },
         },
+        history: true,
       },
-    });
+    })) as PrismaEventWithFullRelations;
 
-    // Create history record for event creation
     await createCalendarEventHistory(
       tx,
       newEvent.id,
@@ -150,7 +161,7 @@ export async function createChoreEvent(
     return newEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
 
   getIO().to(`household_${householdId}`).emit("event_update", {
     action: CalendarEventAction.CREATED,
@@ -174,7 +185,7 @@ export async function getChoreEventById(
     HouseholdRole.MEMBER,
   ]);
 
-  const event = await prisma.event.findUnique({
+  const event = (await prisma.event.findUnique({
     where: {
       id: eventId,
       choreId: choreId,
@@ -183,24 +194,27 @@ export async function getChoreEventById(
     include: {
       reminders: true,
       createdBy: true,
+      household: true,
       chore: {
         include: {
           subtasks: true,
-          assignedUsers: {
+          assignments: {
             include: {
               user: true,
             },
           },
         },
       },
+      history: true,
+      recurrenceRule: true,
     },
-  });
+  })) as PrismaEventWithFullRelations;
 
   if (!event) {
     throw new NotFoundError("Chore event not found.");
   }
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
   return wrapResponse(transformedEvent);
 }
 
@@ -220,59 +234,43 @@ export async function updateChoreEvent(
   ]);
 
   const event = await prisma.$transaction(async (tx) => {
-    const existingEvent = await tx.event.findUnique({
+    const existingEvent = (await tx.event.findUnique({
       where: { id: eventId },
-    });
+      include: {
+        reminders: true,
+        recurrenceRule: true,
+      },
+    })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.choreId !== choreId) {
       throw new NotFoundError("Chore event not found.");
     }
 
-    // Check if recurrence is being changed
     const isRecurrenceChanged =
       existingEvent.recurrenceRuleId !== data.recurrenceRuleId;
 
-    const updatedEvent = await tx.event.update({
-      where: {
-        id: eventId,
-      },
-      data: {
-        title: data.title,
-        description: data.description ?? null,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        recurrenceRuleId: data.recurrenceRuleId ?? null,
-        isAllDay: data.isAllDay ?? false,
-        location: data.location ?? null,
-        isPrivate: data.isPrivate ?? false,
-        reminders: data.reminders
-          ? {
-              deleteMany: {},
-              create: data.reminders.map((reminder) => ({
-                time: reminder.time,
-                type: reminder.type,
-              })),
-            }
-          : undefined,
-      },
+    const updatedEvent = (await tx.event.update({
+      where: { id: eventId },
+      data: transformUpdateEventDTO(data),
       include: {
         reminders: true,
         createdBy: true,
+        household: true,
         chore: {
           include: {
             subtasks: true,
-            assignedUsers: {
+            assignments: {
               include: {
                 user: true,
               },
             },
           },
         },
+        history: true,
         recurrenceRule: true,
       },
-    });
+    })) as PrismaEventWithFullRelations;
 
-    // Create appropriate history record based on what changed
     if (isRecurrenceChanged) {
       await createCalendarEventHistory(
         tx,
@@ -292,9 +290,9 @@ export async function updateChoreEvent(
     return updatedEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("chore_event_updated", {
+  getIO().to(`household_${householdId}`).emit("event_update", {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -347,33 +345,52 @@ export async function updateChoreEventStatus(
   ]);
 
   const event = await prisma.$transaction(async (tx) => {
-    const existingEvent = await tx.event.findUnique({
+    const existingEvent = (await tx.event.findUnique({
       where: { id: eventId },
-    });
-
-    if (!existingEvent || existingEvent.choreId !== choreId) {
-      throw new NotFoundError("Chore event not found.");
-    }
-
-    const updatedEvent = await tx.event.update({
-      where: { id: eventId },
-      data: { status },
       include: {
         reminders: true,
         createdBy: true,
+        household: true,
         chore: {
           include: {
             subtasks: true,
-            assignedUsers: {
+            assignments: {
               include: {
                 user: true,
               },
             },
           },
         },
+        history: true,
         recurrenceRule: true,
       },
-    });
+    })) as PrismaEventWithFullRelations;
+
+    if (!existingEvent || existingEvent.choreId !== choreId) {
+      throw new NotFoundError("Chore event not found.");
+    }
+
+    const updatedEvent = (await tx.event.update({
+      where: { id: eventId },
+      data: { status },
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        chore: {
+          include: {
+            subtasks: true,
+            assignments: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+        history: true,
+        recurrenceRule: true,
+      },
+    })) as PrismaEventWithFullRelations;
 
     await createCalendarEventHistory(
       tx,
@@ -385,9 +402,9 @@ export async function updateChoreEventStatus(
     return updatedEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("chore_event_updated", {
+  getIO().to(`household_${householdId}`).emit("event_update", {
     action: CalendarEventAction.STATUS_CHANGED,
     event: transformedEvent,
   });
@@ -411,37 +428,49 @@ export async function rescheduleChoreEvent(
     HouseholdRole.MEMBER,
   ]);
 
-  const updatedEvent = await prisma.event.update({
-    where: {
-      id: eventId,
-      choreId: choreId,
-      householdId: householdId,
-    },
-    data: {
-      startTime: newStartTime,
-      endTime: newEndTime,
-    },
-    include: {
-      reminders: true,
-      createdBy: true,
-      chore: {
-        include: {
-          subtasks: true,
-          assignedUsers: {
-            include: {
-              user: true,
+  const event = await prisma.$transaction(async (tx) => {
+    const updatedEvent = (await tx.event.update({
+      where: {
+        id: eventId,
+        choreId,
+        householdId,
+      },
+      data: {
+        startTime: newStartTime,
+        endTime: newEndTime,
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        chore: {
+          include: {
+            subtasks: true,
+            assignments: {
+              include: {
+                user: true,
+              },
             },
           },
         },
+        history: true,
+        recurrenceRule: true,
       },
-    },
+    })) as PrismaEventWithFullRelations;
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.UPDATED,
+      userId
+    );
+
+    return updatedEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(
-    updatedEvent as PrismaEvent
-  );
+  const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("chore_event_updated", {
+  getIO().to(`household_${householdId}`).emit("event_update", {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -463,36 +492,36 @@ export async function getUpcomingChoreEvents(
     HouseholdRole.MEMBER,
   ]);
 
-  const events = await prisma.event.findMany({
+  const events = (await prisma.event.findMany({
     where: {
-      choreId: choreId,
-      householdId: householdId,
+      choreId,
+      householdId,
       category: EventCategory.CHORE,
       status: EventStatus.SCHEDULED,
     },
     include: {
       reminders: true,
       createdBy: true,
+      household: true,
       chore: {
         include: {
           subtasks: true,
-          assignedUsers: {
+          assignments: {
             include: {
               user: true,
             },
           },
         },
       },
+      history: true,
+      recurrenceRule: true,
     },
     orderBy: {
       startTime: "asc",
     },
     take: limit,
-  });
+  })) as PrismaEventWithFullRelations[];
 
-  const transformedEvents = events.map((event) =>
-    transformEventWithDetails(event as PrismaEvent)
-  );
-
+  const transformedEvents = events.map(transformEventWithDetails);
   return wrapResponse(transformedEvents);
 }

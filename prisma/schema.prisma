@@ -341,7 +341,7 @@ model Chore {
 
   household         Household         @relation(fields: [householdId], references: [id])
   subtasks          Subtask[]
-  assignedUsers     ChoreAssignment[]
+  assignments     ChoreAssignment[]
   event             Event?            @relation("ChoreEvent", fields: [eventId], references: [id])
   choreSwapRequests ChoreSwapRequest[]
   recurrenceRule    RecurrenceRule?   @relation("ChoreRecurrence", fields: [recurrenceRuleId], references: [id], onDelete: Cascade)

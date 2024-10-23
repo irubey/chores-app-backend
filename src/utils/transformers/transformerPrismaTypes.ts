@@ -221,6 +221,8 @@ export type PrismaEventReminderWithRelations = Prisma.EventReminderGetPayload<{
   };
 }>;
 
+export type PrismaEventUpdateInput = Prisma.EventUpdateInput;
+
 // Notification related types
 export type PrismaNotificationWithFullRelations =
   Prisma.NotificationGetPayload<{

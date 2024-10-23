@@ -18,6 +18,7 @@ import {
   PrismaEventWithFullRelations,
   PrismaEventReminderWithRelations,
   PrismaEventBase,
+  PrismaEventUpdateInput,
 } from "./transformerPrismaTypes";
 import { transformChoreToChoreWithAssignees } from "./choreTransformer";
 import { transformUser } from "./userTransformer";
@@ -126,13 +127,8 @@ export function transformCreateEventDTO(
 
 export function transformUpdateEventDTO(
   dto: UpdateEventDTO
-): Partial<
-  Omit<
-    PrismaEventWithFullRelations,
-    "id" | "createdAt" | "updatedAt" | "deletedAt"
-  >
-> {
-  const transformed: Partial<PrismaEventWithFullRelations> = {};
+): PrismaEventUpdateInput {
+  const transformed: PrismaEventUpdateInput = {};
 
   if (dto.title !== undefined) transformed.title = dto.title;
   if (dto.description !== undefined)
@@ -140,8 +136,11 @@ export function transformUpdateEventDTO(
   if (dto.startTime !== undefined) transformed.startTime = dto.startTime;
   if (dto.endTime !== undefined) transformed.endTime = dto.endTime;
   if (dto.choreId !== undefined) transformed.choreId = dto.choreId;
-  if (dto.recurrenceRuleId !== undefined)
-    transformed.recurrenceRuleId = dto.recurrenceRuleId;
+  if (dto.recurrenceRuleId !== undefined) {
+    transformed.recurrenceRule = {
+      connect: { id: dto.recurrenceRuleId },
+    };
+  }
   if (dto.category !== undefined) {
     transformed.category = isValidEventCategory(dto.category)
       ? dto.category
@@ -155,6 +154,17 @@ export function transformUpdateEventDTO(
   if (dto.isAllDay !== undefined) transformed.isAllDay = dto.isAllDay;
   if (dto.location !== undefined) transformed.location = dto.location ?? null;
   if (dto.isPrivate !== undefined) transformed.isPrivate = dto.isPrivate;
+
+  // Handle reminders if needed
+  if (dto.reminders) {
+    transformed.reminders = {
+      deleteMany: {},
+      create: dto.reminders.map((reminder) => ({
+        time: reminder.time,
+        type: reminder.type,
+      })),
+    };
+  }
 
   return transformed;
 }

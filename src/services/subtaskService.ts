@@ -63,8 +63,8 @@ export async function addSubtask(
 
     const createdSubtask = await tx.subtask.create({
       data: {
-        choreId,
         ...transformSubtaskInput(data),
+        choreId,
       },
       include: {
         chore: true,
@@ -118,7 +118,7 @@ export async function updateSubtask(
 
     const updatedSubtask = await tx.subtask.update({
       where: { id: subtaskId },
-      data: transformSubtaskUpdateInput(data),
+      data: transformSubtaskUpdateInput(data, choreId),
     });
 
     // Check if all subtasks are completed
