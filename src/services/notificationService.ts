@@ -1,7 +1,28 @@
-import prisma from '../config/database';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import { AuthenticatedRequest, CreateNotificationDTO, UpdateNotificationDTO, PrismaNotification } from '../types';
-import { getIO } from '../sockets';
+import prisma from "../config/database";
+import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import {
+  CreateNotificationDTO,
+  UpdateNotificationDTO,
+  Notification,
+  NotificationSettings,
+} from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { NotificationType } from "@shared/enums";
+import { getIO } from "../sockets";
+import {
+  transformNotification,
+  transformNotificationSettings,
+} from "../utils/transformers/notificationTransformer";
+import {
+  PrismaNotificationBase,
+  PrismaNotificationWithFullRelations,
+  PrismaNotificationSettingsWithFullRelations,
+} from "../utils/transformers/transformerPrismaTypes";
+
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
 
 /**
  * Retrieves all notifications for a specific user.
@@ -9,17 +30,26 @@ import { getIO } from '../sockets';
  * @returns A list of notifications.
  * @throws UnauthorizedError if the user is not authenticated.
  */
-export async function getNotifications(userId: string): Promise<PrismaNotification[]> {
+export async function getNotifications(
+  userId: string
+): Promise<ApiResponse<Notification[]>> {
   if (!userId) {
-    throw new UnauthorizedError('Unauthorized');
+    throw new UnauthorizedError("Unauthorized");
   }
 
   const notifications = await prisma.notification.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    include: {
+      user: true,
+    },
+    orderBy: { createdAt: "desc" },
   });
 
-  return notifications;
+  const transformedNotifications = notifications.map((notification) =>
+    transformNotification(notification as PrismaNotificationWithFullRelations)
+  );
+
+  return wrapResponse(transformedNotifications);
 }
 
 /**
@@ -28,28 +58,40 @@ export async function getNotifications(userId: string): Promise<PrismaNotificati
  * @returns The created notification.
  * @throws NotFoundError if the user does not exist.
  */
-export async function createNotification(data: CreateNotificationDTO): Promise<PrismaNotification> {
-  const user = await prisma.user.findUnique({
-    where: { id: data.userId },
+export async function createNotification(
+  data: CreateNotificationDTO
+): Promise<ApiResponse<Notification>> {
+  const notification = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: data.userId },
+    });
+
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    return tx.notification.create({
+      data: {
+        userId: data.userId,
+        type: data.type,
+        message: data.message,
+        isRead: data.isRead ?? false,
+      },
+      include: {
+        user: true,
+      },
+    });
   });
 
-  if (!user) {
-    throw new NotFoundError('User not found.');
-  }
+  const transformedNotification = transformNotification(
+    notification as PrismaNotificationWithFullRelations
+  );
 
-  const notification = await prisma.notification.create({
-    data: {
-      userId: data.userId,
-      type: data.type,
-      message: data.message,
-      isRead: data.isRead ?? false,
-    },
+  getIO().to(`user_${data.userId}`).emit("notification_update", {
+    notification: transformedNotification,
   });
 
-  // Emit real-time event for new notification
-  getIO().to(`user_${data.userId}`).emit('notification_update', { notification });
-
-  return notification;
+  return wrapResponse(transformedNotification);
 }
 
 /**
@@ -59,24 +101,40 @@ export async function createNotification(data: CreateNotificationDTO): Promise<P
  * @returns The updated notification.
  * @throws NotFoundError if the notification does not exist or does not belong to the user.
  */
-export async function markAsRead(userId: string, notificationId: string): Promise<PrismaNotification> {
-  const notification = await prisma.notification.findUnique({
-    where: { id: notificationId },
+export async function markAsRead(
+  userId: string,
+  notificationId: string
+): Promise<ApiResponse<Notification>> {
+  const updatedNotification = await prisma.$transaction(async (tx) => {
+    const notification = await tx.notification.findUnique({
+      where: { id: notificationId },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!notification || notification.userId !== userId) {
+      throw new NotFoundError("Notification not found.");
+    }
+
+    return tx.notification.update({
+      where: { id: notificationId },
+      data: { isRead: true },
+      include: {
+        user: true,
+      },
+    });
   });
 
-  if (!notification || notification.userId !== userId) {
-    throw new NotFoundError('Notification not found.');
-  }
+  const transformedNotification = transformNotification(
+    updatedNotification as PrismaNotificationWithFullRelations
+  );
 
-  const updatedNotification = await prisma.notification.update({
-    where: { id: notificationId },
-    data: { isRead: true },
+  getIO().to(`user_${userId}`).emit("notification_update", {
+    notification: transformedNotification,
   });
 
-  // Emit real-time event for updated notification
-  getIO().to(`user_${userId}`).emit('notification_update', { notification: updatedNotification });
-
-  return updatedNotification;
+  return wrapResponse(transformedNotification);
 }
 
 /**
@@ -85,19 +143,95 @@ export async function markAsRead(userId: string, notificationId: string): Promis
  * @param notificationId - The ID of the notification.
  * @throws NotFoundError if the notification does not exist or does not belong to the user.
  */
-export async function deleteNotification(userId: string, notificationId: string): Promise<void> {
-  const notification = await prisma.notification.findUnique({
-    where: { id: notificationId },
+export async function deleteNotification(
+  userId: string,
+  notificationId: string
+): Promise<ApiResponse<void>> {
+  await prisma.$transaction(async (tx) => {
+    const notification = await tx.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification || notification.userId !== userId) {
+      throw new NotFoundError("Notification not found.");
+    }
+
+    await tx.notification.delete({
+      where: { id: notificationId },
+    });
   });
 
-  if (!notification || notification.userId !== userId) {
-    throw new NotFoundError('Notification not found.');
+  getIO().to(`user_${userId}`).emit("notification_update", { notificationId });
+
+  return wrapResponse(undefined);
+}
+
+/**
+ * Gets notification settings for a user or household.
+ * @param userId - Optional user ID.
+ * @param householdId - Optional household ID.
+ * @returns The notification settings.
+ * @throws NotFoundError if settings are not found.
+ */
+export async function getNotificationSettings(
+  userId?: string,
+  householdId?: string
+): Promise<ApiResponse<NotificationSettings>> {
+  const settings = await prisma.notificationSettings.findFirst({
+    where: {
+      OR: [{ userId: userId }, { householdId: householdId }],
+    },
+    include: {
+      user: true,
+      household: true,
+    },
+  });
+
+  if (!settings) {
+    throw new NotFoundError("Notification settings not found.");
   }
 
-  await prisma.notification.delete({
-    where: { id: notificationId },
+  const transformedSettings = transformNotificationSettings(
+    settings as PrismaNotificationSettingsWithFullRelations
+  );
+  return wrapResponse(transformedSettings);
+}
+
+/**
+ * Updates notification settings.
+ * @param settingsId - The ID of the settings to update.
+ * @param data - The updated settings data.
+ * @returns The updated notification settings.
+ * @throws NotFoundError if settings are not found.
+ */
+export async function updateNotificationSettings(
+  settingsId: string,
+  data: Partial<NotificationSettings>
+): Promise<ApiResponse<NotificationSettings>> {
+  const settings = await prisma.notificationSettings.update({
+    where: { id: settingsId },
+    data,
+    include: {
+      user: true,
+      household: true,
+    },
   });
 
-  // Emit real-time event for deleted notification
-  getIO().to(`user_${userId}`).emit('notification_update', { notificationId });
+  const transformedSettings = transformNotificationSettings(
+    settings as PrismaNotificationSettingsWithFullRelations
+  );
+
+  if (settings.userId) {
+    getIO().to(`user_${settings.userId}`).emit("settings_update", {
+      settings: transformedSettings,
+    });
+  }
+
+  if (settings.householdId) {
+    getIO().to(`household_${settings.householdId}`).emit("settings_update", {
+      settings: transformedSettings,
+    });
+  }
+
+  return wrapResponse(transformedSettings);
 }

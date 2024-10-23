@@ -1,8 +1,33 @@
-import { Thread } from "@prisma/client";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import { CreateThreadDTO, UpdateThreadDTO, UserRole } from "../types";
-import { getIO } from "../sockets";
 import prisma from "../config/database";
+import {
+  CreateThreadDTO,
+  Thread,
+  ThreadWithMessages,
+  ThreadWithParticipants,
+  UpdateThreadDTO,
+  InviteUsersDTO,
+} from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { HouseholdRole, ThreadAction } from "@shared/enums";
+import { getIO } from "../sockets";
+import { verifyMembership } from "./authService";
+import {
+  transformThread,
+  transformThreadWithMessages,
+  transformThreadWithParticipants,
+} from "../utils/transformers/messageTransformer";
+import {
+  PrismaThreadWithMessagesAndParticipants,
+  PrismaThreadWithParticipantsOnly,
+  PrismaThreadWithFullRelations,
+  PrismaThreadBase,
+} from "../utils/transformers/transformerPrismaTypes";
+
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
 
 /**
  * Retrieves all threads for a specific household.
@@ -10,83 +35,85 @@ import prisma from "../config/database";
 export async function getThreads(
   householdId: string,
   userId: string
-): Promise<Thread[]> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+): Promise<ApiResponse<ThreadWithMessages[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
   const threads = await prisma.thread.findMany({
     where: { householdId },
     include: {
       messages: {
         include: {
-          attachments: true,
+          thread: true,
           author: true,
+          attachments: {
+            include: {
+              message: true,
+            },
+          },
+          reactions: {
+            include: {
+              user: true,
+              message: true,
+            },
+          },
+          mentions: {
+            include: {
+              user: true,
+              message: true,
+            },
+          },
+          reads: {
+            include: {
+              user: true,
+              message: true,
+            },
+          },
         },
-        orderBy: { createdAt: "desc" },
       },
-      attachments: true,
-      author: true,
       participants: {
-        // Updated to include detailed participant info
         include: {
-          user: true, // If you need user details
+          user: true,
         },
       },
     },
     orderBy: {
-      createdAt: "desc",
+      updatedAt: "desc",
     },
   });
 
-  return threads;
+  const transformedThreads = threads.map((thread) =>
+    transformThreadWithMessages(
+      thread as PrismaThreadWithMessagesAndParticipants
+    )
+  );
+
+  return wrapResponse(transformedThreads);
 }
 
 /**
- * Creates a new thread within a household.
+ * Creates a new thread.
  */
 export async function createThread(
-  householdId: string,
-  data: CreateThreadDTO,
-  userId: string
-): Promise<Thread> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
+  data: CreateThreadDTO
+): Promise<ApiResponse<ThreadWithParticipants>> {
   const thread = await prisma.thread.create({
     data: {
-      householdId,
-      authorId: userId,
+      householdId: data.householdId,
+      authorId: data.authorId,
       title: data.title,
       participants: {
-        connect: [{ userId_householdId: { userId, householdId } }],
+        connect: data.participants.map((userId) => ({
+          userId_householdId: {
+            userId,
+            householdId: data.householdId,
+          },
+        })),
       },
     },
     include: {
-      messages: true,
-      attachments: true,
-      author: true,
       participants: {
         include: {
           user: true,
@@ -95,10 +122,16 @@ export async function createThread(
     },
   });
 
-  // Emit real-time event for new thread
-  getIO().to(`household_${householdId}`).emit("thread_update", { thread });
+  const transformedThread = transformThreadWithParticipants(
+    thread as PrismaThreadWithParticipantsOnly
+  );
 
-  return thread;
+  getIO().to(`household_${data.householdId}`).emit("thread_update", {
+    action: ThreadAction.CREATED,
+    thread: transformedThread,
+  });
+
+  return wrapResponse(transformedThread);
 }
 
 /**
@@ -108,38 +141,61 @@ export async function getThreadById(
   householdId: string,
   threadId: string,
   userId: string
-): Promise<Thread | null> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
-  });
-
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+): Promise<ApiResponse<ThreadWithMessages>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
   const thread = await prisma.thread.findUnique({
     where: { id: threadId },
     include: {
       messages: {
         include: {
-          attachments: true,
+          thread: true,
           author: true,
+          attachments: {
+            include: {
+              message: true,
+            },
+          },
+          reactions: {
+            include: {
+              user: true,
+              message: true,
+            },
+          },
+          mentions: {
+            include: {
+              user: true,
+              message: true,
+            },
+          },
+          reads: {
+            include: {
+              user: true,
+              message: true,
+            },
+          },
         },
-        orderBy: { createdAt: "desc" },
       },
-      attachments: true,
-      author: true,
-      participants: true, // This line is added
+      participants: {
+        include: {
+          user: true,
+        },
+      },
     },
   });
 
-  return thread;
+  if (!thread) {
+    throw new NotFoundError("Thread not found");
+  }
+
+  const transformedThread = transformThreadWithMessages(
+    thread as PrismaThreadWithMessagesAndParticipants
+  );
+
+  return wrapResponse(transformedThread);
 }
 
 /**
@@ -150,172 +206,107 @@ export async function updateThread(
   threadId: string,
   data: UpdateThreadDTO,
   userId: string
-): Promise<Thread | null> {
-  // Verify thread exists
-  const thread = await prisma.thread.findUnique({
-    where: { id: threadId },
-    include: { author: true },
-  });
-
-  if (!thread) {
-    throw new NotFoundError("Thread not found.");
-  }
-
-  // Check if the user is the thread owner or has ADMIN role
-  if (thread.authorId !== userId) {
-    const membership = await prisma.householdMember.findUnique({
-      where: {
-        userId_householdId: {
-          householdId,
-          userId,
-        },
-      },
-    });
-
-    if (!membership || membership.role !== UserRole.ADMIN) {
-      throw new UnauthorizedError(
-        "You do not have permission to update this thread."
-      );
-    }
-  }
+): Promise<ApiResponse<Thread>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
   const updatedThread = await prisma.thread.update({
     where: { id: threadId },
     data: {
       title: data.title,
     },
-    include: {
-      messages: true,
-      attachments: true,
-      author: true,
-    },
   });
 
-  // Emit real-time event for updated thread
-  getIO()
-    .to(`household_${householdId}`)
-    .emit("thread_update", { thread: updatedThread });
+  const transformedThread = transformThread(updatedThread as PrismaThreadBase);
 
-  return updatedThread;
+  getIO().to(`household_${householdId}`).emit("thread_update", {
+    action: ThreadAction.UPDATED,
+    thread: transformedThread,
+  });
+
+  return wrapResponse(transformedThread);
 }
 
 /**
- * Deletes a thread from a household.
+ * Deletes a thread.
  */
 export async function deleteThread(
   householdId: string,
   threadId: string,
   userId: string
-): Promise<void> {
-  // Verify thread exists
-  const thread = await prisma.thread.findUnique({
-    where: { id: threadId },
-    include: { author: true },
+): Promise<ApiResponse<void>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
+
+  await prisma.thread.delete({ where: { id: threadId } });
+
+  getIO().to(`household_${householdId}`).emit("thread_update", {
+    action: ThreadAction.DELETED,
+    threadId,
   });
 
-  if (!thread) {
-    throw new NotFoundError("Thread not found.");
-  }
-
-  // Check if the user is the thread owner or has ADMIN role
-  if (thread.authorId !== userId) {
-    const membership = await prisma.householdMember.findUnique({
-      where: {
-        userId_householdId: {
-          householdId,
-          userId,
-        },
-      },
-    });
-
-    if (!membership || membership.role !== UserRole.ADMIN) {
-      throw new UnauthorizedError(
-        "You do not have permission to delete this thread."
-      );
-    }
-  }
-
-  await prisma.thread.delete({
-    where: { id: threadId },
-  });
-
-  // Emit real-time event for deleted thread
-  getIO().to(`household_${householdId}`).emit("thread_update", { threadId });
+  return wrapResponse(undefined);
 }
 
 /**
  * Invites users to a thread.
  */
-export async function inviteUsers(
+export async function inviteUsersToThread(
   householdId: string,
   threadId: string,
-  userIds: string[],
-  inviterId: string
-): Promise<Thread> {
-  // Verify thread exists
-  const thread = await prisma.thread.findUnique({
-    where: { id: threadId },
-    include: { author: true, participants: true },
-  });
+  data: InviteUsersDTO,
+  userId: string
+): Promise<ApiResponse<ThreadWithParticipants>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!thread) {
-    throw new NotFoundError("Thread not found.");
-  }
-
-  // Check if the inviter is the thread owner or has ADMIN role
-  if (thread.authorId !== inviterId) {
-    const membership = await prisma.householdMember.findUnique({
+  const updatedThread = await prisma.$transaction(async (tx) => {
+    const householdMembers = await tx.householdMember.findMany({
       where: {
-        userId_householdId: {
-          householdId,
-          userId: inviterId,
-        },
+        householdId,
+        userId: { in: data.userIds },
       },
     });
 
-    if (!membership || membership.role !== UserRole.ADMIN) {
+    if (householdMembers.length !== data.userIds.length) {
       throw new UnauthorizedError(
-        "You do not have permission to invite users to this thread."
+        "Some users are not members of this household"
       );
     }
-  }
 
-  // Connect users to the thread's participants
-  const updatedThread = await prisma.thread.update({
-    where: { id: threadId },
-    data: {
-      participants: {
-        connect: userIds.map((userId) => ({
-          userId_householdId: { userId, householdId },
-        })),
-      },
-    },
-    include: {
-      messages: {
-        include: {
-          attachments: true,
-          author: true,
-        },
-        orderBy: { createdAt: "desc" },
-      },
-      attachments: true,
-      author: true,
-      participants: {
-        include: {
-          user: true,
+    return tx.thread.update({
+      where: { id: threadId },
+      data: {
+        participants: {
+          connect: data.userIds.map((userId) => ({
+            userId_householdId: {
+              userId,
+              householdId,
+            },
+          })),
         },
       },
-    },
+      include: {
+        participants: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
   });
 
-  if (!updatedThread) {
-    throw new NotFoundError("Thread not found after update.");
-  }
+  const transformedThread = transformThreadWithParticipants(
+    updatedThread as PrismaThreadWithParticipantsOnly
+  );
 
-  // Emit real-time event for invited users
-  getIO()
-    .to(`household_${householdId}`)
-    .emit("thread_update", { thread: updatedThread });
+  getIO().to(`household_${householdId}`).emit("thread_update", {
+    action: ThreadAction.USERS_INVITED,
+    thread: transformedThread,
+  });
 
-  return updatedThread;
+  return wrapResponse(transformedThread);
 }

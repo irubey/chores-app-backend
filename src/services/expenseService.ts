@@ -44,12 +44,28 @@ import {
   PrismaReceipt,
   PrismaExpenseHistory,
   PrismaExpense,
-} from "../utils/transformers/transformerTypes";
+} from "../utils/transformers/transformerPrismaTypes";
 import { getIO } from "../sockets";
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
   return { data };
+}
+
+// Helper function to create history record
+async function createExpenseHistory(
+  tx: any,
+  expenseId: string,
+  action: ExpenseAction,
+  userId: string
+): Promise<void> {
+  await tx.expenseHistory.create({
+    data: {
+      expenseId,
+      action,
+      changedById: userId,
+    },
+  });
 }
 
 /**
@@ -98,8 +114,8 @@ export async function createExpense(
 ): Promise<ApiResponse<Expense>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const expense = await prisma.$transaction(async (prismaClient) => {
-    const createdExpense = await prismaClient.expense.create({
+  const expense = await prisma.$transaction(async (tx) => {
+    const createdExpense = await tx.expense.create({
       data: {
         householdId: data.householdId,
         amount: data.amount,
@@ -114,7 +130,7 @@ export async function createExpense(
     });
 
     if (data.splits && data.splits.length > 0) {
-      await prismaClient.expenseSplit.createMany({
+      await tx.expenseSplit.createMany({
         data: data.splits.map((split: CreateExpenseSplitDTO) => ({
           expenseId: createdExpense.id,
           userId: split.userId,
@@ -123,7 +139,15 @@ export async function createExpense(
       });
     }
 
-    return prismaClient.expense.findUnique({
+    // Updated to use transaction client
+    await createExpenseHistory(
+      tx,
+      createdExpense.id,
+      ExpenseAction.CREATED,
+      userId
+    );
+
+    return tx.expense.findUnique({
       where: { id: createdExpense.id },
       include: {
         splits: true,
@@ -199,28 +223,49 @@ export async function updateExpense(
 ): Promise<ApiResponse<Expense>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const expense = await prisma.expense.update({
-    where: { id: expenseId },
-    data: {
-      amount: data.amount,
-      description: data.description,
-      dueDate: data.dueDate,
-      category: data.category,
-      splits: data.splits
-        ? {
-            deleteMany: {},
-            create: data.splits.map((split: UpdateExpenseSplitDTO) => ({
-              userId: split.userId,
-              amount: split.amount,
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      splits: true,
-      paidBy: true,
-      transactions: true,
-    },
+  const expense = await prisma.$transaction(async (prismaClient) => {
+    // Verify expense exists and belongs to household
+    const existingExpense = await prismaClient.expense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (!existingExpense || existingExpense.householdId !== householdId) {
+      throw new NotFoundError("Expense not found in this household.");
+    }
+
+    const updatedExpense = await prismaClient.expense.update({
+      where: { id: expenseId },
+      data: {
+        amount: data.amount,
+        description: data.description,
+        dueDate: data.dueDate,
+        category: data.category,
+        splits: data.splits
+          ? {
+              deleteMany: {},
+              create: data.splits.map((split: UpdateExpenseSplitDTO) => ({
+                userId: split.userId,
+                amount: split.amount,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        splits: true,
+        paidBy: true,
+        transactions: true,
+      },
+    });
+
+    // Use helper function instead of direct creation
+    await createExpenseHistory(
+      prismaClient,
+      expenseId,
+      ExpenseAction.UPDATED,
+      userId
+    );
+
+    return updatedExpense;
   });
 
   const transformedExpense = transformExpense(expense as PrismaExpense);
@@ -246,8 +291,41 @@ export async function deleteExpense(
 ): Promise<ApiResponse<void>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  await prisma.expense.delete({
-    where: { id: expenseId },
+  await prisma.$transaction(async (prismaClient) => {
+    // Verify expense exists and belongs to household
+    const expense = await prismaClient.expense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (!expense || expense.householdId !== householdId) {
+      throw new NotFoundError("Expense not found in this household.");
+    }
+
+    // Delete related records first
+    await prismaClient.expenseSplit.deleteMany({
+      where: { expenseId },
+    });
+
+    await prismaClient.transaction.deleteMany({
+      where: { expenseId },
+    });
+
+    await prismaClient.receipt.deleteMany({
+      where: { expenseId },
+    });
+
+    // Use helper function for deletion history
+    await createExpenseHistory(
+      prismaClient,
+      expenseId,
+      ExpenseAction.DELETED,
+      userId
+    );
+
+    // Delete the expense
+    await prismaClient.expense.delete({
+      where: { id: expenseId },
+    });
   });
 
   getIO()
@@ -276,12 +354,33 @@ export async function uploadReceipt(
     HouseholdRole.MEMBER,
   ]);
 
-  const receipt = await prisma.receipt.create({
-    data: {
-      expenseId: expenseId,
-      url: data.url,
-      fileType: data.fileType,
-    },
+  const receipt = await prisma.$transaction(async (prismaClient) => {
+    // Verify expense exists and belongs to household
+    const expense = await prismaClient.expense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (!expense || expense.householdId !== householdId) {
+      throw new NotFoundError("Expense not found in this household.");
+    }
+
+    const createdReceipt = await prismaClient.receipt.create({
+      data: {
+        expenseId: expenseId,
+        url: data.url,
+        fileType: data.fileType,
+      },
+    });
+
+    // Use helper function for receipt upload history
+    await createExpenseHistory(
+      prismaClient,
+      expenseId,
+      ExpenseAction.RECEIPT_UPLOADED,
+      userId
+    );
+
+    return createdReceipt;
   });
 
   const transformedReceipt = transformReceipt(receipt as PrismaReceipt);
@@ -334,8 +433,28 @@ export async function deleteReceipt(
 ): Promise<ApiResponse<void>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  await prisma.receipt.delete({
-    where: { id: receiptId },
+  await prisma.$transaction(async (prismaClient) => {
+    // Verify expense exists and belongs to household
+    const expense = await prismaClient.expense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (!expense || expense.householdId !== householdId) {
+      throw new NotFoundError("Expense not found in this household.");
+    }
+
+    // Verify receipt exists and belongs to expense
+    const receipt = await prismaClient.receipt.findUnique({
+      where: { id: receiptId },
+    });
+
+    if (!receipt || receipt.expenseId !== expenseId) {
+      throw new NotFoundError("Receipt not found.");
+    }
+
+    await prismaClient.receipt.delete({
+      where: { id: receiptId },
+    });
   });
 
   getIO().to(`household_${householdId}`).emit("receipt_deleted", { receiptId });

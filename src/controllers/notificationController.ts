@@ -1,6 +1,11 @@
-import { Response, NextFunction } from 'express';
-import * as notificationService from '../services/notificationService';
-import { AuthenticatedRequest, CreateNotificationDTO, UpdateNotificationDTO } from '../types';
+import { Response, NextFunction } from "express";
+import * as notificationService from "../services/notificationService";
+import { AuthenticatedRequest } from "../types";
+import {
+  CreateNotificationDTO,
+  UpdateNotificationDTO,
+  Notification,
+} from "@shared/types";
 
 /**
  * NotificationController handles all CRUD operations related to notifications.
@@ -8,16 +13,19 @@ import { AuthenticatedRequest, CreateNotificationDTO, UpdateNotificationDTO } fr
 export class NotificationController {
   /**
    * Retrieves all notifications for the authenticated user.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async getNotifications(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       if (!req.user) {
-        throw new Error('User not authenticated');
+        throw new Error("User not authenticated");
       }
-      const notifications = await notificationService.getNotifications(req.user.id);
+      const notifications = await notificationService.getNotifications(
+        req.user.id
+      );
       res.status(200).json(notifications);
     } catch (error) {
       next(error);
@@ -26,14 +34,22 @@ export class NotificationController {
 
   /**
    * Creates a new notification for a user.
-   * @param req Express Request object containing notification data
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async createNotification(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async createNotification(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      const notificationData: CreateNotificationDTO = req.body;
-      const notification = await notificationService.createNotification(notificationData);
+      const notificationData: CreateNotificationDTO = {
+        userId: req.body.userId,
+        type: req.body.type,
+        message: req.body.message,
+        isRead: req.body.isRead,
+      };
+      const notification = await notificationService.createNotification(
+        notificationData
+      );
       res.status(201).json(notification);
     } catch (error) {
       next(error);
@@ -42,17 +58,25 @@ export class NotificationController {
 
   /**
    * Marks a specific notification as read.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async markAsRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async markAsRead(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       if (!req.user) {
-        throw new Error('User not authenticated');
+        throw new Error("User not authenticated");
       }
       const { notificationId } = req.params;
-      const updatedNotification = await notificationService.markAsRead(req.user.id, notificationId);
+      const updateData: UpdateNotificationDTO = {
+        isRead: true,
+      };
+      const updatedNotification = await notificationService.markAsRead(
+        req.user.id,
+        notificationId,
+        updateData
+      );
       res.status(200).json(updatedNotification);
     } catch (error) {
       next(error);
@@ -61,14 +85,15 @@ export class NotificationController {
 
   /**
    * Deletes a specific notification.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async deleteNotification(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async deleteNotification(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       if (!req.user) {
-        throw new Error('User not authenticated');
+        throw new Error("User not authenticated");
       }
       const { notificationId } = req.params;
       await notificationService.deleteNotification(req.user.id, notificationId);

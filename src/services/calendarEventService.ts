@@ -2,28 +2,52 @@ import prisma from "../config/database";
 import {
   CreateCalendarEventDTO,
   UpdateCalendarEventDTO,
-  EventCategory,
+  EventWithDetails,
   CreateReminderDTO,
-} from "../types";
+  UpdateReminderDTO,
+} from "@shared/types";
+import { ApiResponse } from "@shared/interfaces";
+import {
+  EventCategory,
+  EventStatus,
+  HouseholdRole,
+  CalendarEventAction,
+  EventReminderType,
+} from "@shared/enums";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import { getIO } from "../sockets";
+import { verifyMembership } from "./authService";
+import { transformEventWithDetails } from "../utils/transformers/eventTransformer";
+import { PrismaEvent } from "../utils/transformers/transformerPrismaTypes";
 
-/**
- * Retrieves all general calendar events for a household.
- */
-export async function getCalendarEvents(householdId: string, userId: string) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
+
+async function createCalendarEventHistory(
+  tx: any,
+  eventId: string,
+  action: CalendarEventAction,
+  userId: string
+): Promise<void> {
+  await tx.calendarEventHistory.create({
+    data: {
+      eventId,
+      action,
+      changedById: userId,
     },
   });
+}
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+export async function getCalendarEvents(
+  householdId: string,
+  userId: string
+): Promise<ApiResponse<EventWithDetails[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  // Retrieve general calendar events
   const events = await prisma.event.findMany({
     where: {
       householdId,
@@ -34,93 +58,34 @@ export async function getCalendarEvents(householdId: string, userId: string) {
     include: {
       reminders: true,
       createdBy: true,
+      recurrenceRule: true,
+      history: true,
     },
   });
 
-  return events;
+  const transformedEvents = events.map((event) =>
+    transformEventWithDetails(event as PrismaEvent)
+  );
+  return wrapResponse(transformedEvents);
 }
 
-/**
- * Creates a new general calendar event.
- */
-export async function createCalendarEvent(
-  householdId: string,
-  data: CreateCalendarEventDTO,
-  userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
-
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Create general calendar event
-  const event = await prisma.event.create({
-    data: {
-      householdId,
-      title: data.title,
-      description: data.description,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      recurrence: data.recurrence,
-      category: data.category || EventCategory.OTHER,
-      createdById: userId,
-      isAllDay: data.isAllDay,
-      location: data.location,
-      isPrivate: data.isPrivate || false,
-      reminders: data.reminders
-        ? {
-            create: data.reminders.map((reminder: CreateReminderDTO) => ({
-              time: reminder.time,
-              type: reminder.type,
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      reminders: true,
-      createdBy: true,
-    },
-  });
-
-  // Emit real-time event for new calendar event
-  getIO()
-    .to(`household_${householdId}`)
-    .emit("calendar_event_created", { event });
-
-  return event;
-}
-
-/**
- * Retrieves details of a specific general calendar event.
- */
 export async function getEventById(
   householdId: string,
   eventId: string,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Retrieve event
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: {
       reminders: true,
       createdBy: true,
+      recurrenceRule: true,
+      history: true,
     },
   });
 
@@ -128,230 +93,343 @@ export async function getEventById(
     throw new NotFoundError("Calendar event not found.");
   }
 
-  return event;
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  return wrapResponse(transformedEvent);
 }
 
-/**
- * Updates an existing general calendar event.
- */
+export async function createCalendarEvent(
+  householdId: string,
+  data: CreateCalendarEventDTO,
+  userId: string
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const newEvent = await tx.event.create({
+      data: {
+        householdId,
+        title: data.title,
+        description: data.description ?? null,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        recurrenceRuleId: data.recurrenceId ?? null,
+        category: data.category || EventCategory.OTHER,
+        createdById: userId,
+        isAllDay: data.isAllDay ?? false,
+        location: data.location ?? null,
+        isPrivate: data.isPrivate ?? false,
+        status: EventStatus.SCHEDULED,
+        reminders: data.reminders
+          ? {
+              create: data.reminders.map((reminder) => ({
+                time: reminder.time,
+                type: reminder.type || EventReminderType.PUSH_NOTIFICATION,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    });
+
+    await createCalendarEventHistory(
+      tx,
+      newEvent.id,
+      CalendarEventAction.CREATED,
+      userId
+    );
+
+    return newEvent;
+  });
+
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+
+  getIO().to(`household_${householdId}`).emit("calendar_event_created", {
+    action: CalendarEventAction.CREATED,
+    event: transformedEvent,
+  });
+
+  return wrapResponse(transformedEvent);
+}
+
 export async function updateEvent(
   householdId: string,
   eventId: string,
   data: UpdateCalendarEventDTO,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.event.findUnique({
+      where: { id: eventId },
+    });
+
+    if (!existingEvent || existingEvent.householdId !== householdId) {
+      throw new NotFoundError("Calendar event not found.");
+    }
+
+    const isRecurrenceChanged =
+      existingEvent.recurrenceRuleId !== data.recurrenceId;
+
+    const updatedEvent = await tx.event.update({
+      where: { id: eventId },
+      data: {
+        title: data.title,
+        description: data.description ?? null,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        recurrenceRuleId: data.recurrenceId ?? null,
+        category: data.category || EventCategory.OTHER,
+        isAllDay: data.isAllDay ?? false,
+        location: data.location ?? null,
+        isPrivate: data.isPrivate ?? false,
+        reminders: data.reminders
+          ? {
+              deleteMany: {},
+              create: data.reminders.map((reminder) => ({
+                time: reminder.time,
+                type: reminder.type || EventReminderType.PUSH_NOTIFICATION,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    });
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.UPDATED,
+      userId
+    );
+
+    if (isRecurrenceChanged) {
+      await createCalendarEventHistory(
+        tx,
+        eventId,
+        CalendarEventAction.RECURRENCE_CHANGED,
+        userId
+      );
+    }
+
+    return updatedEvent;
   });
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
 
-  // Verify event exists and belongs to the household
-  const existingEvent = await prisma.event.findUnique({
-    where: { id: eventId },
+  getIO().to(`household_${householdId}`).emit("calendar_event_updated", {
+    action: CalendarEventAction.UPDATED,
+    event: transformedEvent,
   });
 
-  if (!existingEvent || existingEvent.householdId !== householdId) {
-    throw new NotFoundError("Calendar event not found.");
-  }
-
-  // Update event
-  const updatedEvent = await prisma.event.update({
-    where: { id: eventId },
-    data: {
-      title: data.title,
-      description: data.description,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      recurrence: data.recurrence,
-      category: data.category || EventCategory.OTHER,
-      isAllDay: data.isAllDay,
-      location: data.location,
-      isPrivate: data.isPrivate,
-      reminders: data.reminders
-        ? {
-            deleteMany: {}, // Remove existing reminders
-            create: data.reminders.map((reminder: CreateReminderDTO) => ({
-              time: reminder.time,
-              type: reminder.type,
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      reminders: true,
-      createdBy: true,
-    },
-  });
-
-  // Emit real-time event for updated calendar event
-  getIO()
-    .to(`household_${householdId}`)
-    .emit("calendar_event_updated", { event: updatedEvent });
-
-  return updatedEvent;
+  return wrapResponse(transformedEvent);
 }
 
-/**
- * Deletes a general calendar event.
- */
 export async function deleteEvent(
   householdId: string,
   eventId: string,
   userId: string
-): Promise<void> {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
+): Promise<ApiResponse<void>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.event.findUnique({
+      where: { id: eventId },
+    });
+
+    if (!existingEvent || existingEvent.householdId !== householdId) {
+      throw new NotFoundError("Calendar event not found.");
+    }
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.DELETED,
+      userId
+    );
+
+    await tx.event.delete({
+      where: { id: eventId },
+    });
   });
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Verify event exists and belongs to the household
-  const existingEvent = await prisma.event.findUnique({
-    where: { id: eventId },
+  getIO().to(`household_${householdId}`).emit("calendar_event_deleted", {
+    action: CalendarEventAction.DELETED,
+    eventId,
   });
 
-  if (!existingEvent || existingEvent.householdId !== householdId) {
-    throw new NotFoundError("Calendar event not found.");
-  }
-
-  // Delete event
-  await prisma.event.delete({
-    where: { id: eventId },
-  });
-
-  // Emit real-time event for deleted calendar event
-  getIO()
-    .to(`household_${householdId}`)
-    .emit("calendar_event_deleted", { eventId });
+  return wrapResponse(undefined);
 }
 
-/**
- * Adds a reminder to a calendar event.
- */
 export async function addReminder(
   householdId: string,
   eventId: string,
   reminderData: CreateReminderDTO,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.event.findUnique({
+      where: { id: eventId },
+      include: { reminders: true },
+    });
+
+    if (!existingEvent || existingEvent.householdId !== householdId) {
+      throw new NotFoundError("Calendar event not found.");
+    }
+
+    const updatedEvent = await tx.event.update({
+      where: { id: eventId },
+      data: {
+        reminders: {
+          create: {
+            time: reminderData.time,
+            type: reminderData.type || EventReminderType.PUSH_NOTIFICATION,
+          },
+        },
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    });
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.UPDATED,
+      userId
+    );
+
+    return updatedEvent;
   });
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
 
-  // Verify event exists and belongs to the household
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
+  getIO().to(`household_${householdId}`).emit("calendar_event_updated", {
+    action: CalendarEventAction.UPDATED,
+    event: transformedEvent,
   });
 
-  if (!event || event.householdId !== householdId) {
-    throw new NotFoundError("Calendar event not found.");
-  }
-
-  // Add reminder
-  const reminder = await prisma.reminder.create({
-    data: {
-      eventId: eventId,
-      time: reminderData.time,
-      type: reminderData.type,
-    },
-  });
-
-  return reminder;
+  return wrapResponse(transformedEvent);
 }
 
-/**
- * Removes a reminder from a calendar event.
- */
 export async function removeReminder(
   householdId: string,
   eventId: string,
   reminderId: string,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.event.findUnique({
+      where: { id: eventId },
+      include: { reminders: true },
+    });
+
+    if (!existingEvent || existingEvent.householdId !== householdId) {
+      throw new NotFoundError("Calendar event not found.");
+    }
+
+    const updatedEvent = await tx.event.update({
+      where: { id: eventId },
+      data: {
+        reminders: {
+          delete: { id: reminderId },
+        },
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    });
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.UPDATED,
+      userId
+    );
+
+    return updatedEvent;
   });
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
 
-  // Verify reminder exists and belongs to the event
-  const reminder = await prisma.reminder.findFirst({
-    where: { id: reminderId, eventId },
+  getIO().to(`household_${householdId}`).emit("calendar_event_updated", {
+    action: CalendarEventAction.UPDATED,
+    event: transformedEvent,
   });
 
-  if (!reminder) {
-    throw new NotFoundError("Reminder not found.");
-  }
-
-  // Remove reminder
-  await prisma.reminder.delete({
-    where: { id: reminderId },
-  });
+  return wrapResponse(transformedEvent);
 }
 
-/**
- * Retrieves events for a specific date.
- */
 export async function getEventsByDate(
   householdId: string,
   date: Date,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
+): Promise<ApiResponse<EventWithDetails[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Normalize the date to UTC midnight
   const startOfDay = new Date(date);
-  startOfDay.setUTCHours(0, 0, 0, 0);
+  startOfDay.setHours(0, 0, 0, 0);
 
   const endOfDay = new Date(date);
-  endOfDay.setUTCHours(23, 59, 59, 999);
+  endOfDay.setHours(23, 59, 59, 999);
 
-  // Retrieve events for the specified date
   const events = await prisma.event.findMany({
     where: {
       householdId,
       startTime: {
         gte: startOfDay,
-        lt: endOfDay,
+        lte: endOfDay,
       },
     },
     include: {
       reminders: true,
       createdBy: true,
+      recurrenceRule: true,
+      history: true,
     },
   });
 
-  return events;
+  const transformedEvents = events.map((event) =>
+    transformEventWithDetails(event as PrismaEvent)
+  );
+
+  return wrapResponse(transformedEvents);
 }
