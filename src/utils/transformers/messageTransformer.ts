@@ -1,6 +1,6 @@
 import {
-  Message,
   Thread,
+  Message,
   Attachment,
   Reaction,
   Mention,
@@ -8,33 +8,31 @@ import {
   MessageWithDetails,
   ThreadWithMessages,
   ThreadWithParticipants,
-  User,
+  ReactionWithUser,
+  MentionWithUser,
+  MessageReadWithUser,
 } from "@shared/types";
 import { ReactionType } from "@shared/enums";
 import {
-  PrismaMessage,
-  PrismaThread,
-  PrismaAttachment,
-  PrismaReaction,
-  PrismaMention,
-  PrismaMessageRead,
-  PrismaUser,
-} from "./transformerTypes";
+  PrismaThreadBase,
+  PrismaMessageBase,
+  PrismaThreadWithFullRelations,
+  PrismaMessageWithFullRelations,
+  PrismaAttachmentWithFullRelations,
+  PrismaReactionWithFullRelations,
+  PrismaMentionWithFullRelations,
+  PrismaMessageReadWithFullRelations,
+  PrismaThreadWithMessagesAndParticipants,
+  PrismaThreadWithParticipantsOnly,
+} from "./transformerPrismaTypes";
+import { transformUser } from "./userTransformer";
 import { transformHouseholdMember } from "./householdTransformer";
 
 function isValidReactionType(type: string): type is ReactionType {
   return Object.values(ReactionType).includes(type as ReactionType);
 }
 
-function transformUser(user: PrismaUser): User {
-  return {
-    ...user,
-    deletedAt: user.deletedAt ?? undefined,
-    profileImageURL: user.profileImageURL ?? "",
-  };
-}
-
-export function transformMessage(message: PrismaMessage): Message {
+export function transformMessage(message: PrismaMessageBase): Message {
   return {
     id: message.id,
     threadId: message.threadId,
@@ -43,23 +41,39 @@ export function transformMessage(message: PrismaMessage): Message {
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
     deletedAt: message.deletedAt ?? undefined,
-    reactions: message.reactions?.map(transformReaction) ?? [],
-    mentions: message.mentions?.map(transformMention) ?? [],
-    reads: message.reads?.map(transformMessageRead) ?? [],
   };
 }
 
 export function transformMessageWithDetails(
-  message: PrismaMessage & { author: PrismaUser }
+  message: PrismaMessageWithFullRelations
 ): MessageWithDetails {
-  return {
+  if (!message.author || !message.thread) {
+    throw new Error("Message must have an author and thread");
+  }
+
+  const transformedMessage = {
     ...transformMessage(message),
     author: transformUser(message.author),
-    attachments: message.attachments?.map(transformAttachment) ?? [],
+    attachments:
+      message.attachments?.map((attachment) =>
+        transformAttachment(attachment)
+      ) ?? undefined,
+    reactions:
+      message.reactions?.map((reaction) =>
+        transformReactionWithUser(reaction)
+      ) ?? undefined,
+    mentions:
+      message.mentions?.map((mention) => transformMentionWithUser(mention)) ??
+      undefined,
+    reads:
+      message.reads?.map((read) => transformMessageReadWithUser(read)) ??
+      undefined,
   };
+
+  return transformedMessage;
 }
 
-export function transformThread(thread: PrismaThread): Thread {
+export function transformThread(thread: PrismaThreadBase): Thread {
   return {
     id: thread.id,
     householdId: thread.householdId,
@@ -72,28 +86,32 @@ export function transformThread(thread: PrismaThread): Thread {
 }
 
 export function transformThreadWithMessages(
-  thread: PrismaThread & {
-    messages: (PrismaMessage & { author: PrismaUser })[];
-  }
+  thread: PrismaThreadWithMessagesAndParticipants
 ): ThreadWithMessages {
   return {
     ...transformThread(thread),
-    messages: thread.messages.map(transformMessageWithDetails),
+    messages:
+      thread.messages?.map((message) =>
+        transformMessageWithDetails({
+          ...message,
+          thread: thread, // Add the thread context to each message
+        })
+      ) ?? [],
   };
 }
 
 export function transformThreadWithParticipants(
-  thread: PrismaThread & {
-    participants: any[]; // Using any[] since we're using the existing householdTransformer
-  }
+  thread: PrismaThreadWithParticipantsOnly
 ): ThreadWithParticipants {
   return {
     ...transformThread(thread),
-    participants: thread.participants.map(transformHouseholdMember),
+    participants: thread.participants?.map(transformHouseholdMember) ?? [],
   };
 }
 
-export function transformAttachment(attachment: PrismaAttachment): Attachment {
+export function transformAttachment(
+  attachment: PrismaAttachmentWithFullRelations
+): Attachment {
   return {
     id: attachment.id,
     messageId: attachment.messageId,
@@ -105,7 +123,13 @@ export function transformAttachment(attachment: PrismaAttachment): Attachment {
   };
 }
 
-export function transformReaction(reaction: PrismaReaction): Reaction {
+export function transformReactionWithUser(
+  reaction: PrismaReactionWithFullRelations
+): ReactionWithUser {
+  if (!reaction.user) {
+    throw new Error("Reaction must have a user");
+  }
+
   return {
     id: reaction.id,
     messageId: reaction.messageId,
@@ -115,23 +139,38 @@ export function transformReaction(reaction: PrismaReaction): Reaction {
       ? reaction.type
       : ReactionType.LIKE,
     createdAt: reaction.createdAt,
+    user: transformUser(reaction.user),
   };
 }
 
-export function transformMention(mention: PrismaMention): Mention {
+export function transformMentionWithUser(
+  mention: PrismaMentionWithFullRelations
+): MentionWithUser {
+  if (!mention.user) {
+    throw new Error("Mention must have a user");
+  }
+
   return {
     id: mention.id,
     messageId: mention.messageId,
     userId: mention.userId,
     mentionedAt: mention.mentionedAt,
+    user: transformUser(mention.user),
   };
 }
 
-export function transformMessageRead(read: PrismaMessageRead): MessageRead {
+export function transformMessageReadWithUser(
+  read: PrismaMessageReadWithFullRelations
+): MessageReadWithUser {
+  if (!read.user) {
+    throw new Error("MessageRead must have a user");
+  }
+
   return {
     id: read.id,
     messageId: read.messageId,
     userId: read.userId,
     readAt: read.readAt,
+    user: transformUser(read.user),
   };
 }

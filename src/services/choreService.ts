@@ -28,12 +28,28 @@ import {
 import {
   PrismaChoreWithRelations,
   PrismaSubtask,
-} from "../utils/transformers/transformerTypes";
+} from "../utils/transformers/transformerPrismaTypes";
 import { verifyMembership } from "./authService";
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
   return { data };
+}
+
+// Helper function to create history record
+async function createChoreHistory(
+  tx: any,
+  choreId: string,
+  action: ChoreAction,
+  userId: string
+): Promise<void> {
+  await tx.choreHistory.create({
+    data: {
+      choreId,
+      action,
+      changedById: userId,
+    },
+  });
 }
 
 /**
@@ -84,32 +100,49 @@ export async function createChore(
     HouseholdRole.MEMBER,
   ]);
 
-  const chore = (await prisma.chore.create({
-    data: {
-      householdId,
-      title: data.title,
-      description: data.description,
-      dueDate: data.dueDate,
-      priority: data.priority,
-      status: data.status || ChoreStatus.PENDING,
-      recurrenceRuleId: data.recurrenceRuleId,
-      assignedUsers: {
-        connect: data.assignedUserIds?.map((id) => ({ id })) || [],
+  const chore = (await prisma.$transaction(async (tx) => {
+    const createdChore = await tx.chore.create({
+      data: {
+        householdId,
+        title: data.title,
+        description: data.description,
+        dueDate: data.dueDate,
+        priority: data.priority,
+        status: data.status || ChoreStatus.PENDING,
+        recurrenceRuleId: data.recurrenceRuleId,
+        assignedUsers: {
+          create:
+            data.assignedUserIds?.map((userId) => ({
+              userId,
+              assignedAt: new Date(),
+            })) || [],
+        },
+        subtasks: {
+          create:
+            data.subtasks?.map((subtask) => ({
+              title: subtask.title,
+              description: subtask.description ?? null,
+              status: subtask.status ?? SubtaskStatus.PENDING,
+            })) || [],
+        },
       },
-      subtasks: {
-        create:
-          data.subtasks?.map((subtask: CreateSubtaskDTO) => ({
-            title: subtask.title,
-            status: subtask.status || SubtaskStatus.PENDING,
-          })) || [],
+      include: {
+        subtasks: true,
+        assignedUsers: {
+          include: { user: true },
+        },
       },
-    },
-    include: {
-      subtasks: true,
-      assignedUsers: {
-        include: { user: true },
+    });
+
+    await tx.choreHistory.create({
+      data: {
+        choreId: createdChore.id,
+        action: ChoreAction.CREATED,
+        changedById: userId,
       },
-    },
+    });
+
+    return createdChore;
   })) as PrismaChoreWithRelations;
 
   const transformedChore = transformChoreToChoreWithAssignees(chore);
@@ -178,31 +211,41 @@ export async function updateChore(
     HouseholdRole.MEMBER,
   ]);
 
-  const chore = (await prisma.chore.update({
-    where: { id: choreId },
-    data: {
-      title: data.title,
-      description: data.description,
-      dueDate: data.dueDate,
-      priority: data.priority,
-      status: data.status,
-      recurrenceRuleId: data.recurrenceRuleId,
-      assignedUsers: {
-        set: data.assignedUserIds?.map((id) => ({ id })) || [],
+  const chore = (await prisma.$transaction(async (tx) => {
+    const updatedChore = await tx.chore.update({
+      where: { id: choreId },
+      data: {
+        title: data.title,
+        description: data.description,
+        dueDate: data.dueDate,
+        priority: data.priority,
+        status: data.status,
+        recurrenceRuleId: data.recurrenceRuleId,
+        assignedUsers: {
+          set: data.assignedUserIds?.map((id) => ({ id })) || [],
+        },
+        subtasks: data.subtasks
+          ? {
+              deleteMany: {},
+              create: data.subtasks.map((subtask) => ({
+                title: subtask.title,
+                description: subtask.description ?? null,
+                status: subtask.status ?? SubtaskStatus.PENDING,
+              })),
+            }
+          : undefined,
       },
-      subtasks: data.subtasks
-        ? {
-            deleteMany: {},
-            create: data.subtasks.map(transformSubtaskInput),
-          }
-        : undefined,
-    },
-    include: {
-      subtasks: true,
-      assignedUsers: {
-        include: { user: true },
+      include: {
+        subtasks: true,
+        assignedUsers: {
+          include: { user: true },
+        },
       },
-    },
+    });
+
+    await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
+
+    return updatedChore;
   })) as PrismaChoreWithRelations;
 
   const transformedChore = transformChoreToChoreWithAssignees(chore);
@@ -228,25 +271,54 @@ export async function deleteChore(
 ): Promise<void> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const chore = await prisma.chore.findUnique({ where: { id: choreId } });
+  const chore = await prisma.chore.findUnique({
+    where: { id: choreId },
+    include: { event: true },
+  });
 
   if (!chore) {
-    throw new NotFoundError("Chore not found.");
+    throw new NotFoundError("Chore not found");
   }
 
-  await prisma.chore.delete({ where: { id: choreId } });
+  await prisma.$transaction(async (tx) => {
+    // Cancel any pending swap requests
+    await tx.choreSwapRequest.updateMany({
+      where: {
+        choreId,
+        status: ChoreSwapRequestStatus.PENDING,
+      },
+      data: {
+        status: ChoreSwapRequestStatus.REJECTED,
+      },
+    });
+
+    // Delete associated event if exists
+    if (chore.event) {
+      await tx.event.delete({ where: { id: chore.event.id } });
+    }
+
+    // Delete assignments
+    await tx.choreAssignment.deleteMany({ where: { choreId } });
+
+    // Delete subtasks
+    await tx.subtask.deleteMany({ where: { choreId } });
+
+    // Delete the chore
+    await tx.chore.delete({ where: { id: choreId } });
+
+    // Create history record
+    await tx.choreHistory.create({
+      data: {
+        choreId,
+        action: ChoreAction.DELETED,
+        changedById: userId,
+      },
+    });
+  });
 
   getIO()
     .to(`household_${householdId}`)
     .emit("chore_update", { choreId, deleted: true });
-
-  await prisma.choreHistory.create({
-    data: {
-      choreId,
-      action: ChoreAction.DELETED,
-      changedById: userId,
-    },
-  });
 }
 
 /**
@@ -267,20 +339,36 @@ export async function addSubtask(
 ): Promise<ApiResponse<Subtask>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const chore = await prisma.chore.findUnique({ where: { id: choreId } });
+  const subtask = await prisma.$transaction(async (tx) => {
+    const chore = await tx.chore.findUnique({
+      where: { id: choreId },
+      include: { subtasks: true },
+    });
 
-  if (!chore) {
-    throw new NotFoundError("Chore not found.");
-  }
+    if (!chore) {
+      throw new NotFoundError("Chore not found.");
+    }
 
-  const subtask = (await prisma.subtask.create({
-    data: {
-      choreId,
-      title: data.title,
-      description: data.description || null,
-      status: data.status || SubtaskStatus.PENDING,
-    },
-  })) as PrismaSubtask;
+    const createdSubtask = await tx.subtask.create({
+      data: {
+        choreId,
+        title: data.title,
+        description: data.description || null,
+        status: data.status || SubtaskStatus.PENDING,
+      },
+    });
+
+    // Update chore history
+    await tx.choreHistory.create({
+      data: {
+        choreId,
+        action: ChoreAction.UPDATED,
+        changedById: userId,
+      },
+    });
+
+    return createdSubtask as PrismaSubtask;
+  });
 
   const transformedSubtask = transformSubtask(subtask);
   getIO()
@@ -313,14 +401,37 @@ export async function updateSubtaskStatus(
     HouseholdRole.MEMBER,
   ]);
 
-  const subtask = (await prisma.subtask.update({
-    where: { id: subtaskId },
-    data: { status },
-  })) as PrismaSubtask;
+  const subtask = await prisma.$transaction(async (tx) => {
+    const updatedSubtask = await tx.subtask.update({
+      where: { id: subtaskId },
+      data: { status },
+    });
 
-  if (!subtask) {
-    throw new NotFoundError("Subtask not found.");
-  }
+    if (!updatedSubtask) {
+      throw new NotFoundError("Subtask not found.");
+    }
+
+    // Check if all subtasks are completed
+    const allSubtasks = await tx.subtask.findMany({
+      where: { choreId },
+    });
+
+    const allCompleted = allSubtasks.every(
+      (st) => st.status === SubtaskStatus.COMPLETED
+    );
+
+    if (allCompleted) {
+      await tx.chore.update({
+        where: { id: choreId },
+        data: { status: ChoreStatus.COMPLETED },
+      });
+      await createChoreHistory(tx, choreId, ChoreAction.COMPLETED, userId);
+    } else {
+      await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
+    }
+
+    return updatedSubtask as PrismaSubtask;
+  });
 
   const transformedSubtask = transformSubtask(subtask);
   getIO()
@@ -347,13 +458,26 @@ export async function deleteSubtask(
 ): Promise<void> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const subtask = await prisma.subtask.findUnique({ where: { id: subtaskId } });
+  await prisma.$transaction(async (tx) => {
+    const subtask = await tx.subtask.findUnique({
+      where: { id: subtaskId },
+    });
 
-  if (!subtask) {
-    throw new NotFoundError("Subtask not found.");
-  }
+    if (!subtask) {
+      throw new NotFoundError("Subtask not found.");
+    }
 
-  await prisma.subtask.delete({ where: { id: subtaskId } });
+    await tx.subtask.delete({ where: { id: subtaskId } });
+
+    // Create history record
+    await tx.choreHistory.create({
+      data: {
+        choreId,
+        action: ChoreAction.UPDATED,
+        changedById: userId,
+      },
+    });
+  });
 
   getIO()
     .to(`household_${householdId}`)
@@ -412,8 +536,8 @@ export async function approveChoreSwap(
     HouseholdRole.MEMBER,
   ]);
 
-  return prisma.$transaction(async (prismaTransaction) => {
-    const swapRequest = await prismaTransaction.choreSwapRequest.findUnique({
+  return prisma.$transaction(async (tx) => {
+    const swapRequest = await tx.choreSwapRequest.findUnique({
       where: { id: swapRequestId },
       include: { chore: true },
     });
@@ -434,7 +558,7 @@ export async function approveChoreSwap(
     let updatedSwapRequest;
 
     if (approved) {
-      updatedChore = await prismaTransaction.chore.update({
+      updatedChore = await tx.chore.update({
         where: { id: choreId },
         data: {
           assignedUsers: {
@@ -452,17 +576,24 @@ export async function approveChoreSwap(
         },
       });
 
-      updatedSwapRequest = await prismaTransaction.choreSwapRequest.update({
+      updatedSwapRequest = await tx.choreSwapRequest.update({
         where: { id: swapRequestId },
         data: { status: ChoreSwapRequestStatus.APPROVED },
       });
+
+      await createChoreHistory(
+        tx,
+        choreId,
+        ChoreAction.SWAPPED,
+        approvingUserId
+      );
     } else {
-      updatedSwapRequest = await prismaTransaction.choreSwapRequest.update({
+      updatedSwapRequest = await tx.choreSwapRequest.update({
         where: { id: swapRequestId },
         data: { status: ChoreSwapRequestStatus.REJECTED },
       });
 
-      updatedChore = await prismaTransaction.chore.findUnique({
+      updatedChore = await tx.chore.findUnique({
         where: { id: choreId },
         include: {
           assignedUsers: { include: { user: true } },

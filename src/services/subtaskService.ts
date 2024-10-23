@@ -1,8 +1,38 @@
-import { Subtask, HouseholdRole } from '@prisma/client';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import prisma from '../config/database';
-import { CreateSubtaskDTO, UpdateSubtaskDTO } from '../types';
-import { getIO } from '../sockets';
+import { Subtask } from "@shared/types";
+import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import prisma from "../config/database";
+import { CreateSubtaskDTO, UpdateSubtaskDTO } from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { HouseholdRole, SubtaskStatus, ChoreAction } from "@shared/enums";
+import { getIO } from "../sockets";
+import { verifyMembership } from "./authService";
+import {
+  transformSubtask,
+  transformSubtaskInput,
+  transformSubtaskUpdateInput,
+} from "../utils/transformers/choreTransformer";
+import { PrismaSubtaskWithFullRelations } from "../utils/transformers/transformerPrismaTypes";
+
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
+
+// Helper function to create chore history record
+async function createChoreHistory(
+  tx: any,
+  choreId: string,
+  action: ChoreAction,
+  userId: string
+): Promise<void> {
+  await tx.choreHistory.create({
+    data: {
+      choreId,
+      action,
+      changedById: userId,
+    },
+  });
+}
 
 /**
  * Adds a new subtask to a specific chore.
@@ -18,47 +48,40 @@ export async function addSubtask(
   householdId: string,
   choreId: string,
   data: CreateSubtaskDTO,
-  userId?: string
-): Promise<Subtask> {
-  if (!userId) {
-    throw new UnauthorizedError('Unauthorized');
-  }
+  userId: string
+): Promise<ApiResponse<Subtask>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
+  const subtask = await prisma.$transaction(async (tx) => {
+    const chore = await tx.chore.findUnique({
+      where: { id: choreId },
+    });
+
+    if (!chore) {
+      throw new NotFoundError("Chore not found.");
+    }
+
+    const createdSubtask = await tx.subtask.create({
+      data: {
+        choreId,
+        ...transformSubtaskInput(data),
       },
-    },
+      include: {
+        chore: true,
+      },
+    });
+
+    await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
+
+    return createdSubtask as PrismaSubtaskWithFullRelations;
   });
 
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to add a subtask.');
-  }
+  const transformedSubtask = transformSubtask(subtask);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("subtask_update", { subtask: transformedSubtask });
 
-  // Verify the chore exists
-  const chore = await prisma.chore.findUnique({
-    where: { id: choreId },
-  });
-
-  if (!chore) {
-    throw new NotFoundError('Chore not found.');
-  }
-
-  const subtask = await prisma.subtask.create({
-    data: {
-      choreId,
-      title: data.title,
-      status: data.status || 'PENDING',
-    },
-  });
-
-  // Emit real-time event for the new subtask
-  getIO().to(`household_${householdId}`).emit('subtask_update', { subtask });
-
-  return subtask;
+  return wrapResponse(transformedSubtask);
 }
 
 /**
@@ -66,50 +89,66 @@ export async function addSubtask(
  * @param householdId - The ID of the household.
  * @param choreId - The ID of the chore.
  * @param subtaskId - The ID of the subtask.
- * @param status - The new status of the subtask.
+ * @param data - The updated subtask data.
  * @param userId - The ID of the user updating the subtask.
  * @returns The updated subtask.
  * @throws UnauthorizedError if the user does not have ADMIN role.
  * @throws NotFoundError if the subtask does not exist.
  */
-export async function updateSubtaskStatus(
+export async function updateSubtask(
   householdId: string,
   choreId: string,
   subtaskId: string,
-  status: 'PENDING' | 'COMPLETED',
-  userId?: string
-): Promise<Subtask> {
-  if (!userId) {
-    throw new UnauthorizedError('Unauthorized');
-  }
+  data: UpdateSubtaskDTO,
+  userId: string
+): Promise<ApiResponse<Subtask>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
+  const subtask = await prisma.$transaction(async (tx) => {
+    const existingSubtask = await tx.subtask.findUnique({
+      where: { id: subtaskId },
+    });
+
+    if (!existingSubtask || existingSubtask.choreId !== choreId) {
+      throw new NotFoundError("Subtask not found.");
+    }
+
+    const updatedSubtask = await tx.subtask.update({
+      where: { id: subtaskId },
+      data: transformSubtaskUpdateInput(data),
+    });
+
+    // Check if all subtasks are completed
+    const allSubtasks = await tx.subtask.findMany({
+      where: { choreId },
+    });
+
+    const allCompleted = allSubtasks.every(
+      (st) => st.status === SubtaskStatus.COMPLETED
+    );
+
+    if (allCompleted) {
+      await tx.chore.update({
+        where: { id: choreId },
+        data: { status: SubtaskStatus.COMPLETED },
+      });
+      await createChoreHistory(tx, choreId, ChoreAction.COMPLETED, userId);
+    } else {
+      await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
+    }
+
+    return updatedSubtask as PrismaSubtaskWithFullRelations;
   });
 
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to update this subtask.');
-  }
+  const transformedSubtask = transformSubtask(subtask);
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("subtask_update", { subtask: transformedSubtask });
 
-  const subtask = await prisma.subtask.update({
-    where: { id: subtaskId },
-    data: { status },
-  });
-
-  if (!subtask) {
-    throw new NotFoundError('Subtask not found.');
-  }
-
-  // Emit real-time event for updated subtask status
-  getIO().to(`household_${householdId}`).emit('subtask_update', { subtask });
-
-  return subtask;
+  return wrapResponse(transformedSubtask);
 }
 
 /**
@@ -125,38 +164,96 @@ export async function deleteSubtask(
   householdId: string,
   choreId: string,
   subtaskId: string,
-  userId?: string
-): Promise<void> {
-  if (!userId) {
-    throw new UnauthorizedError('Unauthorized');
-  }
+  userId: string
+): Promise<ApiResponse<void>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  // Verify user has ADMIN role in the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: {
-        householdId,
-        userId,
-      },
-    },
+  await prisma.$transaction(async (tx) => {
+    const subtask = await tx.subtask.findUnique({
+      where: { id: subtaskId },
+    });
+
+    if (!subtask || subtask.choreId !== choreId) {
+      throw new NotFoundError("Subtask not found.");
+    }
+
+    await tx.subtask.delete({ where: { id: subtaskId } });
+
+    await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
   });
 
-  if (!membership || membership.role !== HouseholdRole.ADMIN) {
-    throw new UnauthorizedError('You do not have permission to delete this subtask.');
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("subtask_update", { subtaskId, deleted: true });
+
+  return wrapResponse(undefined);
+}
+
+/**
+ * Retrieves all subtasks for a specific chore.
+ * @param householdId - The ID of the household.
+ * @param choreId - The ID of the chore.
+ * @param userId - The ID of the requesting user.
+ * @returns An array of subtasks.
+ * @throws UnauthorizedError if the user is not a household member.
+ * @throws NotFoundError if the chore does not exist.
+ */
+export async function getSubtasks(
+  householdId: string,
+  choreId: string,
+  userId: string
+): Promise<ApiResponse<Subtask[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const chore = await prisma.chore.findUnique({
+    where: { id: choreId },
+    include: { subtasks: true },
+  });
+
+  if (!chore) {
+    throw new NotFoundError("Chore not found.");
   }
+
+  const transformedSubtasks = chore.subtasks.map((subtask) =>
+    transformSubtask(subtask as PrismaSubtaskWithFullRelations)
+  );
+  return wrapResponse(transformedSubtasks);
+}
+
+/**
+ * Retrieves a specific subtask.
+ * @param householdId - The ID of the household.
+ * @param choreId - The ID of the chore.
+ * @param subtaskId - The ID of the subtask.
+ * @param userId - The ID of the requesting user.
+ * @returns The requested subtask.
+ * @throws UnauthorizedError if the user is not a household member.
+ * @throws NotFoundError if the subtask does not exist.
+ */
+export async function getSubtaskById(
+  householdId: string,
+  choreId: string,
+  subtaskId: string,
+  userId: string
+): Promise<ApiResponse<Subtask>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
   const subtask = await prisma.subtask.findUnique({
     where: { id: subtaskId },
   });
 
-  if (!subtask) {
-    throw new NotFoundError('Subtask not found.');
+  if (!subtask || subtask.choreId !== choreId) {
+    throw new NotFoundError("Subtask not found.");
   }
 
-  await prisma.subtask.delete({
-    where: { id: subtaskId },
-  });
-
-  // Emit real-time event for deleted subtask
-  getIO().to(`household_${householdId}`).emit('subtask_update', { subtaskId });
+  const transformedSubtask = transformSubtask(
+    subtask as PrismaSubtaskWithFullRelations
+  );
+  return wrapResponse(transformedSubtask);
 }

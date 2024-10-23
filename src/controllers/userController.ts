@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import * as userService from "../services/userService";
 import { UnauthorizedError } from "../middlewares/errorHandler";
 import { AuthenticatedRequest } from "../types";
+import { UpdateUserDTO } from "@shared/types";
 
 /**
  * UserController handles all user-related operations such as registration, login, and household management.
@@ -44,9 +45,15 @@ export class UserController {
       if (!req.user) {
         throw new UnauthorizedError("Unauthorized");
       }
+
+      const updateData: UpdateUserDTO = {
+        name: req.body.name,
+        profileImageURL: req.body.profileImageURL,
+      };
+
       const updatedUser = await userService.updateUserProfile(
         req.user.id,
-        req.body
+        updateData
       );
       res.status(200).json(updatedUser);
     } catch (error) {

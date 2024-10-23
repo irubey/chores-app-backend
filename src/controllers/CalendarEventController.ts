@@ -1,10 +1,7 @@
 import { Response, NextFunction } from "express";
 import * as calendarEventService from "../services/calendarEventService";
-import {
-  CreateCalendarEventDTO,
-  UpdateCalendarEventDTO,
-  AuthenticatedRequest,
-} from "../types";
+import { AuthenticatedRequest } from "../types";
+import { CreateCalendarEventDTO, UpdateCalendarEventDTO } from "@shared/types";
 
 /**
  * CalendarEventController handles all CRUD operations related to general calendar events.
@@ -24,7 +21,7 @@ export class CalendarEventController {
         householdId,
         req.user!.id
       );
-      res.status(200).json({ data: events });
+      res.status(200).json(events);
     } catch (error) {
       next(error);
     }
@@ -46,7 +43,7 @@ export class CalendarEventController {
         eventData,
         req.user!.id
       );
-      res.status(201).json({ data: event });
+      res.status(201).json(event);
     } catch (error) {
       next(error);
     }
@@ -55,7 +52,7 @@ export class CalendarEventController {
   /**
    * Retrieves details of a specific general calendar event.
    */
-  static async getCalendarEventDetails(
+  static async getEventById(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -67,7 +64,7 @@ export class CalendarEventController {
         eventId,
         req.user!.id
       );
-      res.status(200).json({ data: event });
+      res.status(200).json(event);
     } catch (error) {
       next(error);
     }
@@ -76,7 +73,7 @@ export class CalendarEventController {
   /**
    * Updates an existing general calendar event.
    */
-  static async updateCalendarEvent(
+  static async updateEvent(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -90,7 +87,7 @@ export class CalendarEventController {
         updateData,
         req.user!.id
       );
-      res.status(200).json({ data: updatedEvent });
+      res.status(200).json(updatedEvent);
     } catch (error) {
       next(error);
     }
@@ -99,7 +96,7 @@ export class CalendarEventController {
   /**
    * Deletes a general calendar event.
    */
-  static async deleteCalendarEvent(
+  static async deleteEvent(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -134,7 +131,7 @@ export class CalendarEventController {
         reminderData,
         req.user!.id
       );
-      res.status(201).json({ data: reminder });
+      res.status(201).json(reminder);
     } catch (error) {
       next(error);
     }
@@ -177,114 +174,7 @@ export class CalendarEventController {
         new Date(date),
         req.user!.id
       );
-      res.status(200).json({ data: events });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Retrieves all general calendar events for a household.
-   */
-  static async getEvents(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId } = req.params;
-      const events = await calendarEventService.getCalendarEvents(
-        householdId,
-        req.user!.id
-      );
-      res.status(200).json({ data: events });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Creates a new general calendar event.
-   */
-  static async createEvent(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId } = req.params;
-      const eventData: CreateCalendarEventDTO = req.body;
-      const event = await calendarEventService.createCalendarEvent(
-        householdId,
-        eventData,
-        req.user!.id
-      );
-      res.status(201).json({ data: event });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Retrieves details of a specific general calendar event.
-   */
-  static async getEventById(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId, eventId } = req.params;
-      const event = await calendarEventService.getEventById(
-        householdId,
-        eventId,
-        req.user!.id
-      );
-      res.status(200).json({ data: event });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Updates an existing general calendar event.
-   */
-  static async updateEvent(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId, eventId } = req.params;
-      const updateData: UpdateCalendarEventDTO = req.body;
-      const updatedEvent = await calendarEventService.updateEvent(
-        householdId,
-        eventId,
-        updateData,
-        req.user!.id
-      );
-      res.status(200).json({ data: updatedEvent });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Deletes a general calendar event.
-   */
-  static async deleteEvent(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId, eventId } = req.params;
-      await calendarEventService.deleteEvent(
-        householdId,
-        eventId,
-        req.user!.id
-      );
-      res.status(204).send();
+      res.status(200).json(events);
     } catch (error) {
       next(error);
     }

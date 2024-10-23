@@ -1,10 +1,7 @@
 import { Response, NextFunction } from "express";
 import * as choreEventService from "../services/choreEventService";
-import {
-  CreateChoreEventDTO,
-  UpdateChoreEventDTO,
-  AuthenticatedRequest,
-} from "../types";
+import { AuthenticatedRequest } from "../types";
+import { CreateEventDTO, UpdateEventDTO } from "@shared/types";
 
 /**
  * ChoreEventController handles all CRUD operations related to chore events.
@@ -25,7 +22,7 @@ export class ChoreEventController {
         choreId,
         req.user!.id
       );
-      res.status(200).json({ data: events });
+      res.status(200).json(events);
     } catch (error) {
       next(error);
     }
@@ -41,14 +38,14 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId } = req.params;
-      const choreEventData: CreateChoreEventDTO = req.body;
+      const choreEventData: CreateEventDTO = req.body;
       const event = await choreEventService.createChoreEvent(
         householdId,
         choreId,
         choreEventData,
         req.user!.id
       );
-      res.status(201).json({ data: event });
+      res.status(201).json(event);
     } catch (error) {
       next(error);
     }
@@ -70,7 +67,7 @@ export class ChoreEventController {
         eventId,
         req.user!.id
       );
-      res.status(200).json({ data: event });
+      res.status(200).json(event);
     } catch (error) {
       next(error);
     }
@@ -86,7 +83,7 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId, eventId } = req.params;
-      const updateData: UpdateChoreEventDTO = req.body;
+      const updateData: UpdateEventDTO = req.body;
       const updatedEvent = await choreEventService.updateChoreEvent(
         householdId,
         choreId,
@@ -94,7 +91,7 @@ export class ChoreEventController {
         updateData,
         req.user!.id
       );
-      res.status(200).json({ data: updatedEvent });
+      res.status(200).json(updatedEvent);
     } catch (error) {
       next(error);
     }
@@ -140,7 +137,7 @@ export class ChoreEventController {
         req.user!.id,
         status
       );
-      res.status(200).json({ data: updatedEvent });
+      res.status(200).json(updatedEvent);
     } catch (error) {
       next(error);
     }
@@ -165,7 +162,7 @@ export class ChoreEventController {
         new Date(newStartTime),
         new Date(newEndTime)
       );
-      res.status(200).json({ data: rescheduledEvent });
+      res.status(200).json(rescheduledEvent);
     } catch (error) {
       next(error);
     }
@@ -188,7 +185,7 @@ export class ChoreEventController {
         req.user!.id,
         limit ? parseInt(limit as string, 10) : undefined
       );
-      res.status(200).json({ data: upcomingEvents });
+      res.status(200).json(upcomingEvents);
     } catch (error) {
       next(error);
     }

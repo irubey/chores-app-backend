@@ -1,16 +1,24 @@
 import {
   Chore,
   Subtask,
-  User,
   ChoreWithAssignees,
   ChoreSwapRequest,
+  ChoreAssignmentWithUser,
+  CreateSubtaskDTO,
+  UpdateSubtaskDTO,
 } from "@shared/types";
 import {
+  ChoreStatus,
   SubtaskStatus,
   ChoreSwapRequestStatus,
-  ChoreStatus,
 } from "@shared/enums";
-import { PrismaSubtask, PrismaChoreWithRelations } from "./transformerTypes";
+import {
+  PrismaChoreWithFullRelations,
+  PrismaSubtaskMinimal,
+  PrismaChoreAssignmentWithRelations,
+  PrismaChoreSwapRequestWithRelations,
+} from "./transformerPrismaTypes";
+import { transformUser } from "./userTransformer";
 
 function isValidChoreStatus(status: string): status is ChoreStatus {
   return Object.values(ChoreStatus).includes(status as ChoreStatus);
@@ -28,84 +36,107 @@ function isValidChoreSwapRequestStatus(
   );
 }
 
-export function transformSubtask(subtask: PrismaSubtask): Subtask {
+export function transformSubtask(subtask: PrismaSubtaskMinimal): Subtask {
   return {
-    ...subtask,
+    id: subtask.id,
+    choreId: subtask.choreId,
+    title: subtask.title,
+    description: subtask.description ?? undefined,
     status: isValidSubtaskStatus(subtask.status)
       ? subtask.status
       : SubtaskStatus.PENDING,
-    description: subtask.description ?? undefined,
+  };
+}
+
+export function transformChoreAssignment(
+  assignment: PrismaChoreAssignmentWithRelations
+): ChoreAssignmentWithUser {
+  return {
+    id: assignment.id,
+    choreId: assignment.choreId,
+    userId: assignment.userId,
+    assignedAt: assignment.assignedAt,
+    completedAt: assignment.completedAt ?? undefined,
+    user: transformUser(assignment.user),
   };
 }
 
 export function transformChoreToChoreWithAssignees(
-  chore: PrismaChoreWithRelations
+  chore: PrismaChoreWithFullRelations
 ): ChoreWithAssignees {
-  return {
-    ...chore,
+  const baseChore: Chore = {
+    id: chore.id,
+    householdId: chore.householdId,
+    title: chore.title,
+    description: chore.description ?? undefined,
+    createdAt: chore.createdAt,
+    updatedAt: chore.updatedAt,
+    deletedAt: chore.deletedAt ?? undefined,
+    dueDate: chore.dueDate ?? undefined,
     status: isValidChoreStatus(chore.status)
       ? chore.status
       : ChoreStatus.PENDING,
-    description: chore.description ?? undefined,
-    deletedAt: chore.deletedAt ?? undefined,
-    dueDate: chore.dueDate ?? undefined,
     priority: chore.priority ?? undefined,
     eventId: chore.eventId ?? undefined,
     recurrenceRuleId: chore.recurrenceRuleId ?? undefined,
-    assignedUsers: chore.assignedUsers.map((assignment) => ({
-      ...assignment.user,
-      deletedAt: assignment.user.deletedAt ?? undefined,
-      profileImageURL: assignment.user.profileImageURL ?? "",
-    })) as User[],
-    subtasks: chore.subtasks.map(transformSubtask),
+  };
+
+  // Type assertion to help TypeScript understand the structure
+  const assignments = (chore.assignments ??
+    []) as PrismaChoreAssignmentWithRelations[];
+  const subtasks = (chore.subtasks ?? []) as PrismaSubtaskMinimal[];
+
+  return {
+    ...baseChore,
+    assignments: assignments.map(transformChoreAssignment),
+    subtasks: subtasks.map(transformSubtask),
   };
 }
 
 export function transformChoresToChoresWithAssignees(
-  chores: PrismaChoreWithRelations[]
+  chores: PrismaChoreWithFullRelations[]
 ): ChoreWithAssignees[] {
   return chores.map(transformChoreToChoreWithAssignees);
 }
 
-export function transformSubtaskInput(subtask: {
-  title: string | undefined;
+export function transformSubtaskInput(subtask: CreateSubtaskDTO): {
+  title: string;
+  description: string | null;
   status: SubtaskStatus;
-}): { title: string; status: SubtaskStatus } {
+} {
   return {
-    title: subtask.title || "",
-    status: isValidSubtaskStatus(subtask.status)
-      ? subtask.status
-      : SubtaskStatus.PENDING,
+    title: subtask.title,
+    description: subtask.description ?? null,
+    status: subtask.status ?? SubtaskStatus.PENDING,
   };
 }
 
-export type PrismaChoreSwapRequest = {
-  id: string;
-  choreId: string;
-  requestingUserId: string;
-  targetUserId: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
-  createdAt: Date;
-  updatedAt: Date;
-};
+export function transformSubtaskUpdateInput(subtask: UpdateSubtaskDTO): {
+  title?: string;
+  description?: string | null;
+  status?: SubtaskStatus;
+} {
+  return {
+    ...(subtask.title && { title: subtask.title }),
+    ...(subtask.description !== undefined && {
+      description: subtask.description ?? null,
+    }),
+    ...(subtask.status && { status: subtask.status }),
+  };
+}
 
 export function transformChoreSwapRequest(
-  swapRequest: PrismaChoreSwapRequest
+  swapRequest: PrismaChoreSwapRequestWithRelations
 ): ChoreSwapRequest {
   return {
-    ...swapRequest,
+    id: swapRequest.id,
+    choreId: swapRequest.choreId,
+    requestingUserId: swapRequest.requestingUserId,
+    targetUserId: swapRequest.targetUserId,
     status: isValidChoreSwapRequestStatus(swapRequest.status)
       ? swapRequest.status
       : ChoreSwapRequestStatus.PENDING,
-  };
-}
-
-export function transformPrismaSubtask(subtask: PrismaSubtask): Subtask {
-  return {
-    ...subtask,
-    description: subtask.description ?? undefined,
-    status: isValidSubtaskStatus(subtask.status)
-      ? subtask.status
-      : SubtaskStatus.PENDING,
+    createdAt: swapRequest.createdAt,
+    updatedAt: swapRequest.updatedAt,
   };
 }

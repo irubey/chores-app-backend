@@ -3,26 +3,25 @@ import prisma from "../config/database";
 import {
   CreateMessageDTO,
   UpdateMessageDTO,
-  CreateThreadDTO,
   CreateAttachmentDTO,
   Message,
-  Thread,
+  MessageWithDetails,
   Attachment,
-  UpdateThreadDTO,
-  InviteUsersDTO,
 } from "@shared/types";
 import { ApiResponse } from "@shared/interfaces/apiResponse";
-import { HouseholdRole, MessageAction, ThreadAction } from "@shared/enums";
+import { HouseholdRole, MessageAction } from "@shared/enums";
 import { getIO } from "../sockets";
 import { verifyMembership } from "./authService";
 import {
-  PrismaMessage,
-  PrismaThread,
-  PrismaAttachment,
   transformMessage,
-  transformThread,
+  transformMessageWithDetails,
   transformAttachment,
 } from "../utils/transformers/messageTransformer";
+import {
+  PrismaMessageBase,
+  PrismaMessageWithFullRelations,
+  PrismaAttachmentWithFullRelations,
+} from "../utils/transformers/transformerPrismaTypes";
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -36,7 +35,7 @@ export async function getMessages(
   householdId: string,
   threadId: string,
   userId: string
-): Promise<ApiResponse<Message[]>> {
+): Promise<ApiResponse<MessageWithDetails[]>> {
   await verifyMembership(householdId, userId, [
     HouseholdRole.ADMIN,
     HouseholdRole.MEMBER,
@@ -45,20 +44,31 @@ export async function getMessages(
   const messages = await prisma.message.findMany({
     where: { threadId },
     include: {
-      attachments: true,
+      thread: true,
       author: true,
-      thread: {
+      attachments: {
         include: {
-          participants: {
-            include: {
-              user: true,
-            },
-          },
+          message: true,
         },
       },
-      reactions: true,
-      mentions: true,
-      reads: true,
+      reactions: {
+        include: {
+          user: true,
+          message: true,
+        },
+      },
+      mentions: {
+        include: {
+          user: true,
+          message: true,
+        },
+      },
+      reads: {
+        include: {
+          user: true,
+          message: true,
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",
@@ -66,7 +76,7 @@ export async function getMessages(
   });
 
   const transformedMessages = messages.map((message) =>
-    transformMessage(message as PrismaMessage)
+    transformMessageWithDetails(message as PrismaMessageWithFullRelations)
   );
 
   return wrapResponse(transformedMessages);
@@ -86,48 +96,73 @@ export async function createMessage(
     HouseholdRole.MEMBER,
   ]);
 
-  const message = await prisma.message.create({
-    data: {
-      threadId,
-      authorId: userId,
-      content: data.content,
-      attachments: {
-        create: data.attachments || [],
-      },
-      mentions: {
-        create: data.mentions?.map((userId) => ({ userId })) || [],
-      },
-      reactions: {
-        create: data.reactions || [],
-      },
-    },
-    include: {
-      attachments: true,
-      author: true,
-      thread: {
-        include: {
-          participants: {
-            include: {
-              user: true,
-            },
-          },
-          attachments: true,
+  const message = await prisma.$transaction(async (tx) => {
+    // Create the message with all its relations
+    const newMessage = await tx.message.create({
+      data: {
+        threadId,
+        authorId: userId,
+        content: data.content,
+        attachments: {
+          create: data.attachments || [],
+        },
+        mentions: {
+          create: data.mentions?.map((userId) => ({ userId })) || [],
+        },
+        reactions: {
+          create: data.reactions || [],
         },
       },
-      reactions: true,
-      mentions: true,
-      reads: true,
-    },
+      include: {
+        thread: {
+          include: {
+            participants: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+        author: true,
+        attachments: {
+          include: {
+            message: true,
+          },
+        },
+        reactions: {
+          include: {
+            user: true,
+            message: true,
+          },
+        },
+        mentions: {
+          include: {
+            user: true,
+            message: true,
+          },
+        },
+        reads: {
+          include: {
+            user: true,
+            message: true,
+          },
+        },
+      },
+    });
+
+    // Update thread's updatedAt timestamp
+    await tx.thread.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    });
+
+    return newMessage;
   });
 
-  const transformedMessage = transformMessage(message as PrismaMessage);
-
-  getIO().to(`household_${householdId}`).emit("message_update", {
-    action: MessageAction.CREATED,
-    message: transformedMessage,
-  });
-
-  return wrapResponse(transformedMessage);
+  // Now the type assertion matches the structure
+  return wrapResponse(
+    transformMessage(message as PrismaMessageWithFullRelations)
+  );
 }
 
 /**
@@ -147,8 +182,6 @@ export async function getMessageById(
   const message = await prisma.message.findUnique({
     where: { id: messageId },
     include: {
-      attachments: true,
-      author: true,
       thread: {
         include: {
           participants: {
@@ -156,12 +189,32 @@ export async function getMessageById(
               user: true,
             },
           },
-          attachments: true,
         },
       },
-      reactions: true,
-      mentions: true,
-      reads: true,
+      author: true,
+      attachments: {
+        include: {
+          message: true,
+        },
+      },
+      reactions: {
+        include: {
+          user: true,
+          message: true,
+        },
+      },
+      mentions: {
+        include: {
+          user: true,
+          message: true,
+        },
+      },
+      reads: {
+        include: {
+          user: true,
+          message: true,
+        },
+      },
     },
   });
 
@@ -169,9 +222,9 @@ export async function getMessageById(
     throw new NotFoundError("Message not found.");
   }
 
-  const transformedMessage = transformMessage(message as PrismaMessage);
-
-  return wrapResponse(transformedMessage);
+  return wrapResponse(
+    transformMessage(message as PrismaMessageWithFullRelations)
+  );
 }
 
 /**
@@ -197,37 +250,50 @@ export async function updateMessage(
     await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
   }
 
-  const updatedMessage = await prisma.message.update({
-    where: { id: messageId },
-    data: {
-      content: data.content,
-      attachments: data.attachments
-        ? {
-            create: data.attachments,
-          }
-        : undefined,
-    },
-    include: {
-      attachments: true,
-      author: true,
-      thread: {
-        include: {
-          participants: {
-            include: {
-              user: true,
+  const updatedMessage = await prisma.$transaction(async (tx) => {
+    // Update the message
+    const updated = await tx.message.update({
+      where: { id: messageId },
+      data: {
+        content: data.content,
+        attachments: data.attachments
+          ? {
+              create: data.attachments,
+            }
+          : undefined,
+      },
+      include: {
+        attachments: true,
+        author: true,
+        thread: {
+          include: {
+            participants: {
+              include: {
+                user: true,
+              },
             },
           },
-          attachments: true,
         },
+        reactions: true,
+        mentions: true,
+        reads: true,
       },
-      reactions: true,
-      mentions: true,
-      reads: true,
-    },
+    });
+
+    // Update thread's updatedAt timestamp
+    await tx.thread.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    });
+
+    return updated;
   });
 
-  const transformedMessage = transformMessage(updatedMessage as PrismaMessage);
+  const transformedMessage = transformMessage(
+    updatedMessage as PrismaMessageBase
+  );
 
+  // Socket emission stays outside transaction
   getIO().to(`household_${householdId}`).emit("message_update", {
     action: MessageAction.UPDATED,
     message: transformedMessage,
@@ -258,7 +324,29 @@ export async function deleteMessage(
     await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
   }
 
-  await prisma.message.delete({ where: { id: messageId } });
+  await prisma.$transaction(async (tx) => {
+    // Delete related data first (if not handled by cascading deletes)
+    await tx.reaction.deleteMany({
+      where: { messageId },
+    });
+
+    await tx.mention.deleteMany({
+      where: { messageId },
+    });
+
+    await tx.messageRead.deleteMany({
+      where: { messageId },
+    });
+
+    // Delete the message
+    await tx.message.delete({ where: { id: messageId } });
+
+    // Update thread's updatedAt timestamp
+    await tx.thread.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    });
+  });
 
   getIO().to(`household_${householdId}`).emit("message_update", {
     action: MessageAction.DELETED,
@@ -268,6 +356,22 @@ export async function deleteMessage(
   return wrapResponse(undefined);
 }
 
+const ALLOWED_FILE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "application/pdf",
+] as const;
+type AllowedFileType = (typeof ALLOWED_FILE_TYPES)[number];
+
+function validateFileType(
+  fileType: string
+): asserts fileType is AllowedFileType {
+  if (!ALLOWED_FILE_TYPES.includes(fileType as AllowedFileType)) {
+    throw new Error(
+      `Unsupported file type. Allowed types: ${ALLOWED_FILE_TYPES.join(", ")}`
+    );
+  }
+}
 /**
  * Adds an attachment to a specific message.
  */
@@ -278,33 +382,42 @@ export async function addAttachment(
   attachmentData: CreateAttachmentDTO,
   userId: string
 ): Promise<ApiResponse<Attachment>> {
+  validateFileType(attachmentData.fileType);
   await verifyMembership(householdId, userId, [
     HouseholdRole.ADMIN,
     HouseholdRole.MEMBER,
   ]);
 
-  const message = await prisma.message.findUnique({
-    where: { id: messageId },
+  const attachment = await prisma.$transaction(async (tx) => {
+    const message = await tx.message.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      throw new NotFoundError("Message not found.");
+    }
+
+    const createdAttachment = await tx.attachment.create({
+      data: {
+        messageId,
+        url: attachmentData.url,
+        fileType: attachmentData.fileType,
+      },
+      include: {
+        message: true,
+      },
+    });
+
+    // Update thread's updatedAt timestamp
+    await tx.thread.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    });
+
+    return createdAttachment as PrismaAttachmentWithFullRelations;
   });
 
-  if (!message) {
-    throw new NotFoundError("Message not found.");
-  }
-
-  const attachment = await prisma.attachment.create({
-    data: {
-      messageId,
-      url: attachmentData.url,
-      fileType: attachmentData.fileType,
-    },
-    include: {
-      message: true,
-    },
-  });
-
-  const transformedAttachment = transformAttachment(
-    attachment as PrismaAttachment
-  );
+  const transformedAttachment = transformAttachment(attachment);
 
   getIO().to(`household_${householdId}`).emit("attachment_update", {
     action: MessageAction.ATTACHMENT_ADDED,
@@ -341,7 +454,7 @@ export async function getAttachmentById(
   }
 
   const transformedAttachment = transformAttachment(
-    attachment as PrismaAttachment
+    attachment as PrismaAttachmentWithFullRelations
   );
 
   return wrapResponse(transformedAttachment);
@@ -370,15 +483,23 @@ export async function deleteAttachment(
     await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
   }
 
-  const attachment = await prisma.attachment.findUnique({
-    where: { id: attachmentId },
+  await prisma.$transaction(async (tx) => {
+    const attachment = await tx.attachment.findUnique({
+      where: { id: attachmentId },
+    });
+
+    if (!attachment) {
+      throw new NotFoundError("Attachment not found.");
+    }
+
+    await tx.attachment.delete({ where: { id: attachmentId } });
+
+    // Update thread's updatedAt timestamp
+    await tx.thread.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    });
   });
-
-  if (!attachment) {
-    throw new NotFoundError("Attachment not found.");
-  }
-
-  await prisma.attachment.delete({ where: { id: attachmentId } });
 
   getIO().to(`household_${householdId}`).emit("attachment_update", {
     action: MessageAction.ATTACHMENT_REMOVED,
@@ -386,268 +507,4 @@ export async function deleteAttachment(
   });
 
   return wrapResponse(undefined);
-}
-
-/**
- * Retrieves all threads for a specific household.
- */
-export async function getThreads(
-  householdId: string,
-  userId: string
-): Promise<ApiResponse<Thread[]>> {
-  await verifyMembership(householdId, userId, [
-    HouseholdRole.ADMIN,
-    HouseholdRole.MEMBER,
-  ]);
-
-  const threads = await prisma.thread.findMany({
-    where: { householdId },
-    include: {
-      messages: {
-        include: {
-          attachments: true,
-          author: true,
-          reactions: true,
-          mentions: true,
-          reads: true,
-        },
-      },
-      author: true,
-      participants: {
-        include: {
-          user: true,
-        },
-      },
-      attachments: true,
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-  });
-
-  const transformedThreads = threads.map((thread) =>
-    transformThread(thread as PrismaThread)
-  );
-
-  return wrapResponse(transformedThreads);
-}
-
-/**
- * Creates a new thread.
- */
-export async function createThread(
-  data: CreateThreadDTO,
-  userId: string
-): Promise<ApiResponse<Thread>> {
-  await verifyMembership(data.householdId, userId, [
-    HouseholdRole.ADMIN,
-    HouseholdRole.MEMBER,
-  ]);
-
-  const thread = await prisma.thread.create({
-    data: {
-      householdId: data.householdId,
-      authorId: userId,
-      title: data.title,
-      participants: {
-        connect: [{ userId_householdId: { userId, householdId } }],
-      },
-    },
-    include: {
-      messages: {
-        include: {
-          attachments: true,
-          author: true,
-          reactions: true,
-          mentions: true,
-          reads: true,
-        },
-      },
-      author: true,
-      participants: {
-        include: {
-          user: true,
-        },
-      },
-      attachments: true,
-    },
-  });
-
-  const transformedThread = transformThread(thread as PrismaThread);
-
-  getIO().to(`household_${data.householdId}`).emit("thread_update", {
-    action: ThreadAction.CREATED,
-    thread: transformedThread,
-  });
-
-  return wrapResponse(transformedThread);
-}
-
-/**
- * Retrieves details of a specific thread.
- */
-export async function getThreadById(
-  householdId: string,
-  threadId: string,
-  userId: string
-): Promise<ApiResponse<Thread>> {
-  await verifyMembership(householdId, userId, [
-    HouseholdRole.ADMIN,
-    HouseholdRole.MEMBER,
-  ]);
-
-  const thread = await prisma.thread.findUnique({
-    where: { id: threadId },
-    include: {
-      messages: {
-        include: {
-          attachments: true,
-          author: true,
-          reactions: true,
-          mentions: true,
-          reads: true,
-        },
-      },
-      author: true,
-      participants: {
-        include: {
-          user: true,
-        },
-      },
-      attachments: true,
-    },
-  });
-
-  if (!thread) {
-    throw new NotFoundError("Thread not found.");
-  }
-
-  const transformedThread = transformThread(thread as PrismaThread);
-
-  return wrapResponse(transformedThread);
-}
-
-/**
- * Updates an existing thread.
- */
-export async function updateThread(
-  householdId: string,
-  threadId: string,
-  data: UpdateThreadDTO,
-  userId: string
-): Promise<ApiResponse<Thread>> {
-  await verifyMembership(householdId, userId, [
-    HouseholdRole.ADMIN,
-    HouseholdRole.MEMBER,
-  ]);
-
-  const updatedThread = await prisma.thread.update({
-    where: { id: threadId },
-    data: {
-      title: data.title,
-    },
-    include: {
-      messages: {
-        include: {
-          attachments: true,
-          author: true,
-          reactions: true,
-          mentions: true,
-          reads: true,
-        },
-      },
-      author: true,
-      participants: {
-        include: {
-          user: true,
-        },
-      },
-      attachments: true,
-    },
-  });
-
-  const transformedThread = transformThread(updatedThread as PrismaThread);
-
-  getIO().to(`household_${householdId}`).emit("thread_update", {
-    action: ThreadAction.UPDATED,
-    thread: transformedThread,
-  });
-
-  return wrapResponse(transformedThread);
-}
-
-/**
- * Deletes a thread.
- */
-export async function deleteThread(
-  householdId: string,
-  threadId: string,
-  userId: string
-): Promise<ApiResponse<void>> {
-  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
-
-  await prisma.thread.delete({ where: { id: threadId } });
-
-  getIO().to(`household_${householdId}`).emit("thread_update", {
-    action: ThreadAction.DELETED,
-    threadId,
-  });
-
-  return wrapResponse(undefined);
-}
-
-/**
- * Invites users to a thread.
- */
-export async function inviteUsersToThread(
-  householdId: string,
-  threadId: string,
-  data: InviteUsersDTO,
-  userId: string
-): Promise<ApiResponse<Thread>> {
-  await verifyMembership(householdId, userId, [
-    HouseholdRole.ADMIN,
-    HouseholdRole.MEMBER,
-  ]);
-
-  const updatedThread = await prisma.thread.update({
-    where: { id: threadId },
-    data: {
-      participants: {
-        connect: data.userIds.map((userId) => ({
-          userId_householdId: {
-            userId,
-            householdId,
-          },
-        })),
-      },
-    },
-    include: {
-      messages: {
-        include: {
-          attachments: true,
-          author: true,
-          reactions: true,
-          mentions: true,
-          reads: true,
-        },
-      },
-      author: true,
-      participants: {
-        include: {
-          user: true,
-        },
-      },
-      attachments: true,
-    },
-  });
-
-  const transformedThread = transformThread(updatedThread as PrismaThread);
-
-  getIO().to(`household_${householdId}`).emit("thread_update", {
-    action: ThreadAction.USERS_INVITED,
-    thread: transformedThread,
-  });
-
-  return wrapResponse(transformedThread);
 }

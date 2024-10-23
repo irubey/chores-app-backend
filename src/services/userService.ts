@@ -1,6 +1,24 @@
 import prisma from "../config/database";
 import { NotFoundError } from "../middlewares/errorHandler";
-import { UpdateUserDTO } from "../types";
+import { User, UpdateUserDTO } from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import {
+  transformUser,
+  transformUserUpdateInput,
+} from "../utils/transformers/userTransformer";
+import { PrismaUserMinimal } from "../utils/transformers/transformerPrismaTypes";
+import { getIO } from "../sockets";
+
+// Reusable select object that matches the User interface
+const userSelect = {
+  id: true,
+  email: true,
+  name: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  profileImageURL: true,
+} as const;
 
 /**
  * Retrieves the profile of a user by ID.
@@ -8,24 +26,20 @@ import { UpdateUserDTO } from "../types";
  * @returns The user profile
  * @throws NotFoundError if the user does not exist
  */
-export async function getUserProfile(userId: string) {
+export async function getUserProfile(
+  userId: string
+): Promise<ApiResponse<User>> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      profileImageURL: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: userSelect,
   });
 
   if (!user) {
     throw new NotFoundError("User not found.");
   }
 
-  return user;
+  const transformedUser = transformUser(user as PrismaUserMinimal);
+  return { data: transformedUser };
 }
 
 /**
@@ -35,10 +49,20 @@ export async function getUserProfile(userId: string) {
  * @returns The updated user
  * @throws NotFoundError if the user does not exist
  */
-export async function updateUserProfile(userId: string, data: UpdateUserDTO) {
+export async function updateUserProfile(
+  userId: string,
+  data: UpdateUserDTO
+): Promise<ApiResponse<User>> {
   const user = await prisma.user.update({
     where: { id: userId },
-    data,
+    data: transformUserUpdateInput(data),
+    select: userSelect,
   });
-  return user;
+
+  const transformedUser = transformUser(user as PrismaUserMinimal);
+
+  // Notify connected clients about the user update
+  getIO().emit("user_updated", { user: transformedUser });
+
+  return { data: transformedUser };
 }

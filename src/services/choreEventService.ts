@@ -1,13 +1,42 @@
 import prisma from "../config/database";
 import {
-  CreateChoreEventDTO,
-  UpdateChoreEventDTO,
+  CreateEventDTO,
+  EventWithDetails,
+  UpdateEventDTO,
+} from "@shared/types";
+import { ApiResponse } from "@shared/interfaces";
+import {
+  HouseholdRole,
   EventCategory,
   EventStatus,
-  EventRecurrence,
-} from "../types";
+  CalendarEventAction,
+} from "@shared/enums";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import { getIO } from "../sockets";
+import { verifyMembership } from "./authService";
+import { transformEventWithDetails } from "../utils/transformers/eventTransformer";
+import { PrismaEvent } from "../utils/transformers/transformerPrismaTypes";
+
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
+
+// Helper function to create calendar event history record
+async function createCalendarEventHistory(
+  tx: any,
+  eventId: string,
+  action: CalendarEventAction,
+  userId: string
+): Promise<void> {
+  await tx.calendarEventHistory.create({
+    data: {
+      eventId,
+      action,
+      changedById: userId,
+    },
+  });
+}
 
 /**
  * Retrieves all events linked to a specific chore.
@@ -16,32 +45,39 @@ export async function getChoreEvents(
   householdId: string,
   choreId: string,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
+): Promise<ApiResponse<EventWithDetails[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Retrieve chore events
   const events = await prisma.event.findMany({
     where: {
-      choreId: choreId,
-      householdId: householdId,
+      householdId,
+      choreId,
       category: EventCategory.CHORE,
     },
     include: {
       reminders: true,
-      chore: true,
+      createdBy: true,
+      chore: {
+        include: {
+          subtasks: true,
+          assignedUsers: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      },
     },
   });
 
-  return events;
+  const transformedEvents = events.map((event) =>
+    transformEventWithDetails(event as PrismaEvent)
+  );
+
+  return wrapResponse(transformedEvents);
 }
 
 /**
@@ -50,53 +86,78 @@ export async function getChoreEvents(
 export async function createChoreEvent(
   householdId: string,
   choreId: string,
-  data: CreateChoreEventDTO,
+  data: CreateEventDTO,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const chore = await tx.chore.findUnique({
+      where: { id: choreId },
+    });
+
+    if (!chore) {
+      throw new NotFoundError("Chore not found.");
+    }
+
+    const newEvent = await tx.event.create({
+      data: {
+        householdId,
+        title: data.title,
+        description: data.description ?? null,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        createdById: userId,
+        category: EventCategory.CHORE,
+        choreId,
+        isAllDay: data.isAllDay,
+        location: data.location ?? null,
+        isPrivate: data.isPrivate,
+        status: EventStatus.SCHEDULED,
+        reminders: data.reminders
+          ? {
+              create: data.reminders,
+            }
+          : undefined,
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        chore: {
+          include: {
+            subtasks: true,
+            assignedUsers: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Create history record for event creation
+    await createCalendarEventHistory(
+      tx,
+      newEvent.id,
+      CalendarEventAction.CREATED,
+      userId
+    );
+
+    return newEvent;
   });
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
 
-  // Verify chore exists
-  const chore = await prisma.chore.findUnique({
-    where: { id: choreId },
+  getIO().to(`household_${householdId}`).emit("event_update", {
+    action: CalendarEventAction.CREATED,
+    event: transformedEvent,
   });
 
-  if (!chore) {
-    throw new NotFoundError("Chore not found.");
-  }
-
-  // Create event linked to the chore
-  const event = await prisma.event.create({
-    data: {
-      householdId,
-      title: data.title,
-      description: data.description,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      recurrence: data.recurrence as EventRecurrence | undefined,
-      category: EventCategory.CHORE,
-      choreId: choreId,
-      createdById: userId,
-      // Additional fields as necessary
-    },
-    include: {
-      reminders: true,
-      chore: true,
-    },
-  });
-
-  // Emit real-time event for new chore event
-  getIO().to(`household_${householdId}`).emit("chore_event_created", { event });
-
-  return event;
+  return wrapResponse(transformedEvent);
 }
 
 /**
@@ -107,19 +168,12 @@ export async function getChoreEventById(
   choreId: string,
   eventId: string,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Retrieve chore event
   const event = await prisma.event.findUnique({
     where: {
       id: eventId,
@@ -128,7 +182,17 @@ export async function getChoreEventById(
     },
     include: {
       reminders: true,
-      chore: true,
+      createdBy: true,
+      chore: {
+        include: {
+          subtasks: true,
+          assignedUsers: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -136,65 +200,106 @@ export async function getChoreEventById(
     throw new NotFoundError("Chore event not found.");
   }
 
-  return event;
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  return wrapResponse(transformedEvent);
 }
 
 /**
- * Updates an existing chore-linked event.
+ * Updates an existing chore event.
  */
 export async function updateChoreEvent(
   householdId: string,
   choreId: string,
   eventId: string,
-  data: UpdateChoreEventDTO,
+  data: UpdateEventDTO,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.event.findUnique({
+      where: { id: eventId },
+    });
+
+    if (!existingEvent || existingEvent.choreId !== choreId) {
+      throw new NotFoundError("Chore event not found.");
+    }
+
+    // Check if recurrence is being changed
+    const isRecurrenceChanged =
+      existingEvent.recurrenceRuleId !== data.recurrenceRuleId;
+
+    const updatedEvent = await tx.event.update({
+      where: {
+        id: eventId,
+      },
+      data: {
+        title: data.title,
+        description: data.description ?? null,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        recurrenceRuleId: data.recurrenceRuleId ?? null,
+        isAllDay: data.isAllDay ?? false,
+        location: data.location ?? null,
+        isPrivate: data.isPrivate ?? false,
+        reminders: data.reminders
+          ? {
+              deleteMany: {},
+              create: data.reminders.map((reminder) => ({
+                time: reminder.time,
+                type: reminder.type,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        chore: {
+          include: {
+            subtasks: true,
+            assignedUsers: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+        recurrenceRule: true,
+      },
+    });
+
+    // Create appropriate history record based on what changed
+    if (isRecurrenceChanged) {
+      await createCalendarEventHistory(
+        tx,
+        eventId,
+        CalendarEventAction.RECURRENCE_CHANGED,
+        userId
+      );
+    }
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.UPDATED,
+      userId
+    );
+
+    return updatedEvent;
   });
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
 
-  // Verify chore exists
-  const chore = await prisma.chore.findUnique({
-    where: { id: choreId },
+  getIO().to(`household_${householdId}`).emit("chore_event_updated", {
+    action: CalendarEventAction.UPDATED,
+    event: transformedEvent,
   });
 
-  if (!chore) {
-    throw new NotFoundError("Chore not found.");
-  }
-
-  // Update chore event
-  const updatedEvent = await prisma.event.update({
-    where: {
-      id: eventId,
-      choreId: choreId,
-      householdId: householdId,
-    },
-    data: {
-      title: data.title,
-      description: data.description,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      recurrence: data.recurrence as EventRecurrence | undefined,
-    },
-    include: {
-      reminders: true,
-      chore: true,
-    },
-  });
-
-  // Emit real-time event for updated chore event
-  getIO()
-    .to(`household_${householdId}`)
-    .emit("chore_event_updated", { event: updatedEvent });
-
-  return updatedEvent;
+  return wrapResponse(transformedEvent);
 }
 
 /**
@@ -205,19 +310,12 @@ export async function deleteChoreEvent(
   choreId: string,
   eventId: string,
   userId: string
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
+): Promise<ApiResponse<void>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Delete chore event
   await prisma.event.delete({
     where: {
       id: eventId,
@@ -226,10 +324,11 @@ export async function deleteChoreEvent(
     },
   });
 
-  // Emit real-time event for deleted chore event
   getIO()
     .to(`household_${householdId}`)
     .emit("chore_event_deleted", { eventId });
+
+  return wrapResponse(undefined);
 }
 
 /**
@@ -241,40 +340,59 @@ export async function updateChoreEventStatus(
   eventId: string,
   userId: string,
   status: EventStatus
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.event.findUnique({
+      where: { id: eventId },
+    });
+
+    if (!existingEvent || existingEvent.choreId !== choreId) {
+      throw new NotFoundError("Chore event not found.");
+    }
+
+    const updatedEvent = await tx.event.update({
+      where: { id: eventId },
+      data: { status },
+      include: {
+        reminders: true,
+        createdBy: true,
+        chore: {
+          include: {
+            subtasks: true,
+            assignedUsers: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+        recurrenceRule: true,
+      },
+    });
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.STATUS_CHANGED,
+      userId
+    );
+
+    return updatedEvent;
   });
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
+  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
 
-  // Update event status
-  const updatedEvent = await prisma.event.update({
-    where: {
-      id: eventId,
-      choreId: choreId,
-      householdId: householdId,
-    },
-    data: {
-      status: status,
-    },
-    include: {
-      reminders: true,
-      chore: true,
-    },
+  getIO().to(`household_${householdId}`).emit("chore_event_updated", {
+    action: CalendarEventAction.STATUS_CHANGED,
+    event: transformedEvent,
   });
 
-  // Emit real-time event for updated chore event status
-  getIO().to(`household_${householdId}`).emit("chore_event_status_updated", {
-    event: updatedEvent,
-  });
-
-  return updatedEvent;
+  return wrapResponse(transformedEvent);
 }
 
 /**
@@ -287,19 +405,12 @@ export async function rescheduleChoreEvent(
   userId: string,
   newStartTime: Date,
   newEndTime: Date
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Update event
   const updatedEvent = await prisma.event.update({
     where: {
       id: eventId,
@@ -312,16 +423,30 @@ export async function rescheduleChoreEvent(
     },
     include: {
       reminders: true,
-      chore: true,
+      createdBy: true,
+      chore: {
+        include: {
+          subtasks: true,
+          assignedUsers: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      },
     },
   });
 
-  // Emit real-time event for updated chore event
-  getIO()
-    .to(`household_${householdId}`)
-    .emit("chore_event_updated", { event: updatedEvent });
+  const transformedEvent = transformEventWithDetails(
+    updatedEvent as PrismaEvent
+  );
 
-  return updatedEvent;
+  getIO().to(`household_${householdId}`).emit("chore_event_updated", {
+    action: CalendarEventAction.UPDATED,
+    event: transformedEvent,
+  });
+
+  return wrapResponse(transformedEvent);
 }
 
 /**
@@ -332,19 +457,12 @@ export async function getUpcomingChoreEvents(
   choreId: string,
   userId: string,
   limit?: number
-) {
-  // Verify user is a member of the household
-  const membership = await prisma.householdMember.findUnique({
-    where: {
-      userId_householdId: { userId, householdId },
-    },
-  });
+): Promise<ApiResponse<EventWithDetails[]>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
 
-  if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
-  }
-
-  // Retrieve upcoming chore events
   const events = await prisma.event.findMany({
     where: {
       choreId: choreId,
@@ -352,11 +470,29 @@ export async function getUpcomingChoreEvents(
       category: EventCategory.CHORE,
       status: EventStatus.SCHEDULED,
     },
+    include: {
+      reminders: true,
+      createdBy: true,
+      chore: {
+        include: {
+          subtasks: true,
+          assignedUsers: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      },
+    },
     orderBy: {
       startTime: "asc",
     },
     take: limit,
   });
 
-  return events;
+  const transformedEvents = events.map((event) =>
+    transformEventWithDetails(event as PrismaEvent)
+  );
+
+  return wrapResponse(transformedEvents);
 }

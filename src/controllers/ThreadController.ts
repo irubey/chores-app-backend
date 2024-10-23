@@ -1,11 +1,8 @@
 import { Response, NextFunction } from "express";
 import * as threadService from "../services/threadService";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import {
-  AuthenticatedRequest,
-  CreateThreadDTO,
-  UpdateThreadDTO,
-} from "../types";
+import { CreateThreadDTO, UpdateThreadDTO } from "@shared/types";
+import { AuthenticatedRequest } from "../types";
 
 /**
  * ThreadController handles all CRUD operations related to threads.
@@ -25,7 +22,7 @@ export class ThreadController {
       }
       const householdId = req.params.householdId;
       const threads = await threadService.getThreads(householdId, req.user.id);
-      res.status(200).json({ data: threads });
+      res.status(200).json(threads);
     } catch (error) {
       next(error);
     }
@@ -44,13 +41,12 @@ export class ThreadController {
         throw new UnauthorizedError("Unauthorized");
       }
       const householdId = req.params.householdId;
-      const threadData: CreateThreadDTO = req.body;
-      const thread = await threadService.createThread(
+      const threadData: CreateThreadDTO = {
+        ...req.body,
         householdId,
-        threadData,
-        req.user.id
-      );
-      res.status(201).json({ data: thread });
+      };
+      const thread = await threadService.createThread(threadData, req.user.id);
+      res.status(201).json(thread);
     } catch (error) {
       next(error);
     }
@@ -77,7 +73,7 @@ export class ThreadController {
       if (!thread) {
         throw new NotFoundError("Thread not found");
       }
-      res.status(200).json({ data: thread });
+      res.status(200).json(thread);
     } catch (error) {
       next(error);
     }
@@ -108,7 +104,7 @@ export class ThreadController {
           "Thread not found or you do not have permission to update it"
         );
       }
-      res.status(200).json({ data: updatedThread });
+      res.status(200).json(updatedThread);
     } catch (error) {
       next(error);
     }
@@ -148,13 +144,13 @@ export class ThreadController {
       }
       const { householdId, threadId } = req.params;
       const { userIds } = req.body; // Assuming an array of user IDs to invite
-      const updatedThread = await threadService.inviteUsers(
+      const updatedThread = await threadService.inviteUsersToThread(
         householdId,
         threadId,
         userIds,
         req.user.id
       );
-      res.status(200).json({ data: updatedThread });
+      res.status(200).json(updatedThread);
     } catch (error) {
       next(error);
     }
