@@ -2,9 +2,16 @@ import prisma from "../config/database";
 import {
   CreateCalendarEventDTO,
   UpdateCalendarEventDTO,
-  EventWithDetails,
   CreateReminderDTO,
   UpdateReminderDTO,
+  Event,
+  EventWithDetails,
+  EventReminder,
+  EventUpdateEvent,
+  CreateEventDTO,
+  UpdateEventDTO,
+  UpdateEventStatusDTO,
+  CalendarEventHistory,
 } from "@shared/types";
 import { ApiResponse } from "@shared/interfaces";
 import {
@@ -17,8 +24,21 @@ import {
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import { getIO } from "../sockets";
 import { verifyMembership } from "./authService";
-import { transformEventWithDetails } from "../utils/transformers/eventTransformer";
-import { PrismaEvent } from "../utils/transformers/transformerPrismaTypes";
+import {
+  transformEventWithDetails,
+  transformCalendarEventHistory,
+  transformCreateEventDTO,
+  transformEvent,
+  transformEventReminder,
+  transformUpdateEventDTO,
+} from "../utils/transformers/eventTransformer";
+import {
+  PrismaEventBase,
+  PrismaEventMinimal,
+  PrismaEventReminderWithRelations,
+  PrismaEventUpdateInput,
+  PrismaEventWithFullRelations,
+} from "../utils/transformers/transformerPrismaTypes";
 
 function wrapResponse<T>(data: T): ApiResponse<T> {
   return { data };
@@ -48,7 +68,7 @@ export async function getCalendarEvents(
     HouseholdRole.MEMBER,
   ]);
 
-  const events = await prisma.event.findMany({
+  const events = (await prisma.event.findMany({
     where: {
       householdId,
       category: {
@@ -58,14 +78,13 @@ export async function getCalendarEvents(
     include: {
       reminders: true,
       createdBy: true,
+      household: true,
       recurrenceRule: true,
       history: true,
     },
-  });
+  })) as PrismaEventWithFullRelations[];
 
-  const transformedEvents = events.map((event) =>
-    transformEventWithDetails(event as PrismaEvent)
-  );
+  const transformedEvents = events.map(transformEventWithDetails);
   return wrapResponse(transformedEvents);
 }
 
@@ -79,21 +98,22 @@ export async function getEventById(
     HouseholdRole.MEMBER,
   ]);
 
-  const event = await prisma.event.findUnique({
+  const event = (await prisma.event.findUnique({
     where: { id: eventId },
     include: {
       reminders: true,
       createdBy: true,
+      household: true,
       recurrenceRule: true,
       history: true,
     },
-  });
+  })) as PrismaEventWithFullRelations;
 
   if (!event || event.householdId !== householdId) {
     throw new NotFoundError("Calendar event not found.");
   }
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
   return wrapResponse(transformedEvent);
 }
 
@@ -109,31 +129,24 @@ export async function createCalendarEvent(
 
   const event = await prisma.$transaction(async (tx) => {
     const newEvent = await tx.event.create({
-      data: {
+      data: transformCreateEventDTO({
         householdId,
         title: data.title,
-        description: data.description ?? null,
+        description: data.description,
         startTime: data.startTime,
         endTime: data.endTime,
-        recurrenceRuleId: data.recurrenceId ?? null,
-        category: data.category || EventCategory.OTHER,
         createdById: userId,
+        recurrenceRuleId: data.recurrenceId,
+        category: data.category,
         isAllDay: data.isAllDay ?? false,
-        location: data.location ?? null,
+        location: data.location,
         isPrivate: data.isPrivate ?? false,
-        status: EventStatus.SCHEDULED,
-        reminders: data.reminders
-          ? {
-              create: data.reminders.map((reminder) => ({
-                time: reminder.time,
-                type: reminder.type || EventReminderType.PUSH_NOTIFICATION,
-              })),
-            }
-          : undefined,
-      },
+        reminders: data.reminders,
+      }),
       include: {
         reminders: true,
         createdBy: true,
+        household: true,
         recurrenceRule: true,
         history: true,
       },
@@ -149,7 +162,9 @@ export async function createCalendarEvent(
     return newEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(
+    event as PrismaEventWithFullRelations
+  );
 
   getIO().to(`household_${householdId}`).emit("calendar_event_created", {
     action: CalendarEventAction.CREATED,
@@ -171,9 +186,16 @@ export async function updateEvent(
   ]);
 
   const event = await prisma.$transaction(async (tx) => {
-    const existingEvent = await tx.event.findUnique({
+    const existingEvent = (await tx.event.findUnique({
       where: { id: eventId },
-    });
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
       throw new NotFoundError("Calendar event not found.");
@@ -182,42 +204,28 @@ export async function updateEvent(
     const isRecurrenceChanged =
       existingEvent.recurrenceRuleId !== data.recurrenceId;
 
-    const updatedEvent = await tx.event.update({
+    const updatedEvent = (await tx.event.update({
       where: { id: eventId },
-      data: {
+      data: transformUpdateEventDTO({
         title: data.title,
-        description: data.description ?? null,
+        description: data.description,
         startTime: data.startTime,
         endTime: data.endTime,
-        recurrenceRuleId: data.recurrenceId ?? null,
-        category: data.category || EventCategory.OTHER,
-        isAllDay: data.isAllDay ?? false,
-        location: data.location ?? null,
-        isPrivate: data.isPrivate ?? false,
-        reminders: data.reminders
-          ? {
-              deleteMany: {},
-              create: data.reminders.map((reminder) => ({
-                time: reminder.time,
-                type: reminder.type || EventReminderType.PUSH_NOTIFICATION,
-              })),
-            }
-          : undefined,
-      },
+        recurrenceRuleId: data.recurrenceId,
+        category: data.category,
+        isAllDay: data.isAllDay,
+        location: data.location,
+        isPrivate: data.isPrivate,
+        reminders: data.reminders,
+      }),
       include: {
         reminders: true,
         createdBy: true,
+        household: true,
         recurrenceRule: true,
         history: true,
       },
-    });
-
-    await createCalendarEventHistory(
-      tx,
-      eventId,
-      CalendarEventAction.UPDATED,
-      userId
-    );
+    })) as PrismaEventWithFullRelations;
 
     if (isRecurrenceChanged) {
       await createCalendarEventHistory(
@@ -228,12 +236,19 @@ export async function updateEvent(
       );
     }
 
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.UPDATED,
+      userId
+    );
+
     return updatedEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_updated", {
+  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -292,16 +307,22 @@ export async function addReminder(
   ]);
 
   const event = await prisma.$transaction(async (tx) => {
-    const existingEvent = await tx.event.findUnique({
+    const existingEvent = (await tx.event.findUnique({
       where: { id: eventId },
-      include: { reminders: true },
-    });
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
       throw new NotFoundError("Calendar event not found.");
     }
 
-    const updatedEvent = await tx.event.update({
+    const updatedEvent = (await tx.event.update({
       where: { id: eventId },
       data: {
         reminders: {
@@ -314,10 +335,11 @@ export async function addReminder(
       include: {
         reminders: true,
         createdBy: true,
+        household: true,
         recurrenceRule: true,
         history: true,
       },
-    });
+    })) as PrismaEventWithFullRelations;
 
     await createCalendarEventHistory(
       tx,
@@ -329,9 +351,9 @@ export async function addReminder(
     return updatedEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_updated", {
+  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -351,16 +373,22 @@ export async function removeReminder(
   ]);
 
   const event = await prisma.$transaction(async (tx) => {
-    const existingEvent = await tx.event.findUnique({
+    const existingEvent = (await tx.event.findUnique({
       where: { id: eventId },
-      include: { reminders: true },
-    });
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
       throw new NotFoundError("Calendar event not found.");
     }
 
-    const updatedEvent = await tx.event.update({
+    const updatedEvent = (await tx.event.update({
       where: { id: eventId },
       data: {
         reminders: {
@@ -370,10 +398,11 @@ export async function removeReminder(
       include: {
         reminders: true,
         createdBy: true,
+        household: true,
         recurrenceRule: true,
         history: true,
       },
-    });
+    })) as PrismaEventWithFullRelations;
 
     await createCalendarEventHistory(
       tx,
@@ -385,9 +414,9 @@ export async function removeReminder(
     return updatedEvent;
   });
 
-  const transformedEvent = transformEventWithDetails(event as PrismaEvent);
+  const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_updated", {
+  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -411,25 +440,144 @@ export async function getEventsByDate(
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const events = await prisma.event.findMany({
+  const events = (await prisma.event.findMany({
     where: {
       householdId,
       startTime: {
         gte: startOfDay,
         lte: endOfDay,
       },
+      deletedAt: null,
     },
     include: {
       reminders: true,
       createdBy: true,
+      household: true,
       recurrenceRule: true,
       history: true,
     },
+  })) as PrismaEventWithFullRelations[];
+
+  const transformedEvents = events.map(transformEventWithDetails);
+  return wrapResponse(transformedEvents);
+}
+
+export async function updateEventStatus(
+  householdId: string,
+  eventId: string,
+  userId: string,
+  status: EventStatus
+): Promise<ApiResponse<EventWithDetails>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const existingEvent = (await tx.event.findUnique({
+      where: { id: eventId },
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    })) as PrismaEventWithFullRelations;
+
+    if (!existingEvent || existingEvent.householdId !== householdId) {
+      throw new NotFoundError("Calendar event not found.");
+    }
+
+    const updatedEvent = (await tx.event.update({
+      where: { id: eventId },
+      data: transformUpdateEventDTO({ status }),
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    })) as PrismaEventWithFullRelations;
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.STATUS_CHANGED,
+      userId
+    );
+
+    return updatedEvent;
   });
 
-  const transformedEvents = events.map((event) =>
-    transformEventWithDetails(event as PrismaEvent)
-  );
+  const transformedEvent = transformEventWithDetails(event);
 
-  return wrapResponse(transformedEvents);
+  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
+    action: CalendarEventAction.STATUS_CHANGED,
+    event: transformedEvent,
+  });
+
+  return wrapResponse(transformedEvent);
+}
+
+export async function deleteCalendarEvent(
+  householdId: string,
+  eventId: string,
+  userId: string
+): Promise<ApiResponse<void>> {
+  await verifyMembership(householdId, userId, [
+    HouseholdRole.ADMIN,
+    HouseholdRole.MEMBER,
+  ]);
+
+  const event = await prisma.$transaction(async (tx) => {
+    const existingEvent = (await tx.event.findUnique({
+      where: { id: eventId },
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    })) as PrismaEventWithFullRelations;
+
+    if (!existingEvent || existingEvent.householdId !== householdId) {
+      throw new NotFoundError("Calendar event not found.");
+    }
+
+    // Soft delete the event
+    const deletedEvent = (await tx.event.update({
+      where: { id: eventId },
+      data: {
+        deletedAt: new Date(),
+      },
+      include: {
+        reminders: true,
+        createdBy: true,
+        household: true,
+        recurrenceRule: true,
+        history: true,
+      },
+    })) as PrismaEventWithFullRelations;
+
+    await createCalendarEventHistory(
+      tx,
+      eventId,
+      CalendarEventAction.DELETED,
+      userId
+    );
+
+    return deletedEvent;
+  });
+
+  const transformedEvent = transformEventWithDetails(event);
+
+  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
+    action: CalendarEventAction.DELETED,
+    event: transformedEvent,
+  });
+
+  return wrapResponse(undefined);
 }

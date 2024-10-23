@@ -111,17 +111,20 @@ export function transformSubtaskInput(subtask: CreateSubtaskDTO): {
   };
 }
 
-export function transformSubtaskUpdateInput(subtask: UpdateSubtaskDTO): {
-  title?: string;
-  description?: string | null;
-  status?: SubtaskStatus;
+export function transformSubtaskUpdateInput(
+  subtask: UpdateSubtaskDTO,
+  choreId: string
+): {
+  title: string;
+  description: string | null;
+  status: SubtaskStatus;
+  choreId: string;
 } {
   return {
-    ...(subtask.title && { title: subtask.title }),
-    ...(subtask.description !== undefined && {
-      description: subtask.description ?? null,
-    }),
-    ...(subtask.status && { status: subtask.status }),
+    title: subtask.title,
+    description: subtask.description ?? null,
+    status: subtask.status,
+    choreId,
   };
 }
 

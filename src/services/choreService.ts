@@ -7,6 +7,18 @@ import {
   ChoreSwapRequest,
   Subtask,
   ChoreWithAssignees,
+  ChoreAssignment,
+  ChoreHistory,
+  UpdateSubtaskDTO,
+  CreateChoreSwapRequestDTO,
+  UpdateChoreSwapRequestDTO,
+  ChoreAssignmentWithUser,
+  CreateChoreAssignmentDTO,
+  UpdateChoreAssignmentDTO,
+  ChorePickDTO,
+  CreateChoreHistoryDTO,
+  PartialUpdateChoreDTO,
+  Chore,
 } from "@shared/types";
 import { ApiResponse } from "@shared/interfaces/apiResponse";
 import {
@@ -20,14 +32,21 @@ import { getIO } from "../sockets";
 import {
   transformChoreToChoreWithAssignees,
   transformChoresToChoresWithAssignees,
-  transformSubtaskInput,
   transformSubtask,
   transformChoreSwapRequest,
-  PrismaChoreSwapRequest,
+  transformChoreAssignment,
+  transformSubtaskInput,
+  transformSubtaskUpdateInput,
 } from "../utils/transformers/choreTransformer";
 import {
-  PrismaChoreWithRelations,
-  PrismaSubtask,
+  PrismaChoreWithFullRelations,
+  PrismaSubtaskBase,
+  PrismaSubtaskWithFullRelations,
+  PrismaSubtaskMinimal,
+  PrismaChoreSwapRequestWithRelations,
+  PrismaChoreBase,
+  PrismaChoreHistoryWithFullRelations,
+  PrismaChoreAssignmentWithRelations,
 } from "../utils/transformers/transformerPrismaTypes";
 import { verifyMembership } from "./authService";
 
@@ -72,11 +91,11 @@ export async function getChores(
     where: { householdId },
     include: {
       subtasks: true,
-      assignedUsers: {
+      assignments: {
         include: { user: true },
       },
     },
-  })) as PrismaChoreWithRelations[];
+  })) as PrismaChoreWithFullRelations[];
 
   const transformedChores = transformChoresToChoresWithAssignees(chores);
   return wrapResponse(transformedChores);
@@ -110,40 +129,31 @@ export async function createChore(
         priority: data.priority,
         status: data.status || ChoreStatus.PENDING,
         recurrenceRuleId: data.recurrenceRuleId,
-        assignedUsers: {
+        assignments: {
           create:
-            data.assignedUserIds?.map((userId) => ({
-              userId,
+            data.assignments?.map((assignment) => ({
+              userId: assignment.userId,
               assignedAt: new Date(),
             })) || [],
         },
         subtasks: {
           create:
-            data.subtasks?.map((subtask) => ({
-              title: subtask.title,
-              description: subtask.description ?? null,
-              status: subtask.status ?? SubtaskStatus.PENDING,
-            })) || [],
+            data.subtasks?.map((subtask) => transformSubtaskInput(subtask)) ||
+            [],
         },
       },
       include: {
         subtasks: true,
-        assignedUsers: {
+        assignments: {
           include: { user: true },
         },
       },
     });
 
-    await tx.choreHistory.create({
-      data: {
-        choreId: createdChore.id,
-        action: ChoreAction.CREATED,
-        changedById: userId,
-      },
-    });
+    await createChoreHistory(tx, createdChore.id, ChoreAction.CREATED, userId);
 
     return createdChore;
-  })) as PrismaChoreWithRelations;
+  })) as PrismaChoreWithFullRelations;
 
   const transformedChore = transformChoreToChoreWithAssignees(chore);
   getIO()
@@ -176,11 +186,11 @@ export async function getChoreById(
     where: { id: choreId },
     include: {
       subtasks: true,
-      assignedUsers: {
+      assignments: {
         include: { user: true },
       },
     },
-  })) as PrismaChoreWithRelations;
+  })) as PrismaChoreWithFullRelations;
 
   if (!chore) {
     throw new NotFoundError("Chore not found.");
@@ -221,23 +231,26 @@ export async function updateChore(
         priority: data.priority,
         status: data.status,
         recurrenceRuleId: data.recurrenceRuleId,
-        assignedUsers: {
-          set: data.assignedUserIds?.map((id) => ({ id })) || [],
+        assignments: {
+          deleteMany: {},
+          create:
+            data.assignments?.map((assignment) => ({
+              userId: assignment.userId,
+              assignedAt: new Date(),
+            })) || [],
         },
         subtasks: data.subtasks
           ? {
               deleteMany: {},
-              create: data.subtasks.map((subtask) => ({
-                title: subtask.title,
-                description: subtask.description ?? null,
-                status: subtask.status ?? SubtaskStatus.PENDING,
-              })),
+              create: data.subtasks.map((subtask) =>
+                transformSubtaskUpdateInput(subtask, choreId)
+              ),
             }
           : undefined,
       },
       include: {
         subtasks: true,
-        assignedUsers: {
+        assignments: {
           include: { user: true },
         },
       },
@@ -246,7 +259,7 @@ export async function updateChore(
     await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
 
     return updatedChore;
-  })) as PrismaChoreWithRelations;
+  })) as PrismaChoreWithFullRelations;
 
   const transformedChore = transformChoreToChoreWithAssignees(chore);
   getIO()
@@ -271,10 +284,14 @@ export async function deleteChore(
 ): Promise<void> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const chore = await prisma.chore.findUnique({
+  const chore = (await prisma.chore.findUnique({
     where: { id: choreId },
-    include: { event: true },
-  });
+    include: {
+      event: true,
+      assignments: true,
+      subtasks: true,
+    },
+  })) as PrismaChoreWithFullRelations;
 
   if (!chore) {
     throw new NotFoundError("Chore not found");
@@ -307,13 +324,7 @@ export async function deleteChore(
     await tx.chore.delete({ where: { id: choreId } });
 
     // Create history record
-    await tx.choreHistory.create({
-      data: {
-        choreId,
-        action: ChoreAction.DELETED,
-        changedById: userId,
-      },
-    });
+    await createChoreHistory(tx, choreId, ChoreAction.DELETED, userId);
   });
 
   getIO()
@@ -340,10 +351,13 @@ export async function addSubtask(
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
   const subtask = await prisma.$transaction(async (tx) => {
-    const chore = await tx.chore.findUnique({
+    const chore = (await tx.chore.findUnique({
       where: { id: choreId },
-      include: { subtasks: true },
-    });
+      include: {
+        subtasks: true,
+        assignments: true,
+      },
+    })) as PrismaChoreWithFullRelations;
 
     if (!chore) {
       throw new NotFoundError("Chore not found.");
@@ -351,23 +365,17 @@ export async function addSubtask(
 
     const createdSubtask = await tx.subtask.create({
       data: {
+        ...transformSubtaskInput(data),
         choreId,
-        title: data.title,
-        description: data.description || null,
-        status: data.status || SubtaskStatus.PENDING,
+      },
+      include: {
+        chore: true,
       },
     });
 
-    // Update chore history
-    await tx.choreHistory.create({
-      data: {
-        choreId,
-        action: ChoreAction.UPDATED,
-        changedById: userId,
-      },
-    });
+    await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
 
-    return createdSubtask as PrismaSubtask;
+    return createdSubtask;
   });
 
   const transformedSubtask = transformSubtask(subtask);
@@ -401,10 +409,13 @@ export async function updateSubtaskStatus(
     HouseholdRole.MEMBER,
   ]);
 
-  const subtask = await prisma.$transaction(async (tx) => {
+  const subtask = (await prisma.$transaction(async (tx) => {
     const updatedSubtask = await tx.subtask.update({
       where: { id: subtaskId },
       data: { status },
+      include: {
+        chore: true,
+      },
     });
 
     if (!updatedSubtask) {
@@ -430,8 +441,8 @@ export async function updateSubtaskStatus(
       await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
     }
 
-    return updatedSubtask as PrismaSubtask;
-  });
+    return updatedSubtask;
+  })) as PrismaSubtaskWithFullRelations;
 
   const transformedSubtask = transformSubtask(subtask);
   getIO()
@@ -468,20 +479,12 @@ export async function deleteSubtask(
     }
 
     await tx.subtask.delete({ where: { id: subtaskId } });
-
-    // Create history record
-    await tx.choreHistory.create({
-      data: {
-        choreId,
-        action: ChoreAction.UPDATED,
-        changedById: userId,
-      },
-    });
+    await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
   });
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("chore_update", { choreId, subtaskId });
+    .emit("chore_update", { choreId, subtaskId, deleted: true });
 }
 
 export async function requestChoreSwap(
@@ -490,6 +493,7 @@ export async function requestChoreSwap(
   requestingUserId: string,
   targetUserId: string
 ): Promise<ApiResponse<ChoreSwapRequest>> {
+  // Verify both users are members of the household
   await verifyMembership(householdId, requestingUserId, [
     HouseholdRole.ADMIN,
     HouseholdRole.MEMBER,
@@ -499,24 +503,59 @@ export async function requestChoreSwap(
     HouseholdRole.MEMBER,
   ]);
 
-  const chore = await prisma.chore.findUnique({ where: { id: choreId } });
+  const swapRequest = (await prisma.$transaction(async (tx) => {
+    const chore = (await tx.chore.findUnique({
+      where: {
+        id: choreId,
+        householdId,
+      },
+      include: {
+        assignments: {
+          include: { user: true },
+        },
+      },
+    })) as PrismaChoreWithFullRelations;
 
-  if (!chore) {
-    throw new NotFoundError("Chore not found.");
-  }
+    if (!chore) {
+      throw new NotFoundError("Chore not found.");
+    }
 
-  const swapRequest = await prisma.choreSwapRequest.create({
-    data: {
+    // Verify the requesting user is actually assigned to the chore
+    const isAssigned = chore.assignments.some(
+      (assignment) => assignment.userId === requestingUserId
+    );
+
+    if (!isAssigned) {
+      throw new UnauthorizedError("You are not assigned to this chore.");
+    }
+
+    const createdSwapRequest = await tx.choreSwapRequest.create({
+      data: {
+        choreId,
+        requestingUserId,
+        targetUserId,
+        status: ChoreSwapRequestStatus.PENDING,
+      },
+      include: {
+        chore: true,
+        requestingUser: true,
+        targetUser: true,
+      },
+    });
+
+    await createChoreHistory(
+      tx,
       choreId,
-      requestingUserId,
-      targetUserId,
-      status: ChoreSwapRequestStatus.PENDING,
-    },
-  });
+      ChoreAction.UPDATED,
+      requestingUserId
+    );
 
-  const transformedSwapRequest = transformChoreSwapRequest(
-    swapRequest as PrismaChoreSwapRequest
-  );
+    return createdSwapRequest;
+  })) as PrismaChoreSwapRequestWithRelations;
+
+  const transformedSwapRequest = transformChoreSwapRequest(swapRequest);
+
+  // Emit socket events
   getIO()
     .to(`household_${householdId}`)
     .emit("chore_swap_request", { swapRequest: transformedSwapRequest });
@@ -536,10 +575,14 @@ export async function approveChoreSwap(
     HouseholdRole.MEMBER,
   ]);
 
-  return prisma.$transaction(async (tx) => {
+  const result = (await prisma.$transaction(async (tx) => {
     const swapRequest = await tx.choreSwapRequest.findUnique({
       where: { id: swapRequestId },
-      include: { chore: true },
+      include: {
+        chore: true,
+        requestingUser: true,
+        targetUser: true,
+      },
     });
 
     if (!swapRequest || swapRequest.choreId !== choreId) {
@@ -555,30 +598,47 @@ export async function approveChoreSwap(
     }
 
     let updatedChore;
-    let updatedSwapRequest;
 
     if (approved) {
-      updatedChore = await tx.chore.update({
-        where: { id: choreId },
-        data: {
-          assignedUsers: {
-            disconnect: {
-              choreId_userId: { choreId, userId: swapRequest.requestingUserId },
-            },
-            connect: {
-              choreId_userId: { choreId, userId: swapRequest.targetUserId },
-            },
-          },
-        },
-        include: {
-          assignedUsers: { include: { user: true } },
-          subtasks: true,
+      // Find the existing assignment for the requesting user
+      const existingAssignment = await tx.choreAssignment.findFirst({
+        where: {
+          choreId,
+          userId: swapRequest.requestingUserId,
         },
       });
 
-      updatedSwapRequest = await tx.choreSwapRequest.update({
+      // Delete the existing assignment if it exists
+      if (existingAssignment) {
+        await tx.choreAssignment.delete({
+          where: { id: existingAssignment.id },
+        });
+      }
+
+      // Create new assignment for target user
+      await tx.choreAssignment.create({
+        data: {
+          choreId,
+          userId: swapRequest.targetUserId,
+          assignedAt: new Date(),
+        },
+      });
+
+      // Update swap request status
+      await tx.choreSwapRequest.update({
         where: { id: swapRequestId },
         data: { status: ChoreSwapRequestStatus.APPROVED },
+      });
+
+      // Get updated chore with all relations
+      updatedChore = await tx.chore.findUnique({
+        where: { id: choreId },
+        include: {
+          subtasks: true,
+          assignments: {
+            include: { user: true },
+          },
+        },
       });
 
       await createChoreHistory(
@@ -588,41 +648,46 @@ export async function approveChoreSwap(
         approvingUserId
       );
     } else {
-      updatedSwapRequest = await tx.choreSwapRequest.update({
+      // Reject the swap request
+      await tx.choreSwapRequest.update({
         where: { id: swapRequestId },
         data: { status: ChoreSwapRequestStatus.REJECTED },
       });
 
+      // Get chore with relations
       updatedChore = await tx.chore.findUnique({
         where: { id: choreId },
         include: {
-          assignedUsers: { include: { user: true } },
           subtasks: true,
+          assignments: {
+            include: { user: true },
+          },
         },
       });
-
-      if (!updatedChore) {
-        throw new NotFoundError("Chore not found.");
-      }
     }
 
-    const transformedChore = transformChoreToChoreWithAssignees(updatedChore);
-    const transformedSwapRequest =
-      transformChoreSwapRequest(updatedSwapRequest);
-
-    if (approved) {
-      getIO().to(`household_${householdId}`).emit("chore_swap_approved", {
-        choreId,
-        updatedChore: transformedChore,
-        swapRequest: transformedSwapRequest,
-      });
-    } else {
-      getIO().to(`household_${householdId}`).emit("chore_swap_rejected", {
-        choreId,
-        swapRequest: transformedSwapRequest,
-      });
+    if (!updatedChore) {
+      throw new NotFoundError("Chore not found.");
     }
 
-    return wrapResponse(transformedChore);
-  });
+    return updatedChore;
+  })) as PrismaChoreWithFullRelations;
+
+  const transformedChore = transformChoreToChoreWithAssignees(result);
+
+  // Emit appropriate socket events
+  if (approved) {
+    getIO().to(`household_${householdId}`).emit("chore_swap_approved", {
+      choreId,
+      chore: transformedChore,
+      swapRequestId,
+    });
+  } else {
+    getIO().to(`household_${householdId}`).emit("chore_swap_rejected", {
+      choreId,
+      swapRequestId,
+    });
+  }
+
+  return wrapResponse(transformedChore);
 }

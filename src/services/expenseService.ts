@@ -4,46 +4,21 @@ import {
   UpdateExpenseDTO,
   CreateExpenseSplitDTO,
   UpdateExpenseSplitDTO,
-  CreateTransactionDTO,
-  UpdateTransactionDTO,
   CreateReceiptDTO,
-  CreateExpenseHistoryDTO,
-  Expense,
-  ExpenseSplit,
-  Transaction,
   Receipt,
-  ExpenseHistory,
-  ExpenseWithSplits,
-  HouseholdExpense,
+  ExpenseWithSplitsAndPaidBy,
 } from "@shared/types";
 import { ApiResponse } from "@shared/interfaces/apiResponse";
-import {
-  NotFoundError,
-  UnauthorizedError,
-  BadRequestError,
-} from "../middlewares/errorHandler";
-import {
-  HouseholdRole,
-  ExpenseCategory,
-  TransactionStatus,
-  ExpenseAction,
-} from "@shared/enums";
+import { NotFoundError, BadRequestError } from "../middlewares/errorHandler";
+import { HouseholdRole, ExpenseAction } from "@shared/enums";
 import { verifyMembership } from "./authService";
 import {
-  transformExpense,
   transformExpenseWithSplits,
-  transformHouseholdExpense,
-  transformExpenseSplit,
-  transformTransaction,
   transformReceipt,
-  transformExpenseHistory,
 } from "../utils/transformers/expenseTransformer";
 import {
-  PrismaExpenseSplit,
-  PrismaTransaction,
-  PrismaReceipt,
-  PrismaExpenseHistory,
-  PrismaExpense,
+  PrismaExpenseWithFullRelations,
+  PrismaReceiptWithFullRelations,
 } from "../utils/transformers/transformerPrismaTypes";
 import { getIO } from "../sockets";
 
@@ -78,24 +53,35 @@ async function createExpenseHistory(
 export async function getExpenses(
   householdId: string,
   userId: string
-): Promise<ApiResponse<Expense[]>> {
+): Promise<ApiResponse<ExpenseWithSplitsAndPaidBy[]>> {
   await verifyMembership(householdId, userId, [
     HouseholdRole.ADMIN,
     HouseholdRole.MEMBER,
   ]);
 
   const expenses = await prisma.expense.findMany({
-    where: { householdId },
+    where: {
+      householdId,
+      deletedAt: null,
+    },
     include: {
-      splits: true,
+      splits: {
+        include: {
+          user: true,
+        },
+      },
       paidBy: true,
-      transactions: true,
+      household: true,
+    },
+    orderBy: {
+      createdAt: "desc",
     },
   });
 
   const transformedExpenses = expenses.map((expense) =>
-    transformExpense(expense as PrismaExpense)
+    transformExpenseWithSplits(expense as PrismaExpenseWithFullRelations)
   );
+
   return wrapResponse(transformedExpenses);
 }
 
@@ -111,7 +97,7 @@ export async function createExpense(
   householdId: string,
   data: CreateExpenseDTO,
   userId: string
-): Promise<ApiResponse<Expense>> {
+): Promise<ApiResponse<ExpenseWithSplitsAndPaidBy>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
   const expense = await prisma.$transaction(async (tx) => {
@@ -161,7 +147,9 @@ export async function createExpense(
     throw new BadRequestError("Failed to create expense.");
   }
 
-  const transformedExpense = transformExpense(expense as PrismaExpense);
+  const transformedExpense = transformExpenseWithSplits(
+    expense as PrismaExpenseWithFullRelations
+  );
   getIO()
     .to(`household_${householdId}`)
     .emit("expense_update", { expense: transformedExpense });
@@ -182,7 +170,7 @@ export async function getExpenseById(
   householdId: string,
   expenseId: string,
   userId: string
-): Promise<ApiResponse<Expense>> {
+): Promise<ApiResponse<ExpenseWithSplitsAndPaidBy>> {
   await verifyMembership(householdId, userId, [
     HouseholdRole.ADMIN,
     HouseholdRole.MEMBER,
@@ -201,7 +189,9 @@ export async function getExpenseById(
     throw new NotFoundError("Expense not found.");
   }
 
-  const transformedExpense = transformExpense(expense as PrismaExpense);
+  const transformedExpense = transformExpenseWithSplits(
+    expense as PrismaExpenseWithFullRelations
+  );
   return wrapResponse(transformedExpense);
 }
 
@@ -220,7 +210,7 @@ export async function updateExpense(
   expenseId: string,
   data: UpdateExpenseDTO,
   userId: string
-): Promise<ApiResponse<Expense>> {
+): Promise<ApiResponse<ExpenseWithSplitsAndPaidBy>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
   const expense = await prisma.$transaction(async (prismaClient) => {
@@ -268,7 +258,9 @@ export async function updateExpense(
     return updatedExpense;
   });
 
-  const transformedExpense = transformExpense(expense as PrismaExpense);
+  const transformedExpense = transformExpenseWithSplits(
+    expense as PrismaExpenseWithFullRelations
+  );
   getIO()
     .to(`household_${householdId}`)
     .emit("expense_update", { expense: transformedExpense });
@@ -383,7 +375,9 @@ export async function uploadReceipt(
     return createdReceipt;
   });
 
-  const transformedReceipt = transformReceipt(receipt as PrismaReceipt);
+  const transformedReceipt = transformReceipt(
+    receipt as PrismaReceiptWithFullRelations
+  );
   getIO()
     .to(`household_${householdId}`)
     .emit("receipt_uploaded", { receipt: transformedReceipt });
@@ -413,7 +407,7 @@ export async function getReceipts(
   });
 
   const transformedReceipts = receipts.map((receipt) =>
-    transformReceipt(receipt as PrismaReceipt)
+    transformReceipt(receipt as PrismaReceiptWithFullRelations)
   );
   return wrapResponse(transformedReceipts);
 }
@@ -489,6 +483,8 @@ export async function getReceiptById(
     throw new NotFoundError("Receipt not found.");
   }
 
-  const transformedReceipt = transformReceipt(receipt as PrismaReceipt);
+  const transformedReceipt = transformReceipt(
+    receipt as PrismaReceiptWithFullRelations
+  );
   return wrapResponse(transformedReceipt);
 }
