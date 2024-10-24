@@ -9,8 +9,13 @@ import {
 import { PrismaUserMinimal } from "../utils/transformers/transformerPrismaTypes";
 import { getIO } from "../sockets";
 
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
+}
+
 // Reusable select object that matches the User interface
-const userSelect = {
+const userSelect: Record<keyof User, boolean> = {
   id: true,
   email: true,
   name: true,
@@ -18,7 +23,7 @@ const userSelect = {
   updatedAt: true,
   deletedAt: true,
   profileImageURL: true,
-} as const;
+};
 
 /**
  * Retrieves the profile of a user by ID.
@@ -39,7 +44,7 @@ export async function getUserProfile(
   }
 
   const transformedUser = transformUser(user as PrismaUserMinimal);
-  return { data: transformedUser };
+  return wrapResponse(transformedUser);
 }
 
 /**
@@ -64,5 +69,5 @@ export async function updateUserProfile(
   // Notify connected clients about the user update
   getIO().emit("user_updated", { user: transformedUser });
 
-  return { data: transformedUser };
+  return wrapResponse(transformedUser);
 }

@@ -1,9 +1,19 @@
-import { Router } from 'express';
-import { AuthController } from '../controllers/AuthController';
-import { validate } from '../middlewares/validationMiddleware';
-import { registerUserSchema, loginUserSchema } from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
-import authMiddleware from '../middlewares/authMiddleware';
+import { Router } from "express";
+import { AuthController } from "../controllers/AuthController";
+import { validate } from "../middlewares/validationMiddleware";
+import {
+  registerUserSchema,
+  loginUserSchema,
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
+import authMiddleware from "../middlewares/authMiddleware";
+import rateLimit from "express-rate-limit";
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts
+  message: "Too many login attempts, please try again later",
+});
 
 const router = Router();
 
@@ -13,7 +23,7 @@ const router = Router();
  * @access  Public
  */
 router.post(
-  '/register',
+  "/register",
   validate(registerUserSchema),
   asyncHandler(AuthController.register)
 );
@@ -24,7 +34,8 @@ router.post(
  * @access  Public
  */
 router.post(
-  '/login',
+  "/login",
+  authLimiter,
   validate(loginUserSchema),
   asyncHandler(AuthController.login)
 );
@@ -34,31 +45,13 @@ router.post(
  * @desc    Logout user and clear auth cookies
  * @access  Protected
  */
-router.post(
-  '/logout',
-  authMiddleware,
-  asyncHandler(AuthController.logout)
-);
+router.post("/logout", authMiddleware, asyncHandler(AuthController.logout));
 
 /**
  * @route   POST /api/auth/refresh-token
  * @desc    Refresh access token using refresh token from cookies
  * @access  Public
  */
-router.post(
-  '/refresh-token',
-  asyncHandler(AuthController.refreshToken)
-);
-
-/**
- * @route   GET /api/auth/me
- * @desc    Get current user
- * @access  Protected
- */
-router.get(
-  '/me',
-  authMiddleware,
-  asyncHandler(AuthController.getCurrentUser)
-);
+router.post("/refresh-token", asyncHandler(AuthController.refreshToken));
 
 export default router;

@@ -61,6 +61,10 @@ export async function getNotifications(
 export async function createNotification(
   data: CreateNotificationDTO
 ): Promise<ApiResponse<Notification>> {
+  if (!data.userId || !data.type || !data.message) {
+    throw new Error("Invalid notification data");
+  }
+
   const notification = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where: { id: data.userId },

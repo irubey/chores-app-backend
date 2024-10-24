@@ -1,14 +1,16 @@
 import prisma from "../config/database";
-import { RegisterUserDTO, TokenPayload } from "../types";
+import { TokenPayload } from "@shared/interfaces/auth";
+import { RegisterUserDTO, LoginCredentials } from "@shared/types/user";
 import { hash, compare } from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { UnauthorizedError } from "../middlewares/errorHandler";
 import authConfig from "../config/auth";
 import { Response } from "express";
-import { HouseholdRole as PrismaHouseholdRole } from "@prisma/client"; // Import from Prisma
-import { HouseholdMember } from "@shared/types";
 import { HouseholdRole } from "@shared/enums";
-
+import { HouseholdMember } from "@shared/types/household";
+import { transformUser } from "../utils/transformers/userTransformer";
+import { User } from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
 /**
  * AuthService handles the business logic for authentication.
  */
@@ -33,49 +35,36 @@ export class AuthService {
     }
   }
 
-  /**
-   * Sets HTTP-only cookies for access and refresh tokens.
-   * @param res Express Response object
-   * @param accessToken - The access token
-   * @param refreshToken - The refresh token
-   */
   private static setAuthCookies(
     res: Response,
     accessToken: string,
     refreshToken: string
   ): void {
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict" as const,
+      path: "/",
+      domain: process.env.COOKIE_DOMAIN || undefined,
+    };
+
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15 minutes
-      path: "/",
     });
+
     res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: "/",
     });
   }
 
-  /**
-   * Clears authentication cookies.
-   * @param res Express Response object
-   */
   private static clearAuthCookies(res: Response): void {
     res.clearCookie("accessToken", { path: "/" });
     res.clearCookie("refreshToken", { path: "/" });
   }
 
-  /**
-   * Registers a new user.
-   * @param userData - The registration data.
-   * @returns The created user without the password hash.
-   * @throws UnauthorizedError if email already exists.
-   */
-  static async register(userData: RegisterUserDTO) {
+  static async register(userData: RegisterUserDTO): Promise<ApiResponse<User>> {
     const existingUser = await prisma.user.findUnique({
       where: { email: userData.email },
     });
@@ -92,31 +81,46 @@ export class AuthService {
         passwordHash: hashedPassword,
         name: userData.name,
       },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        profileImageURL: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+      },
     });
 
-    const { passwordHash, ...userWithoutPassword } = user;
-
-    return userWithoutPassword;
+    return wrapResponse(transformUser(user));
   }
 
-  /**
-   * Logs in a user by verifying credentials and issuing tokens.
-   * @param email - The user's email.
-   * @param password - The user's password.
-   * @param res - Express Response object to set cookies.
-   * @returns The user data.
-   * @throws UnauthorizedError if credentials are invalid.
-   */
-  static async login(email: string, password: string, res: Response) {
+  static async login(
+    credentials: LoginCredentials,
+    res: Response
+  ): Promise<ApiResponse<User>> {
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: credentials.email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        profileImageURL: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+        passwordHash: true,
+      },
     });
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedError("Invalid credentials.");
     }
 
-    const isPasswordValid = await compare(password, user.passwordHash);
+    const isPasswordValid = await compare(
+      credentials.password,
+      user.passwordHash
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedError("Invalid credentials.");
@@ -126,40 +130,53 @@ export class AuthService {
     const accessToken = this.generateAccessToken(payload);
     const refreshToken = this.generateRefreshToken(payload);
 
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
     this.setAuthCookies(res, accessToken, refreshToken);
 
-    // Remove sensitive information before sending
-    const { passwordHash, ...userWithoutPassword } = user;
-
-    return userWithoutPassword;
+    const { passwordHash: _, ...userWithoutPassword } = user;
+    return wrapResponse(transformUser(userWithoutPassword));
   }
 
-  /**
-   * Logs out a user by clearing the refresh token cookie.
-   * @param res Express Response object to clear cookies.
-   * @returns void
-   */
-  static async logout(res: Response): Promise<void> {
+  static async logout(res: Response): Promise<ApiResponse<void>> {
     this.clearAuthCookies(res);
-    // Optionally, implement token blacklisting here
-    return;
+    return wrapResponse(undefined);
   }
 
-  /**
-   * Refreshes the access token using a valid refresh token.
-   * @param refreshToken - The refresh token.
-   * @param res - Express Response object to set new cookies.
-   * @returns New access token.
-   * @throws UnauthorizedError if refresh token is invalid or expired.
-   */
-  static async refreshToken(refreshToken: string, res: Response) {
+  static async refreshToken(
+    refreshToken: string,
+    res: Response
+  ): Promise<ApiResponse<string>> {
     const decoded = this.verifyToken(
       refreshToken,
       authConfig.jwt.refreshSecret
     );
 
+    const existingToken = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken },
+    });
+
+    if (!existingToken || existingToken.revoked) {
+      throw new UnauthorizedError("Invalid refresh token.");
+    }
+
+    await prisma.refreshToken.update({
+      where: { id: existingToken.id },
+      data: { revoked: true },
+    });
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+      },
     });
 
     if (!user) {
@@ -170,17 +187,19 @@ export class AuthService {
     const newAccessToken = this.generateAccessToken(newPayload);
     const newRefreshToken = this.generateRefreshToken(newPayload);
 
+    await prisma.refreshToken.create({
+      data: {
+        token: newRefreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
     this.setAuthCookies(res, newAccessToken, newRefreshToken);
 
-    return newAccessToken;
+    return wrapResponse(newAccessToken);
   }
 
-  /**
-   * Verifies the access token.
-   * @param accessToken - The access token.
-   * @returns The decoded payload.
-   * @throws UnauthorizedError if token is invalid or expired.
-   */
   static verifyAccessToken(accessToken: string): TokenPayload {
     return this.verifyToken(accessToken, authConfig.jwt.accessSecret);
   }
@@ -207,12 +226,11 @@ export async function verifyMembership(
     throw new UnauthorizedError("Access denied.");
   }
 
-  // Convert Prisma HouseholdMember to shared HouseholdMember type
   const sharedMembership: HouseholdMember = {
     id: membership.id,
     userId: membership.userId,
     householdId: membership.householdId,
-    role: membership.role as HouseholdRole, // Type assertion here
+    role: membership.role as HouseholdRole,
     joinedAt: membership.joinedAt,
     leftAt: membership.leftAt ?? undefined,
     isInvited: membership.isInvited,
@@ -223,4 +241,9 @@ export async function verifyMembership(
   };
 
   return sharedMembership;
+}
+
+// Helper function to wrap data in ApiResponse
+function wrapResponse<T>(data: T): ApiResponse<T> {
+  return { data };
 }

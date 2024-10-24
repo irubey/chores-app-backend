@@ -1,38 +1,65 @@
-import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { AuthService } from '../services/authService';
-import { logError } from '../utils/logger';
-import { AppError } from './errorHandler';
-import prisma from '../config/database';
-import { AuthenticatedRequest } from '../types';
+import { Request, Response, NextFunction, RequestHandler } from "express";
+import { AuthService } from "../services/authService";
+import { AppError } from "./errorHandler";
+import { AuthenticatedRequest } from "../types";
+import { transformUser } from "../utils/transformers/userTransformer";
+import prisma from "../config/database";
 
 /**
  * Authentication middleware to protect routes.
  */
-const authMiddleware: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
+const authMiddleware: RequestHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const accessToken = req.cookies.accessToken;
+    const refreshToken = req.cookies.refreshToken;
 
-    if (!accessToken) {
-      throw new AppError('No token provided', 401);
+    if (!accessToken && !refreshToken) {
+      throw new AppError("No tokens provided", 401);
     }
 
-    const decoded = AuthService.verifyAccessToken(accessToken);
+    try {
+      // Verify access token
+      const decoded = AuthService.verifyAccessToken(accessToken);
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    if (!user) {
-      throw new AppError('User not found', 401);
+      // Get user with minimal fields
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          profileImageURL: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+        },
+      });
+
+      if (!user) throw new AppError("User not found", 401);
+
+      // Transform user to match shared User interface
+      (req as AuthenticatedRequest).user = transformUser(user);
+      return next();
+    } catch (error) {
+      // Try to refresh the token if access token is invalid
+      if (refreshToken) {
+        try {
+          await AuthService.refreshToken(refreshToken, res);
+          // Token refresh successful, continue with request
+          return next();
+        } catch (refreshError) {
+          // If refresh fails, throw authentication error
+          throw new AppError("Authentication failed", 401);
+        }
+      }
+      throw new AppError("Authentication failed", 401);
     }
-
-    // Assign user to request object
-    (req as AuthenticatedRequest).user = user;
-    next();
   } catch (error) {
-    logError('Authentication failed', error as Error);
-    if (error instanceof AppError) {
-      res.status(error.statusCode).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    next(error);
   }
 };
 

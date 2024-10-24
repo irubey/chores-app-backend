@@ -23,6 +23,10 @@ function isValidNotificationType(type: string): type is NotificationType {
 export function transformNotification(
   notification: PrismaNotificationBase
 ): Notification {
+  if (!notification) {
+    throw new Error("Invalid notification data");
+  }
+
   return {
     id: notification.id,
     userId: notification.userId,

@@ -1,7 +1,8 @@
-import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from '../types';
-import { AuthService } from '../services/authService';
-import { UnauthorizedError } from '../middlewares/errorHandler';
+import { Response, NextFunction } from "express";
+import { AuthenticatedRequest } from "../types";
+import { AuthService } from "../services/authService";
+import { UnauthorizedError } from "../middlewares/errorHandler";
+import { LoginCredentials, RegisterUserDTO } from "@shared/types";
 
 /**
  * AuthController handles user authentication processes.
@@ -9,15 +10,16 @@ import { UnauthorizedError } from '../middlewares/errorHandler';
 export class AuthController {
   /**
    * Registers a new user.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async register(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async register(
+    req: AuthenticatedRequest & { body: RegisterUserDTO },
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const userData = req.body;
-      const user = await AuthService.register(userData);
-      res.status(201).json({ data: user });
+      const response = await AuthService.register(userData);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -25,16 +27,15 @@ export class AuthController {
 
   /**
    * Logs in an existing user.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async login(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async login(
+    req: AuthenticatedRequest & { body: LoginCredentials },
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      const { email, password } = req.body;
-      const user = await AuthService.login(email, password, res);
-      
-      res.status(200).json({ data: user });
+      const response = await AuthService.login(req.body, res);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -42,14 +43,15 @@ export class AuthController {
 
   /**
    * Logs out a user by clearing the refresh token cookie.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async logout(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async logout(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
-      await AuthService.logout(res);
-      res.status(200).json({ data: { message: 'Logged out successfully.' } });
+      const response = await AuthService.logout(res);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -57,39 +59,21 @@ export class AuthController {
 
   /**
    * Refreshes the access token using a valid refresh token.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async refreshToken(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async refreshToken(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const refreshToken = req.cookies.refreshToken;
       if (!refreshToken) {
-        throw new UnauthorizedError('No refresh token provided.');
+        throw new UnauthorizedError("No refresh token provided.");
       }
-      const newAccessToken = await AuthService.refreshToken(refreshToken, res);
-      
-      res.status(200).json({ data: { message: 'Token refreshed successfully.' } });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Gets the current user.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
-   */
-  static async getCurrentUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      if (!req.user) {
-        throw new UnauthorizedError('User not authenticated');
-      }
-      res.status(200).json({ data: req.user });
+      const response = await AuthService.refreshToken(refreshToken, res);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
   }
 }
-
