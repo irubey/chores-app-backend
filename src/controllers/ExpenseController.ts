@@ -7,6 +7,7 @@ import {
 } from "../middlewares/errorHandler";
 import { AuthenticatedRequest } from "../types";
 import path from "path";
+import { UpdateExpenseSplitDTO } from "@shared/types";
 
 /**
  * ExpenseController handles all CRUD operations related to expenses.
@@ -14,9 +15,6 @@ import path from "path";
 export class ExpenseController {
   /**
    * Retrieves all expenses for a specific household.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getExpenses(
     req: AuthenticatedRequest,
@@ -28,11 +26,11 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const householdId = req.params.householdId;
-      const expenses = await expenseService.getExpenses(
+      const { data } = await expenseService.getExpenses(
         householdId,
         req.user.id
       );
-      res.status(200).json(expenses);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -40,9 +38,6 @@ export class ExpenseController {
 
   /**
    * Creates a new expense within a household.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async createExpense(
     req: AuthenticatedRequest,
@@ -55,12 +50,12 @@ export class ExpenseController {
       }
       const householdId = req.params.householdId;
       const expenseData = req.body;
-      const expense = await expenseService.createExpense(
+      const { data } = await expenseService.createExpense(
         householdId,
         expenseData,
         req.user.id
       );
-      res.status(201).json(expense);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -68,9 +63,6 @@ export class ExpenseController {
 
   /**
    * Retrieves details of a specific expense.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getExpenseDetails(
     req: AuthenticatedRequest,
@@ -82,15 +74,15 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
-      const expense = await expenseService.getExpenseById(
+      const { data } = await expenseService.getExpenseById(
         householdId,
         expenseId,
         req.user.id
       );
-      if (!expense) {
+      if (!data) {
         throw new NotFoundError("Expense not found");
       }
-      res.status(200).json(expense);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -98,9 +90,6 @@ export class ExpenseController {
 
   /**
    * Updates an existing expense.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async updateExpense(
     req: AuthenticatedRequest,
@@ -113,18 +102,18 @@ export class ExpenseController {
       }
       const { householdId, expenseId } = req.params;
       const updateData = req.body;
-      const updatedExpense = await expenseService.updateExpense(
+      const { data } = await expenseService.updateExpense(
         householdId,
         expenseId,
         updateData,
         req.user.id
       );
-      if (!updatedExpense) {
+      if (!data) {
         throw new NotFoundError(
           "Expense not found or you do not have permission to update it"
         );
       }
-      res.status(200).json(updatedExpense);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -132,9 +121,6 @@ export class ExpenseController {
 
   /**
    * Deletes an expense from a household.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async deleteExpense(
     req: AuthenticatedRequest,
@@ -155,9 +141,6 @@ export class ExpenseController {
 
   /**
    * Uploads a receipt file for a specific expense.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async uploadReceipt(
     req: AuthenticatedRequest,
@@ -179,7 +162,7 @@ export class ExpenseController {
       const fileType = req.file.mimetype;
 
       // Call the service to handle database and storage logic
-      const receipt = await expenseService.uploadReceipt(
+      const { data } = await expenseService.uploadReceipt(
         householdId,
         expenseId,
         req.user.id,
@@ -190,7 +173,7 @@ export class ExpenseController {
         }
       );
 
-      res.status(201).json(receipt);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -198,9 +181,6 @@ export class ExpenseController {
 
   /**
    * Retrieves all receipts for a specific expense.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getReceipts(
     req: AuthenticatedRequest,
@@ -212,12 +192,12 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
-      const receipts = await expenseService.getReceipts(
+      const { data } = await expenseService.getReceipts(
         householdId,
         expenseId,
         req.user.id
       );
-      res.status(200).json(receipts);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -225,9 +205,6 @@ export class ExpenseController {
 
   /**
    * Retrieves a specific receipt by ID.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getReceiptById(
     req: AuthenticatedRequest,
@@ -239,16 +216,16 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId, receiptId } = req.params;
-      const receipt = await expenseService.getReceiptById(
+      const { data } = await expenseService.getReceiptById(
         householdId,
         expenseId,
         receiptId,
         req.user.id
       );
-      if (!receipt) {
+      if (!data) {
         throw new NotFoundError("Receipt not found");
       }
-      res.status(200).json(receipt);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -256,9 +233,6 @@ export class ExpenseController {
 
   /**
    * Deletes a specific receipt by ID.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async deleteReceipt(
     req: AuthenticatedRequest,
@@ -277,6 +251,34 @@ export class ExpenseController {
         req.user.id
       );
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Updates the splits for an expense.
+   */
+  static async updateExpenseSplits(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const { householdId, expenseId } = req.params;
+      const splits: UpdateExpenseSplitDTO[] = req.body.splits;
+
+      const { data } = await expenseService.updateExpenseSplits(
+        householdId,
+        expenseId,
+        splits,
+        req.user.id
+      );
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }

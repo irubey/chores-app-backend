@@ -17,12 +17,12 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId } = req.params;
-      const events = await choreEventService.getChoreEvents(
+      const response = await choreEventService.getChoreEvents(
         householdId,
         choreId,
         req.user!.id
       );
-      res.status(200).json(events);
+      res.status(200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -39,13 +39,13 @@ export class ChoreEventController {
     try {
       const { householdId, choreId } = req.params;
       const choreEventData: CreateEventDTO = req.body;
-      const event = await choreEventService.createChoreEvent(
+      const response = await choreEventService.createChoreEvent(
         householdId,
         choreId,
         choreEventData,
         req.user!.id
       );
-      res.status(201).json(event);
+      res.status(201).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -61,13 +61,13 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId, eventId } = req.params;
-      const event = await choreEventService.getChoreEventById(
+      const response = await choreEventService.getChoreEventById(
         householdId,
         choreId,
         eventId,
         req.user!.id
       );
-      res.status(200).json(event);
+      res.status(200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -84,14 +84,14 @@ export class ChoreEventController {
     try {
       const { householdId, choreId, eventId } = req.params;
       const updateData: UpdateEventDTO = req.body;
-      const updatedEvent = await choreEventService.updateChoreEvent(
+      const response = await choreEventService.updateChoreEvent(
         householdId,
         choreId,
         eventId,
         updateData,
         req.user!.id
       );
-      res.status(200).json(updatedEvent);
+      res.status(200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -130,14 +130,14 @@ export class ChoreEventController {
     try {
       const { householdId, choreId, eventId } = req.params;
       const { status } = req.body;
-      const updatedEvent = await choreEventService.updateChoreEventStatus(
+      const response = await choreEventService.updateChoreEventStatus(
         householdId,
         choreId,
         eventId,
         req.user!.id,
         status
       );
-      res.status(200).json(updatedEvent);
+      res.status(200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -154,7 +154,7 @@ export class ChoreEventController {
     try {
       const { householdId, choreId, eventId } = req.params;
       const { newStartTime, newEndTime } = req.body;
-      const rescheduledEvent = await choreEventService.rescheduleChoreEvent(
+      const response = await choreEventService.rescheduleChoreEvent(
         householdId,
         choreId,
         eventId,
@@ -162,7 +162,7 @@ export class ChoreEventController {
         new Date(newStartTime),
         new Date(newEndTime)
       );
-      res.status(200).json(rescheduledEvent);
+      res.status(200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -179,13 +179,13 @@ export class ChoreEventController {
     try {
       const { householdId, choreId } = req.params;
       const { limit } = req.query;
-      const upcomingEvents = await choreEventService.getUpcomingChoreEvents(
+      const response = await choreEventService.getUpcomingChoreEvents(
         householdId,
         choreId,
         req.user!.id,
         limit ? parseInt(limit as string, 10) : undefined
       );
-      res.status(200).json(upcomingEvents);
+      res.status(200).json(response.data);
     } catch (error) {
       next(error);
     }

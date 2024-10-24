@@ -18,8 +18,8 @@ export class AuthController {
   ): Promise<void> {
     try {
       const userData = req.body;
-      const response = await AuthService.register(userData);
-      res.status(201).json(response);
+      const { data } = await AuthService.register(userData);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -34,8 +34,8 @@ export class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const response = await AuthService.login(req.body, res);
-      res.status(200).json(response);
+      const { data } = await AuthService.login(req.body, res);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -50,8 +50,8 @@ export class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const response = await AuthService.logout(res);
-      res.status(200).json(response);
+      await AuthService.logout(res);
+      res.status(204).send();
     } catch (error) {
       next(error);
     }
@@ -70,8 +70,8 @@ export class AuthController {
       if (!refreshToken) {
         throw new UnauthorizedError("No refresh token provided.");
       }
-      const response = await AuthService.refreshToken(refreshToken, res);
-      res.status(200).json(response);
+      const { data } = await AuthService.refreshToken(refreshToken, res);
+      res.status(200).json({ accessToken: data });
     } catch (error) {
       next(error);
     }

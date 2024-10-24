@@ -27,13 +27,13 @@ export class SubtaskController {
       const { householdId, choreId } = req.params;
       const subtaskData: CreateSubtaskDTO = req.body;
 
-      const subtask = await subtaskService.addSubtask(
+      const { data } = await subtaskService.addSubtask(
         householdId,
         choreId,
         subtaskData,
         req.user.id
       );
-      res.status(201).json(subtask);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -55,7 +55,7 @@ export class SubtaskController {
       const { householdId, choreId, subtaskId } = req.params;
       const subtaskData: UpdateSubtaskDTO = req.body;
 
-      const updatedSubtask = await subtaskService.updateSubtask(
+      const { data } = await subtaskService.updateSubtask(
         householdId,
         choreId,
         subtaskId,
@@ -63,7 +63,7 @@ export class SubtaskController {
         req.user.id
       );
 
-      res.status(200).json(updatedSubtask);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -84,39 +84,12 @@ export class SubtaskController {
 
       const { householdId, choreId } = req.params;
 
-      const subtasks = await subtaskService.getSubtasks(
+      const { data } = await subtaskService.getSubtasks(
         householdId,
         choreId,
         req.user.id
       );
-      res.status(200).json(subtasks);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Gets a specific subtask by ID.
-   */
-  static async getSubtaskById(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const { householdId, choreId, subtaskId } = req.params;
-
-      const subtask = await subtaskService.getSubtaskById(
-        householdId,
-        choreId,
-        subtaskId,
-        req.user.id
-      );
-      res.status(200).json(subtask);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
