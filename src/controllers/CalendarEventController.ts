@@ -17,11 +17,11 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId } = req.params;
-      const events = await calendarEventService.getCalendarEvents(
+      const { data } = await calendarEventService.getCalendarEvents(
         householdId,
         req.user!.id
       );
-      res.status(200).json(events);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -38,12 +38,12 @@ export class CalendarEventController {
     try {
       const { householdId } = req.params;
       const eventData: CreateCalendarEventDTO = req.body;
-      const event = await calendarEventService.createCalendarEvent(
+      const { data } = await calendarEventService.createCalendarEvent(
         householdId,
         eventData,
         req.user!.id
       );
-      res.status(201).json(event);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -59,12 +59,12 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, eventId } = req.params;
-      const event = await calendarEventService.getEventById(
+      const { data } = await calendarEventService.getEventById(
         householdId,
         eventId,
         req.user!.id
       );
-      res.status(200).json(event);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -81,13 +81,13 @@ export class CalendarEventController {
     try {
       const { householdId, eventId } = req.params;
       const updateData: UpdateCalendarEventDTO = req.body;
-      const updatedEvent = await calendarEventService.updateEvent(
+      const { data } = await calendarEventService.updateEvent(
         householdId,
         eventId,
         updateData,
         req.user!.id
       );
-      res.status(200).json(updatedEvent);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -103,7 +103,7 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, eventId } = req.params;
-      await calendarEventService.deleteEvent(
+      await calendarEventService.deleteCalendarEvent(
         householdId,
         eventId,
         req.user!.id
@@ -125,13 +125,13 @@ export class CalendarEventController {
     try {
       const { householdId, eventId } = req.params;
       const reminderData = req.body;
-      const reminder = await calendarEventService.addReminder(
+      const { data } = await calendarEventService.addReminder(
         householdId,
         eventId,
         reminderData,
         req.user!.id
       );
-      res.status(201).json(reminder);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -169,12 +169,12 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, date } = req.params;
-      const events = await calendarEventService.getEventsByDate(
+      const { data } = await calendarEventService.getEventsByDate(
         householdId,
         new Date(date),
         req.user!.id
       );
-      res.status(200).json(events);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }

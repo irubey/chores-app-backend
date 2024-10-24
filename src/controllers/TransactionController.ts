@@ -10,9 +10,6 @@ import { CreateTransactionDTO, UpdateTransactionDTO } from "@shared/types";
 export class TransactionController {
   /**
    * Retrieves all transactions for a specific household.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getTransactions(
     req: AuthenticatedRequest,
@@ -24,11 +21,11 @@ export class TransactionController {
         throw new UnauthorizedError("Unauthorized");
       }
       const householdId = req.params.householdId;
-      const result = await transactionService.getTransactions(
+      const { data } = await transactionService.getTransactions(
         householdId,
         req.user.id
       );
-      res.status(200).json(result);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -36,9 +33,6 @@ export class TransactionController {
 
   /**
    * Creates a new transaction within a household.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async createTransaction(
     req: AuthenticatedRequest,
@@ -50,7 +44,6 @@ export class TransactionController {
         throw new UnauthorizedError("Unauthorized");
       }
       const householdId = req.params.householdId;
-      // Explicit DTO typing and validation
       const transactionData: CreateTransactionDTO = {
         expenseId: req.body.expenseId,
         fromUserId: req.body.fromUserId,
@@ -59,12 +52,12 @@ export class TransactionController {
         status: req.body.status,
       };
 
-      const result = await transactionService.createTransaction(
+      const { data } = await transactionService.createTransaction(
         householdId,
         transactionData,
         req.user.id
       );
-      res.status(201).json(result);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -72,9 +65,6 @@ export class TransactionController {
 
   /**
    * Updates the status of a specific transaction.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async updateTransactionStatus(
     req: AuthenticatedRequest,
@@ -86,23 +76,23 @@ export class TransactionController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, transactionId } = req.params;
-      // Explicit DTO typing and validation
       const updateData: UpdateTransactionDTO = {
         status: req.body.status,
       };
 
-      const result = await transactionService.updateTransactionStatus(
+      const { data } = await transactionService.updateTransactionStatus(
         householdId,
         transactionId,
         updateData,
         req.user.id
       );
-      if (!result) {
+
+      if (!data) {
         throw new NotFoundError(
           "Transaction not found or you do not have permission to update it"
         );
       }
-      res.status(200).json(result);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -110,9 +100,6 @@ export class TransactionController {
 
   /**
    * Deletes a transaction from a household.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async deleteTransaction(
     req: AuthenticatedRequest,

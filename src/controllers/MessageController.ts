@@ -9,9 +9,6 @@ import { AuthenticatedRequest } from "../types";
 export class MessageController {
   /**
    * Retrieves all messages for a specific thread.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getMessages(
     req: AuthenticatedRequest,
@@ -20,12 +17,12 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId } = req.params;
-      const messages = await messageService.getMessages(
+      const response = await messageService.getMessages(
         householdId,
         threadId,
         req.user!.id
       );
-      res.status(200).json(messages);
+      res.status(response.status || 200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -33,9 +30,6 @@ export class MessageController {
 
   /**
    * Creates a new message within a thread.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async createMessage(
     req: AuthenticatedRequest,
@@ -44,13 +38,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId } = req.params;
-      const message = await messageService.createMessage(
+      const response = await messageService.createMessage(
         householdId,
         threadId,
         req.body,
         req.user!.id
       );
-      res.status(201).json(message);
+      res.status(response.status || 201).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -58,9 +52,6 @@ export class MessageController {
 
   /**
    * Retrieves details of a specific message.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getMessageDetails(
     req: AuthenticatedRequest,
@@ -69,16 +60,16 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
-      const message = await messageService.getMessageById(
+      const response = await messageService.getMessageById(
         householdId,
         threadId,
         messageId,
         req.user!.id
       );
-      if (!message) {
+      if (!response.data) {
         throw new NotFoundError("Message not found");
       }
-      res.status(200).json(message);
+      res.status(response.status || 200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -86,9 +77,6 @@ export class MessageController {
 
   /**
    * Updates an existing message.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async updateMessage(
     req: AuthenticatedRequest,
@@ -97,19 +85,19 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
-      const updatedMessage = await messageService.updateMessage(
+      const response = await messageService.updateMessage(
         householdId,
         threadId,
         messageId,
         req.body,
         req.user!.id
       );
-      if (!updatedMessage) {
+      if (!response.data) {
         throw new NotFoundError(
           "Message not found or you do not have permission to update it"
         );
       }
-      res.status(200).json(updatedMessage);
+      res.status(response.status || 200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -117,9 +105,6 @@ export class MessageController {
 
   /**
    * Deletes a message from a thread.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async deleteMessage(
     req: AuthenticatedRequest,
@@ -128,13 +113,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
-      await messageService.deleteMessage(
+      const response = await messageService.deleteMessage(
         householdId,
         threadId,
         messageId,
         req.user!.id
       );
-      res.status(204).send();
+      res.status(response.status || 204).send();
     } catch (error) {
       next(error);
     }
@@ -142,9 +127,6 @@ export class MessageController {
 
   /**
    * Adds an attachment to a specific message.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async addAttachment(
     req: AuthenticatedRequest,
@@ -153,14 +135,14 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
-      const attachment = await messageService.addAttachment(
+      const response = await messageService.addAttachment(
         householdId,
         threadId,
         messageId,
         req.body,
         req.user!.id
       );
-      res.status(201).json(attachment);
+      res.status(response.status || 201).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -168,9 +150,6 @@ export class MessageController {
 
   /**
    * Retrieves details of a specific attachment.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getAttachmentDetails(
     req: AuthenticatedRequest,
@@ -179,17 +158,17 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId, attachmentId } = req.params;
-      const attachment = await messageService.getAttachmentById(
+      const response = await messageService.getAttachmentById(
         householdId,
         threadId,
         messageId,
         attachmentId,
         req.user!.id
       );
-      if (!attachment) {
+      if (!response.data) {
         throw new NotFoundError("Attachment not found");
       }
-      res.status(200).json(attachment);
+      res.status(response.status || 200).json(response.data);
     } catch (error) {
       next(error);
     }
@@ -197,9 +176,6 @@ export class MessageController {
 
   /**
    * Deletes an attachment from a message.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async deleteAttachment(
     req: AuthenticatedRequest,
@@ -208,14 +184,14 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId, attachmentId } = req.params;
-      await messageService.deleteAttachment(
+      const response = await messageService.deleteAttachment(
         householdId,
         threadId,
         messageId,
         attachmentId,
         req.user!.id
       );
-      res.status(204).send();
+      res.status(response.status || 204).send();
     } catch (error) {
       next(error);
     }

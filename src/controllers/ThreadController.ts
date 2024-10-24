@@ -20,9 +20,9 @@ export class ThreadController {
       if (!req.user) {
         throw new UnauthorizedError("Unauthorized");
       }
-      const householdId = req.params.householdId;
-      const threads = await threadService.getThreads(householdId, req.user.id);
-      res.status(200).json(threads);
+      const { householdId } = req.params;
+      const { data } = await threadService.getThreads(householdId, req.user.id);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -40,13 +40,14 @@ export class ThreadController {
       if (!req.user) {
         throw new UnauthorizedError("Unauthorized");
       }
-      const householdId = req.params.householdId;
+      const { householdId } = req.params;
       const threadData: CreateThreadDTO = {
         ...req.body,
         householdId,
+        authorId: req.user.id,
       };
-      const thread = await threadService.createThread(threadData, req.user.id);
-      res.status(201).json(thread);
+      const { data } = await threadService.createThread(threadData);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -65,15 +66,12 @@ export class ThreadController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, threadId } = req.params;
-      const thread = await threadService.getThreadById(
+      const { data } = await threadService.getThreadById(
         householdId,
         threadId,
         req.user.id
       );
-      if (!thread) {
-        throw new NotFoundError("Thread not found");
-      }
-      res.status(200).json(thread);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -93,18 +91,13 @@ export class ThreadController {
       }
       const { householdId, threadId } = req.params;
       const updateData: UpdateThreadDTO = req.body;
-      const updatedThread = await threadService.updateThread(
+      const { data } = await threadService.updateThread(
         householdId,
         threadId,
         updateData,
         req.user.id
       );
-      if (!updatedThread) {
-        throw new NotFoundError(
-          "Thread not found or you do not have permission to update it"
-        );
-      }
-      res.status(200).json(updatedThread);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -143,14 +136,14 @@ export class ThreadController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, threadId } = req.params;
-      const { userIds } = req.body; // Assuming an array of user IDs to invite
-      const updatedThread = await threadService.inviteUsersToThread(
+      const { userIds } = req.body;
+      const { data } = await threadService.inviteUsersToThread(
         householdId,
         threadId,
-        userIds,
+        { userIds },
         req.user.id
       );
-      res.status(200).json(updatedThread);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }

@@ -6,6 +6,7 @@ import {
   UpdateNotificationDTO,
   Notification,
 } from "@shared/types";
+import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 
 /**
  * NotificationController handles all CRUD operations related to notifications.
@@ -20,13 +21,12 @@ export class NotificationController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new Error("User not authenticated");
+      if (!req.user?.id) {
+        throw new UnauthorizedError("User not authenticated");
       }
-      const notifications = await notificationService.getNotifications(
-        req.user.id
-      );
-      res.status(200).json(notifications);
+
+      const { data } = await notificationService.getNotifications(req.user.id);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -41,16 +41,19 @@ export class NotificationController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const notificationData: CreateNotificationDTO = {
-        userId: req.body.userId,
-        type: req.body.type,
-        message: req.body.message,
-        isRead: req.body.isRead,
+      if (!req.user?.id) {
+        throw new UnauthorizedError("User not authenticated");
+      }
+
+      const notificationData = {
+        ...req.body,
+        userId: req.user.id, // Ensure the notification is created for the authenticated user
       };
-      const notification = await notificationService.createNotification(
+
+      const { data } = await notificationService.createNotification(
         notificationData
       );
-      res.status(201).json(notification);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -65,19 +68,16 @@ export class NotificationController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new Error("User not authenticated");
+      if (!req.user?.id) {
+        throw new UnauthorizedError("User not authenticated");
       }
+
       const { notificationId } = req.params;
-      const updateData: UpdateNotificationDTO = {
-        isRead: true,
-      };
-      const updatedNotification = await notificationService.markAsRead(
+      const { data } = await notificationService.markAsRead(
         req.user.id,
-        notificationId,
-        updateData
+        notificationId
       );
-      res.status(200).json(updatedNotification);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -92,12 +92,64 @@ export class NotificationController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new Error("User not authenticated");
+      if (!req.user?.id) {
+        throw new UnauthorizedError("User not authenticated");
       }
+
       const { notificationId } = req.params;
       await notificationService.deleteNotification(req.user.id, notificationId);
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Retrieves notification settings for the authenticated user or household.
+   */
+  static async getNotificationSettings(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user?.id) {
+        throw new UnauthorizedError("User not authenticated");
+      }
+
+      const { householdId } = req.params;
+      const { data } = await notificationService.getNotificationSettings(
+        req.user.id,
+        householdId
+      );
+      res.status(200).json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Updates notification settings.
+   */
+  static async updateNotificationSettings(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user?.id) {
+        throw new UnauthorizedError("User not authenticated");
+      }
+
+      const { settingsId } = req.params;
+      const settingsData = req.body;
+
+      // Ensure the settings belong to the authenticated user
+      const { data } = await notificationService.updateNotificationSettings(
+        settingsId,
+        settingsData
+      );
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }

@@ -14,9 +14,6 @@ import { AuthenticatedRequest } from "../types";
 export class HouseholdController {
   /**
    * Creates a new household.
-   * @param req Authenticated Express Request object containing household data
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async createHousehold(
     req: AuthenticatedRequest,
@@ -31,11 +28,11 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const household = await householdService.createHousehold(
+      const { data } = await householdService.createHousehold(
         householdData,
         userId
       );
-      res.status(201).json(household);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -43,9 +40,6 @@ export class HouseholdController {
 
   /**
    * Retrieves details of a specific household.
-   * @param req Authenticated Express Request object containing householdId and optional query parameters
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getHousehold(
     req: AuthenticatedRequest,
@@ -60,24 +54,23 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      // Extract includeMembers from query parameters, defaulting to false
       const includeMembersParam = req.query.includeMembers;
       const includeMembers =
         includeMembersParam === "true" ||
         (Array.isArray(includeMembersParam) &&
           includeMembersParam[0] === "true");
 
-      const household = await householdService.getHouseholdById(
+      const { data } = await householdService.getHouseholdById(
         householdId,
         userId,
         includeMembers
       );
 
-      if (!household) {
+      if (!data) {
         throw new NotFoundError("Household not found");
       }
 
-      res.status(200).json(household);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -85,9 +78,6 @@ export class HouseholdController {
 
   /**
    * Updates an existing household.
-   * @param req Authenticated Express Request object containing householdId and update data
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async updateHousehold(
     req: AuthenticatedRequest,
@@ -103,19 +93,19 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const updatedHousehold = await householdService.updateHousehold(
+      const { data } = await householdService.updateHousehold(
         householdId,
         updateData,
         userId
       );
 
-      if (!updatedHousehold) {
+      if (!data) {
         throw new NotFoundError(
           "Household not found or you do not have permission to update it"
         );
       }
 
-      res.status(200).json(updatedHousehold);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -123,9 +113,6 @@ export class HouseholdController {
 
   /**
    * Deletes a household.
-   * @param req Authenticated Express Request object containing householdId
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async deleteHousehold(
     req: AuthenticatedRequest,
@@ -149,9 +136,6 @@ export class HouseholdController {
 
   /**
    * Adds a new member to the household.
-   * @param req Authenticated Express Request object containing householdId and member data
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async addMember(
     req: AuthenticatedRequest,
@@ -167,13 +151,13 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const newMember = await householdService.addMember(
+      const { data } = await householdService.addMember(
         householdId,
         memberData,
         userId
       );
 
-      res.status(201).json(newMember);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -181,9 +165,6 @@ export class HouseholdController {
 
   /**
    * Retrieves all members of a specific household.
-   * @param req Authenticated Express Request object containing householdId
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getMembers(
     req: AuthenticatedRequest,
@@ -198,8 +179,8 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const members = await householdService.getMembers(householdId, userId);
-      res.status(200).json(members);
+      const { data } = await householdService.getMembers(householdId, userId);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -207,9 +188,6 @@ export class HouseholdController {
 
   /**
    * Removes a member from the household.
-   * @param req Authenticated Express Request object containing householdId and memberId
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async removeMember(
     req: AuthenticatedRequest,
@@ -234,9 +212,6 @@ export class HouseholdController {
 
   /**
    * Retrieves all households selected by the authenticated user.
-   * @param req Authenticated request containing user ID.
-   * @param res Response with the list of selected households.
-   * @param next Next function for error handling.
    */
   static async getSelectedHouseholds(
     req: AuthenticatedRequest,
@@ -250,28 +225,23 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const selectedHouseholds = await householdService.getSelectedHouseholds(
-        userId
-      );
-      res.status(200).json(selectedHouseholds);
+      const { data } = await householdService.getSelectedHouseholds(userId);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
   }
 
   /**
-   * Toggles the selection state of a household member.
-   * @param req Authenticated request containing householdId, memberId, and selection data.
-   * @param res Response with the updated household member.
-   * @param next Next function for error handling.
+   * Updates the selection of a household member.
    */
-  static async toggleHouseholdSelection(
+  static async updateSelectedHousehold(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      const { householdId, memberId } = req.params;
+      const { householdId } = req.params;
       const { isSelected } = req.body;
       const userId = req.user?.id;
 
@@ -279,20 +249,19 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      // Ensure the memberId matches the authenticated user
-      if (memberId !== userId) {
+      if (req.params.memberId !== userId) {
         throw new UnauthorizedError(
           "You can only update your own household selection"
         );
       }
 
-      const updatedMember =
-        await householdService.updateHouseholdMemberSelection(
-          householdId,
-          memberId,
-          isSelected
-        );
-      res.status(200).json(updatedMember);
+      const { data } = await householdService.updateSelectedHousehold(
+        householdId,
+        userId,
+        isSelected
+      );
+
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -300,9 +269,6 @@ export class HouseholdController {
 
   /**
    * Updates the status of a household member.
-   * @param req Authenticated request containing householdId, memberId, and status data.
-   * @param res Response with the updated household member.
-   * @param next Next function for error handling.
    */
   static async updateMemberStatus(
     req: AuthenticatedRequest,
@@ -318,17 +284,16 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      // Ensure the memberId matches the authenticated user
       if (memberId !== userId) {
         throw new UnauthorizedError("You can only update your own status");
       }
 
-      const updatedMember = await householdService.updateMemberStatus(
+      const { data } = await householdService.updateMemberStatus(
         householdId,
         memberId,
         status
       );
-      res.status(200).json(updatedMember);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -336,9 +301,6 @@ export class HouseholdController {
 
   /**
    * Updates the role of a household member.
-   * @param req Authenticated request containing householdId, memberId, and role data.
-   * @param res Response with the updated household member.
-   * @param next Next function for error handling.
    */
   static async updateMemberRole(
     req: AuthenticatedRequest,
@@ -354,13 +316,13 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const updatedMember = await householdService.updateMemberRole(
+      const { data } = await householdService.updateMemberRole(
         householdId,
         memberId,
         role,
         userId
       );
-      res.status(200).json(updatedMember);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -368,9 +330,6 @@ export class HouseholdController {
 
   /**
    * Retrieves all households for the authenticated user.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
   static async getUserHouseholds(
     req: AuthenticatedRequest,
@@ -384,8 +343,8 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const households = await householdService.getUserHouseholds(userId);
-      res.status(200).json(households);
+      const { data } = await householdService.getUserHouseholds(userId);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -393,9 +352,6 @@ export class HouseholdController {
 
   /**
    * Sends an invitation to a user to join a household.
-   * @param req Authenticated request containing householdId and email.
-   * @param res Response with the invitation details.
-   * @param next Next function for error handling.
    */
   static async sendInvitation(
     req: AuthenticatedRequest,
@@ -411,12 +367,12 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const invitation = await householdService.sendInvitation(
+      const { data } = await householdService.sendInvitation(
         householdId,
-        email,
+        { email },
         userId
       );
-      res.status(201).json(invitation);
+      res.status(201).json(data);
     } catch (error) {
       next(error);
     }
@@ -424,9 +380,6 @@ export class HouseholdController {
 
   /**
    * Accepts a household invitation.
-   * @param req Authenticated request containing invitation token.
-   * @param res Response with the accepted household.
-   * @param next Next function for error handling.
    */
   static async acceptInvitation(
     req: AuthenticatedRequest,
@@ -441,37 +394,11 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const acceptedHousehold = await householdService.acceptInvitation(
+      const { data } = await householdService.acceptInvitation(
         householdId,
         userId
       );
-      res.status(200).json(acceptedHousehold);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Rejects a household invitation.
-   * @param req Authenticated request containing invitation token.
-   * @param res Response with the rejected invitation.
-   * @param next Next function for error handling.
-   */
-  static async rejectInvitation(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId } = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      await householdService.rejectInvitation(householdId, userId);
-      res.status(204).send();
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }

@@ -23,8 +23,8 @@ export class UserController {
       if (!req.user) {
         throw new UnauthorizedError("Unauthorized");
       }
-      const user = await userService.getUserProfile(req.user.id);
-      res.status(200).json(user);
+      const { data } = await userService.getUserProfile(req.user.id);
+      res.status(200).json(data);
     } catch (error) {
       next(error);
     }
@@ -51,11 +51,11 @@ export class UserController {
         profileImageURL: req.body.profileImageURL,
       };
 
-      const updatedUser = await userService.updateUserProfile(
+      const { data } = await userService.updateUserProfile(
         req.user.id,
         updateData
       );
-      res.status(200).json(updatedUser);
+      ~res.status(200).json(data);
     } catch (error) {
       next(error);
     }
