@@ -42,14 +42,15 @@ export async function getMessages(
   ]);
 
   const messages = await prisma.message.findMany({
-    where: { threadId },
+    where: {
+      threadId,
+      deletedAt: null,
+    },
     include: {
       thread: true,
       author: true,
       attachments: {
-        include: {
-          message: true,
-        },
+        include: { message: true },
       },
       reactions: {
         include: {
@@ -90,14 +91,13 @@ export async function createMessage(
   threadId: string,
   data: CreateMessageDTO,
   userId: string
-): Promise<ApiResponse<Message>> {
+): Promise<ApiResponse<MessageWithDetails>> {
   await verifyMembership(householdId, userId, [
     HouseholdRole.ADMIN,
     HouseholdRole.MEMBER,
   ]);
 
   const message = await prisma.$transaction(async (tx) => {
-    // Create the message with all its relations
     const newMessage = await tx.message.create({
       data: {
         threadId,
@@ -107,22 +107,18 @@ export async function createMessage(
           create: data.attachments || [],
         },
         mentions: {
-          create: data.mentions?.map((userId) => ({ userId })) || [],
+          create:
+            data.mentions?.map((userId) => ({
+              userId,
+              mentionedAt: new Date(),
+            })) || [],
         },
         reactions: {
           create: data.reactions || [],
         },
       },
       include: {
-        thread: {
-          include: {
-            participants: {
-              include: {
-                user: true,
-              },
-            },
-          },
-        },
+        thread: true,
         author: true,
         attachments: {
           include: {
@@ -159,9 +155,31 @@ export async function createMessage(
     return newMessage;
   });
 
-  // Now the type assertion matches the structure
-  return wrapResponse(
-    transformMessage(message as PrismaMessageWithFullRelations)
+  if (!isPrismaMessageWithFullRelations(message)) {
+    throw new Error("Failed to create message with all required relations");
+  }
+
+  const transformedMessage = transformMessageWithDetails(message);
+
+  // Emit socket event
+  getIO().to(`household_${householdId}`).emit("message_update", {
+    action: MessageAction.CREATED,
+    message: transformedMessage,
+  });
+
+  return wrapResponse(transformedMessage);
+}
+
+// Add type guard
+function isPrismaMessageWithFullRelations(
+  message: any
+): message is PrismaMessageWithFullRelations {
+  return (
+    message &&
+    message.author &&
+    message.thread &&
+    typeof message.id === "string" &&
+    typeof message.content === "string"
   );
 }
 

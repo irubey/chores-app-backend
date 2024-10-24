@@ -14,15 +14,17 @@ export function transformUser(
   const { id, email, name, createdAt, updatedAt, deletedAt, profileImageURL } =
     prismaUser;
 
-  return {
+  const user: User = {
     id,
     email,
     name,
     createdAt,
     updatedAt,
     deletedAt: deletedAt ?? undefined,
-    profileImageURL: profileImageURL ?? "",
+    profileImageURL: profileImageURL ?? undefined, // Change from "" to undefined
   };
+
+  return user;
 }
 
 /**

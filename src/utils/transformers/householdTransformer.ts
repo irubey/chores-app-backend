@@ -18,6 +18,22 @@ function isValidHouseholdRole(role: string): role is HouseholdRole {
   return Object.values(HouseholdRole).includes(role as HouseholdRole);
 }
 
+// Add specific type for member input
+interface PrismaMemberInput {
+  id: string;
+  userId: string;
+  householdId: string;
+  role: string;
+  joinedAt: Date;
+  leftAt: Date | null;
+  isInvited: boolean;
+  isAccepted: boolean;
+  isRejected: boolean;
+  isSelected: boolean;
+  lastAssignedChoreAt: Date | null;
+  user?: PrismaUserMinimal;
+}
+
 export function transformHousehold(household: PrismaHouseholdBase): Household {
   return {
     id: household.id,
@@ -43,27 +59,18 @@ export function transformHouseholdToHouseholdWithMembers(
   };
 }
 
-export function transformHouseholdMember(member: {
-  id: string;
-  userId: string;
-  householdId: string;
-  role: string;
-  joinedAt: Date;
-  leftAt: Date | null;
-  isInvited: boolean;
-  isAccepted: boolean;
-  isRejected: boolean;
-  isSelected: boolean;
-  lastAssignedChoreAt: Date | null;
-  user?: PrismaUserMinimal;
-}): HouseholdMemberWithUser {
+export function transformHouseholdMember(
+  member: PrismaMemberInput
+): HouseholdMemberWithUser {
+  if (!isValidHouseholdRole(member.role)) {
+    throw new Error(`Invalid household role: ${member.role}`);
+  }
+
   return {
     id: member.id,
     userId: member.userId,
     householdId: member.householdId,
-    role: isValidHouseholdRole(member.role)
-      ? member.role
-      : HouseholdRole.MEMBER,
+    role: member.role as HouseholdRole,
     joinedAt: member.joinedAt,
     leftAt: member.leftAt ?? undefined,
     isInvited: member.isInvited,

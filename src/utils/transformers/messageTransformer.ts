@@ -47,27 +47,21 @@ export function transformMessage(message: PrismaMessageBase): Message {
 export function transformMessageWithDetails(
   message: PrismaMessageWithFullRelations
 ): MessageWithDetails {
-  if (!message.author || !message.thread) {
-    throw new Error("Message must have an author and thread");
+  if (!message.author) {
+    throw new Error("Message must have an author");
   }
 
-  const transformedMessage = {
+  if (!message.thread) {
+    throw new Error("Message must have a thread");
+  }
+
+  const transformedMessage: MessageWithDetails = {
     ...transformMessage(message),
     author: transformUser(message.author),
-    attachments:
-      message.attachments?.map((attachment) =>
-        transformAttachment(attachment)
-      ) ?? undefined,
-    reactions:
-      message.reactions?.map((reaction) =>
-        transformReactionWithUser(reaction)
-      ) ?? undefined,
-    mentions:
-      message.mentions?.map((mention) => transformMentionWithUser(mention)) ??
-      undefined,
-    reads:
-      message.reads?.map((read) => transformMessageReadWithUser(read)) ??
-      undefined,
+    attachments: message.attachments?.map(transformAttachment),
+    reactions: message.reactions?.map(transformReactionWithUser),
+    mentions: message.mentions?.map(transformMentionWithUser),
+    reads: message.reads?.map(transformMessageReadWithUser),
   };
 
   return transformedMessage;
@@ -88,24 +82,37 @@ export function transformThread(thread: PrismaThreadBase): Thread {
 export function transformThreadWithMessages(
   thread: PrismaThreadWithMessagesAndParticipants
 ): ThreadWithMessages {
+  if (!thread.messages) {
+    return {
+      ...transformThread(thread),
+      messages: [],
+    };
+  }
+
   return {
     ...transformThread(thread),
-    messages:
-      thread.messages?.map((message) =>
-        transformMessageWithDetails({
-          ...message,
-          thread: thread, // Add the thread context to each message
-        })
-      ) ?? [],
+    messages: thread.messages.map((message) =>
+      transformMessageWithDetails({
+        ...message,
+        thread: thread,
+      })
+    ),
   };
 }
 
 export function transformThreadWithParticipants(
   thread: PrismaThreadWithParticipantsOnly
 ): ThreadWithParticipants {
+  if (!thread.participants) {
+    return {
+      ...transformThread(thread),
+      participants: [],
+    };
+  }
+
   return {
     ...transformThread(thread),
-    participants: thread.participants?.map(transformHouseholdMember) ?? [],
+    participants: thread.participants.map(transformHouseholdMember),
   };
 }
 

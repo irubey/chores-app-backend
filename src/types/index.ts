@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { User } from "@prisma/client";
+import { User } from "@shared/types";
 import { Provider } from "@shared/enums";
 
 /**
@@ -9,6 +9,7 @@ export interface AuthenticatedRequest extends Request {
   user?: User;
   cookies: {
     refreshToken?: string;
+    accessToken?: string;
   };
   query: {
     includeMembers?: string;

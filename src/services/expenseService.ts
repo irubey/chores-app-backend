@@ -2,7 +2,6 @@ import prisma from "../config/database";
 import {
   CreateExpenseDTO,
   UpdateExpenseDTO,
-  CreateExpenseSplitDTO,
   UpdateExpenseSplitDTO,
   CreateReceiptDTO,
   Receipt,
@@ -87,11 +86,6 @@ export async function getExpenses(
 
 /**
  * Creates a new expense within a household.
- * @param householdId - The ID of the household.
- * @param data - The expense data.
- * @param userId - The ID of the user creating the expense.
- * @returns The created expense.
- * @throws UnauthorizedError if the user does not have ADMIN role.
  */
 export async function createExpense(
   householdId: string,
@@ -100,7 +94,7 @@ export async function createExpense(
 ): Promise<ApiResponse<ExpenseWithSplitsAndPaidBy>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const expense = await prisma.$transaction(async (tx) => {
+  const expense = (await prisma.$transaction(async (tx) => {
     const createdExpense = await tx.expense.create({
       data: {
         householdId: data.householdId,
@@ -111,13 +105,41 @@ export async function createExpense(
         paidById: data.paidById,
       },
       include: {
+        household: true,
         paidBy: true,
+        splits: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                profileImageURL: true,
+                createdAt: true,
+                updatedAt: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
+        transactions: {
+          include: {
+            fromUser: true,
+            toUser: true,
+          },
+        },
+        receipts: true,
+        history: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
     if (data.splits && data.splits.length > 0) {
       await tx.expenseSplit.createMany({
-        data: data.splits.map((split: CreateExpenseSplitDTO) => ({
+        data: data.splits.map((split) => ({
           expenseId: createdExpense.id,
           userId: split.userId,
           amount: split.amount,
@@ -125,7 +147,6 @@ export async function createExpense(
       });
     }
 
-    // Updated to use transaction client
     await createExpenseHistory(
       tx,
       createdExpense.id,
@@ -133,26 +154,14 @@ export async function createExpense(
       userId
     );
 
-    return tx.expense.findUnique({
-      where: { id: createdExpense.id },
-      include: {
-        splits: true,
-        paidBy: true,
-        transactions: true,
-      },
-    });
-  });
+    return createdExpense;
+  })) as PrismaExpenseWithFullRelations;
 
-  if (!expense) {
-    throw new BadRequestError("Failed to create expense.");
-  }
+  const transformedExpense = transformExpenseWithSplits(expense);
 
-  const transformedExpense = transformExpenseWithSplits(
-    expense as PrismaExpenseWithFullRelations
-  );
   getIO()
     .to(`household_${householdId}`)
-    .emit("expense_update", { expense: transformedExpense });
+    .emit("expense_created", { expense: transformedExpense });
 
   return wrapResponse(transformedExpense);
 }
@@ -176,34 +185,50 @@ export async function getExpenseById(
     HouseholdRole.MEMBER,
   ]);
 
-  const expense = await prisma.expense.findUnique({
+  const expense = (await prisma.expense.findUnique({
     where: { id: expenseId },
     include: {
-      splits: true,
+      household: true,
       paidBy: true,
-      transactions: true,
+      splits: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              profileImageURL: true,
+              createdAt: true,
+              updatedAt: true,
+              deletedAt: true,
+            },
+          },
+        },
+      },
+      transactions: {
+        include: {
+          fromUser: true,
+          toUser: true,
+        },
+      },
+      receipts: true,
+      history: {
+        include: {
+          user: true,
+        },
+      },
     },
-  });
+  })) as PrismaExpenseWithFullRelations;
 
-  if (!expense) {
-    throw new NotFoundError("Expense not found.");
+  if (!expense || expense.householdId !== householdId) {
+    throw new NotFoundError("Expense not found in this household");
   }
 
-  const transformedExpense = transformExpenseWithSplits(
-    expense as PrismaExpenseWithFullRelations
-  );
-  return wrapResponse(transformedExpense);
+  return wrapResponse(transformExpenseWithSplits(expense));
 }
 
 /**
  * Updates an existing expense.
- * @param householdId - The ID of the household.
- * @param expenseId - The ID of the expense to update.
- * @param data - The updated expense data.
- * @param userId - The ID of the user performing the update.
- * @returns The updated expense.
- * @throws UnauthorizedError if the user does not have ADMIN role.
- * @throws NotFoundError if the expense does not exist.
  */
 export async function updateExpense(
   householdId: string,
@@ -213,57 +238,97 @@ export async function updateExpense(
 ): Promise<ApiResponse<ExpenseWithSplitsAndPaidBy>> {
   await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  const expense = await prisma.$transaction(async (prismaClient) => {
-    // Verify expense exists and belongs to household
-    const existingExpense = await prismaClient.expense.findUnique({
+  const expense = (await prisma.$transaction(async (tx) => {
+    const existingExpense = (await tx.expense.findUnique({
       where: { id: expenseId },
-    });
+      include: {
+        household: true,
+        paidBy: true,
+        splits: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                profileImageURL: true,
+                createdAt: true,
+                updatedAt: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
+        transactions: {
+          include: {
+            fromUser: true,
+            toUser: true,
+          },
+        },
+        receipts: true,
+        history: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    })) as PrismaExpenseWithFullRelations;
 
     if (!existingExpense || existingExpense.householdId !== householdId) {
-      throw new NotFoundError("Expense not found in this household.");
+      throw new NotFoundError("Expense not found in this household");
     }
 
-    const updatedExpense = await prismaClient.expense.update({
+    const updatedExpense = await tx.expense.update({
       where: { id: expenseId },
       data: {
         amount: data.amount,
         description: data.description,
         dueDate: data.dueDate,
         category: data.category,
-        splits: data.splits
-          ? {
-              deleteMany: {},
-              create: data.splits.map((split: UpdateExpenseSplitDTO) => ({
-                userId: split.userId,
-                amount: split.amount,
-              })),
-            }
-          : undefined,
       },
       include: {
-        splits: true,
+        household: true,
         paidBy: true,
-        transactions: true,
+        splits: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                profileImageURL: true,
+                createdAt: true,
+                updatedAt: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
+        transactions: {
+          include: {
+            fromUser: true,
+            toUser: true,
+          },
+        },
+        receipts: true,
+        history: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
-    // Use helper function instead of direct creation
-    await createExpenseHistory(
-      prismaClient,
-      expenseId,
-      ExpenseAction.UPDATED,
-      userId
-    );
+    await createExpenseHistory(tx, expenseId, ExpenseAction.UPDATED, userId);
 
     return updatedExpense;
-  });
+  })) as PrismaExpenseWithFullRelations;
 
-  const transformedExpense = transformExpenseWithSplits(
-    expense as PrismaExpenseWithFullRelations
-  );
+  const transformedExpense = transformExpenseWithSplits(expense);
+
   getIO()
     .to(`household_${householdId}`)
-    .emit("expense_update", { expense: transformedExpense });
+    .emit("expense_updated", { expense: transformedExpense });
 
   return wrapResponse(transformedExpense);
 }
@@ -487,4 +552,88 @@ export async function getReceiptById(
     receipt as PrismaReceiptWithFullRelations
   );
   return wrapResponse(transformedReceipt);
+}
+
+/**
+ * Updates the splits for an expense.
+ */
+export async function updateExpenseSplits(
+  householdId: string,
+  expenseId: string,
+  splits: UpdateExpenseSplitDTO[],
+  userId: string
+): Promise<ApiResponse<ExpenseWithSplitsAndPaidBy>> {
+  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
+
+  const expense = (await prisma.$transaction(async (tx) => {
+    const existingExpense = await tx.expense.findUnique({
+      where: { id: expenseId },
+      include: {
+        household: true,
+      },
+    });
+
+    if (!existingExpense || existingExpense.householdId !== householdId) {
+      throw new NotFoundError("Expense not found in this household");
+    }
+
+    // Delete existing splits
+    await tx.expenseSplit.deleteMany({
+      where: { expenseId },
+    });
+
+    // Create new splits
+    await tx.expenseSplit.createMany({
+      data: splits.map((split) => ({
+        expenseId,
+        userId: split.userId,
+        amount: split.amount,
+      })),
+    });
+
+    await createExpenseHistory(tx, expenseId, ExpenseAction.SPLIT, userId);
+
+    return await tx.expense.findUnique({
+      where: { id: expenseId },
+      include: {
+        household: true,
+        paidBy: true,
+        splits: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                profileImageURL: true,
+                createdAt: true,
+                updatedAt: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
+        transactions: {
+          include: {
+            fromUser: true,
+            toUser: true,
+          },
+        },
+        receipts: true,
+        history: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+  })) as PrismaExpenseWithFullRelations;
+
+  const transformedExpense = transformExpenseWithSplits(expense);
+
+  getIO()
+    .to(`household_${householdId}`)
+    .emit("expense_splits_updated", { expense: transformedExpense });
+
+  return wrapResponse(transformedExpense);
 }

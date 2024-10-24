@@ -39,6 +39,7 @@ export type PrismaUserWithFullRelations = Prisma.UserGetPayload<{
     calendarEventHistory: true;
     expenseHistory: true;
     messageReads: true;
+    refreshTokens: true;
   };
 }>;
 
