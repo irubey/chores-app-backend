@@ -17,11 +17,11 @@
     ],
     "resolveJsonModule": true,
     "allowJs": true,
-    "baseUrl": "..",
+    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["shared/*"]
+      "@shared/*": ["node_modules/@irubey/chores-app-shared/dist/*"]
     }
   },
-  "include": ["src/**/*.ts", "../shared/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "prisma/**/*.ts"]
 }
