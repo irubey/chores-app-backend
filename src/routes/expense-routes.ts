@@ -126,4 +126,16 @@ router.delete(
   asyncHandler(ExpenseController.deleteReceipt)
 );
 
+/**
+ * @route   PATCH /api/households/:householdId/expenses/:expenseId/splits
+ * @desc    Update the splits for an expense
+ * @access  Protected, Write access required
+ */
+router.patch(
+  "/:expenseId/splits",
+  authMiddleware,
+  rbacMiddleware("WRITE"),
+  asyncHandler(ExpenseController.updateExpenseSplits)
+);
+
 export default router;

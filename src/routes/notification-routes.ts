@@ -1,9 +1,12 @@
-import { Router } from 'express';
-import { NotificationController } from '../controllers/NotificationController';
-import authMiddleware from '../middlewares/authMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
-import { createNotificationSchema, markAsReadSchema } from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
+import { Router } from "express";
+import { NotificationController } from "../controllers/NotificationController";
+import authMiddleware from "../middlewares/authMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
+import {
+  createNotificationSchema,
+  markAsReadSchema,
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router();
 
@@ -12,7 +15,11 @@ const router = Router();
  * @desc    Retrieve all notifications for the authenticated user
  * @access  Protected
  */
-router.get('/', authMiddleware, asyncHandler(NotificationController.getNotifications));
+router.get(
+  "/",
+  authMiddleware,
+  asyncHandler(NotificationController.getNotifications)
+);
 
 /**
  * @route   POST /api/notifications
@@ -20,7 +27,7 @@ router.get('/', authMiddleware, asyncHandler(NotificationController.getNotificat
  * @access  Protected, Admin only (Assuming only admins can create notifications)
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
   // rbacMiddleware(['ADMIN']), // Uncomment if only admins can create notifications
   validate(createNotificationSchema),
@@ -33,7 +40,7 @@ router.post(
  * @access  Protected
  */
 router.patch(
-  '/:notificationId/read',
+  "/:notificationId/read",
   authMiddleware,
   validate(markAsReadSchema),
   asyncHandler(NotificationController.markAsRead)
@@ -45,9 +52,31 @@ router.patch(
  * @access  Protected
  */
 router.delete(
-  '/:notificationId',
+  "/:notificationId",
   authMiddleware,
   asyncHandler(NotificationController.deleteNotification)
+);
+
+/**
+ * @route   GET /api/notifications/settings
+ * @desc    Retrieve notification settings for the authenticated user or household
+ * @access  Protected
+ */
+router.get(
+  "/settings",
+  authMiddleware,
+  asyncHandler(NotificationController.getNotificationSettings)
+);
+
+/**
+ * @route   PATCH /api/notifications/settings/:settingsId
+ * @desc    Update notification settings
+ * @access  Protected
+ */
+router.patch(
+  "/settings/:settingsId",
+  authMiddleware,
+  asyncHandler(NotificationController.updateNotificationSettings)
 );
 
 export default router;
