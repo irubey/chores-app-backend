@@ -23,8 +23,9 @@ RUN npm install -g ts-node-dev
 # Copy the rest of the application code
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
+# Add these environment variables for better Node.js performance in Docker
+ENV NODE_ENV=development
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Expose the port the app runs on
 EXPOSE 3000
