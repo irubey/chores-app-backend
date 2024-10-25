@@ -15,7 +15,7 @@ const router = Router({ mergeParams: true });
 router.get(
   "/",
   authMiddleware,
-  asyncHandler(CalendarEventController.getEvents)
+  asyncHandler(CalendarEventController.getCalendarEvents)
 );
 
 /**
@@ -27,7 +27,7 @@ router.post(
   "/",
   authMiddleware,
   rbacMiddleware("WRITE"),
-  asyncHandler(CalendarEventController.createEvent)
+  asyncHandler(CalendarEventController.createCalendarEvent)
 );
 
 /**

@@ -377,18 +377,18 @@ export async function removeMember(
 }
 
 /**
- * Updates the status of a household member (e.g., accept invitation).
+ * Updates the status of a household member (e.g., accept/reject invitation).
  * @param householdId - The ID of the household.
- * @param memberId - The ID of the member whose status is to be updated.
- * @param status - The new status ('ACCEPTED' or 'REJECTED').
+ * @param userId - The ID of the user whose status is being updated.
+ * @param status - Whether to accept (true) or reject (false) the invitation.
  * @returns The updated household member.
  * @throws NotFoundError if the member does not exist.
- * @throws UnauthorizedError if the user is not authorized to update the status.
+ * @throws BadRequestError if the invitation status is invalid.
  */
-export async function updateMemberStatus(
+export async function acceptOrRejectInvitation(
   householdId: string,
   userId: string,
-  isSelected: boolean
+  accept: boolean
 ): Promise<ApiResponse<HouseholdMemberWithUser>> {
   const member = await prisma.householdMember.findUnique({
     where: {
@@ -416,6 +416,10 @@ export async function updateMemberStatus(
     throw new NotFoundError("Member not found in the household");
   }
 
+  if (!member.isInvited || member.isAccepted || member.isRejected) {
+    throw new BadRequestError("Invalid invitation status");
+  }
+
   const updatedMember = await prisma.householdMember.update({
     where: {
       userId_householdId: {
@@ -424,13 +428,11 @@ export async function updateMemberStatus(
       },
     },
     data: {
-      isSelected,
-      isInvited: member.isInvited,
-      isAccepted: member.isAccepted,
-      isRejected: member.isRejected,
-      joinedAt: member.joinedAt,
-      leftAt: member.leftAt,
-      lastAssignedChoreAt: member.lastAssignedChoreAt,
+      isInvited: false,
+      isAccepted: accept,
+      isRejected: !accept,
+      joinedAt: accept ? new Date() : member.joinedAt,
+      leftAt: accept ? null : new Date(),
     },
     include: {
       user: {
@@ -448,67 +450,14 @@ export async function updateMemberStatus(
   });
 
   const transformedMember = transformHouseholdMember(updatedMember);
+
+  // Emit appropriate socket event based on acceptance/rejection
+  const eventName = accept ? "invitation_accepted" : "invitation_rejected";
   getIO()
     .to(`household_${householdId}`)
-    .emit("member_status_updated", { member: transformedMember });
+    .emit(eventName, { member: transformedMember });
 
   return wrapResponse(transformedMember);
-}
-
-/**
- * Retrieves all households where the user has selected them.
- * @param userId - The ID of the user.
- * @returns An array of selected households.
- */
-export async function getSelectedHouseholds(
-  userId: string
-): Promise<ApiResponse<HouseholdWithMembers[]>> {
-  const memberships = await prisma.householdMember.findMany({
-    where: {
-      userId,
-      isSelected: true,
-      isAccepted: true,
-      isRejected: false,
-      household: {
-        deletedAt: null,
-      },
-    },
-    include: {
-      household: {
-        include: {
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  email: true,
-                  name: true,
-                  profileImageURL: true,
-                  createdAt: true,
-                  updatedAt: true,
-                  deletedAt: true,
-                },
-              },
-            },
-          },
-          threads: true,
-          chores: true,
-          expenses: true,
-          events: true,
-          choreTemplates: true,
-          notificationSettings: true,
-        },
-      },
-    },
-  });
-
-  const households = memberships.map((membership) =>
-    transformHouseholdToHouseholdWithMembers(
-      membership.household as PrismaHouseholdWithFullRelations
-    )
-  );
-
-  return wrapResponse(households);
 }
 
 /**

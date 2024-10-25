@@ -9,8 +9,20 @@ import {
   addMemberSchema,
 } from "../utils/validationSchemas";
 import { asyncHandler } from "../utils/asyncHandler";
+import { updateSelectedHousehold } from "../services/householdService";
 
 const router = Router();
+
+/**
+ * @route   GET /api/households
+ * @desc    Retrieve all households for the authenticated user
+ * @access  Protected
+ */
+router.get(
+  "/",
+  authMiddleware,
+  asyncHandler(HouseholdController.getUserHouseholds)
+);
 
 /**
  * @route   POST /api/households
@@ -104,7 +116,7 @@ router.delete(
 router.patch(
   "/:householdId/members/:memberId/status",
   authMiddleware,
-  asyncHandler(HouseholdController.updateMemberStatus)
+  asyncHandler(HouseholdController.acceptOrRejectInvitation)
 );
 
 /**
@@ -120,57 +132,24 @@ router.patch(
 
 /**
  * @route   GET /api/households/selected
- * @desc    Retrieve all households selected by the user
+ * @desc    Retrieve household selected by the user
  * @access  Protected
  */
 router.get(
   "/selected",
   authMiddleware,
-  asyncHandler(HouseholdController.getSelectedHouseholds)
+  asyncHandler(HouseholdController.getSelectedHousehold)
 );
 
 /**
  * @route   PATCH /api/households/:householdId/members/:memberId/selection
- * @desc    Toggle the selection state of a household for a member
+ * @desc    Update the selection of a household member
  * @access  Protected
  */
 router.patch(
   "/:householdId/members/:memberId/selection",
   authMiddleware,
-  asyncHandler(HouseholdController.toggleHouseholdSelection)
-);
-
-/**
- * @route   GET /api/households
- * @desc    Retrieve all households for the authenticated user
- * @access  Protected
- */
-router.get(
-  "/",
-  authMiddleware,
-  asyncHandler(HouseholdController.getUserHouseholds)
-);
-
-/**
- * @route POST /api/households/invitations/accept
- * @desc Accept a household invitation
- * @access Protected
- */
-router.post(
-  "/invitations/accept",
-  authMiddleware,
-  asyncHandler(HouseholdController.acceptInvitation)
-);
-
-/**
- * @route POST /api/households/invitations/reject
- * @desc Reject a household invitation
- * @access Protected
- */
-router.post(
-  "/invitations/reject",
-  authMiddleware,
-  asyncHandler(HouseholdController.rejectInvitation)
+  asyncHandler(HouseholdController.updateSelectedHousehold)
 );
 
 /**

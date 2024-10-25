@@ -12,6 +12,13 @@ import { asyncHandler } from "../utils/asyncHandler";
 const router = Router({ mergeParams: true });
 
 /**
+ * @route   GET /api/households/:householdId/chores/:choreId/subtasks
+ * @desc    Retrieve all subtasks for a specific chore
+ * @access  Protected
+ */
+router.get("/", authMiddleware, asyncHandler(SubtaskController.getSubtasks));
+
+/**
  * @route   POST /api/households/:householdId/chores/:choreId/subtasks
  * @desc    Add a new subtask to a specific chore
  * @access  Protected, Write access required

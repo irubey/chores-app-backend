@@ -213,7 +213,7 @@ export class HouseholdController {
   /**
    * Retrieves all households selected by the authenticated user.
    */
-  static async getSelectedHouseholds(
+  static async getSelectedHousehold(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -225,7 +225,7 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.getSelectedHouseholds(userId);
+      const { data } = await householdService.getSelectedHousehold(userId);
       res.status(200).json(data);
     } catch (error) {
       next(error);
@@ -270,7 +270,7 @@ export class HouseholdController {
   /**
    * Updates the status of a household member.
    */
-  static async updateMemberStatus(
+  static async acceptOrRejectInvitation(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -288,7 +288,7 @@ export class HouseholdController {
         throw new UnauthorizedError("You can only update your own status");
       }
 
-      const { data } = await householdService.updateMemberStatus(
+      const { data } = await householdService.acceptOrRejectInvitation(
         householdId,
         memberId,
         status
@@ -373,32 +373,6 @@ export class HouseholdController {
         userId
       );
       res.status(201).json(data);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Accepts a household invitation.
-   */
-  static async acceptInvitation(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId } = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const { data } = await householdService.acceptInvitation(
-        householdId,
-        userId
-      );
-      res.status(200).json(data);
     } catch (error) {
       next(error);
     }

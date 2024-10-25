@@ -75,30 +75,6 @@ router.delete(
   asyncHandler(ChoreController.deleteChore)
 );
 
-// Add Subtask Routes
-router.post(
-  "/:choreId/subtasks",
-  authMiddleware,
-  rbacMiddleware("WRITE"),
-  validate(createSubtaskSchema),
-  asyncHandler(ChoreController.addSubtask)
-);
-
-router.patch(
-  "/:choreId/subtasks/:subtaskId",
-  authMiddleware,
-  rbacMiddleware("WRITE"),
-  validate(updateSubtaskStatusSchema),
-  asyncHandler(ChoreController.updateSubtaskStatus)
-);
-
-router.delete(
-  "/:choreId/subtasks/:subtaskId",
-  authMiddleware,
-  rbacMiddleware("ADMIN"),
-  asyncHandler(ChoreController.deleteSubtask)
-);
-
 /**
  * @route   POST /api/households/:householdId/chores/:choreId/swap-request
  * @desc    Request a chore swap
@@ -108,7 +84,7 @@ router.post(
   "/:choreId/swap-request",
   authMiddleware,
   rbacMiddleware("WRITE"),
-  asyncHandler(ChoreController.requestChoreSwap)
+  asyncHandler(ChoreController.createChoreSwapRequest)
 );
 
 /**
@@ -120,7 +96,7 @@ router.patch(
   "/:choreId/swap-approve",
   authMiddleware,
   rbacMiddleware("WRITE"),
-  asyncHandler(ChoreController.approveChoreSwap)
+  asyncHandler(ChoreController.approveOrRejectChoreSwap)
 );
 
 export default router;

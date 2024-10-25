@@ -1,13 +1,8 @@
 import { Response, NextFunction } from "express";
 import * as choreService from "../services/choreService";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import {
-  CreateChoreDTO,
-  UpdateChoreDTO,
-  CreateSubtaskDTO,
-} from "@shared/types";
+import { CreateChoreDTO, UpdateChoreDTO } from "@shared/types";
 import { AuthenticatedRequest } from "../types";
-import { SubtaskStatus } from "@shared/enums";
 
 /**
  * ChoreController handles all CRUD operations related to chores.
@@ -146,7 +141,7 @@ export class ChoreController {
   /**
    * Requests a chore swap.
    */
-  static async requestChoreSwap(
+  static async createChoreSwapRequest(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
