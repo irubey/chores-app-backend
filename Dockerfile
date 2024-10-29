@@ -11,11 +11,17 @@ RUN apt-get update && \
     apt-get install -y netcat-openbsd && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy package.json and package-lock.json to leverage Docker cache
-COPY package.json package-lock.json ./
+# Copy package files first
+COPY package*.json ./
 
-# Install dependencies including devDependencies
-RUN npm install
+# Copy and rename the npm config file
+COPY .docker.npmrc ./.npmrc
+
+# ARG must be declared before it's used
+ARG NPM_TOKEN
+RUN sed -i "s|NPM_TOKEN_VALUE|${NPM_TOKEN}|g" .npmrc && \
+    npm install && \
+    rm -f .npmrc
 
 # Install ts-node-dev globally for hot-reloading
 RUN npm install -g ts-node-dev

@@ -1,6 +1,9 @@
 import Joi from "joi";
-import { UserRole, NotificationType, TransactionStatus } from "../types";
-import { HouseholdRole } from "@prisma/client";
+import {
+  HouseholdRole,
+  NotificationType,
+  TransactionStatus,
+} from "@shared/enums";
 
 /**
  * Schema for creating a new chore.

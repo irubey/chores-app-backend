@@ -8,11 +8,13 @@ import {
   Provider,
   EventStatus,
   EventCategory,
-  EventRecurrence,
-  ReminderType,
   ChoreSwapRequestStatus,
   Chore,
   Expense,
+  RecurrenceFrequency,
+  EventReminderType,
+  ExpenseCategory,
+  ReactionType,
 } from "@prisma/client";
 import bcrypt from "bcrypt";
 
@@ -71,6 +73,8 @@ async function main() {
   await createChoreSwapRequests(chores, users);
 
   await createReceipts(expenses);
+
+  await createNotificationSettings(users, household.id);
 
   console.log("Database has been seeded. 🌱");
 }
@@ -147,20 +151,21 @@ async function createChores(
 
   for (const chore of chores) {
     const { assignedUserIds, ...choreData } = chore;
+    // Create the chore first without assignments
     const createdChore = await prisma.chore.create({
       data: {
         householdId,
         ...choreData,
-        assignedUsers: {
-          connect: assignedUserIds.map((id) => ({ id })),
-        },
         subtasks: {
           create: [
             {
               title: "Gather cleaning supplies",
               status: SubtaskStatus.PENDING,
             },
-            { title: "Clean surfaces", status: SubtaskStatus.PENDING },
+            {
+              title: "Clean surfaces",
+              status: SubtaskStatus.PENDING,
+            },
             {
               title: "Put away cleaning supplies",
               status: SubtaskStatus.PENDING,
@@ -169,6 +174,19 @@ async function createChores(
         },
       },
     });
+
+    // Create assignments separately
+    await Promise.all(
+      assignedUserIds.map((userId) =>
+        prisma.choreAssignment.create({
+          data: {
+            choreId: createdChore.id,
+            userId: userId,
+          },
+        })
+      )
+    );
+
     createdChores.push(createdChore);
   }
 
@@ -185,14 +203,14 @@ async function createExpenses(
       description: "Groceries",
       paidById: users[0].id,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      category: "Food",
+      category: ExpenseCategory.FOOD,
     },
     {
       amount: 30.0,
       description: "Cleaning supplies",
       paidById: users[1].id,
       dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      category: "Household",
+      category: ExpenseCategory.OTHER,
     },
   ];
 
@@ -228,9 +246,27 @@ async function createExpenses(
 }
 
 async function createMessagesAndThreads(householdId: string, users: any[]) {
-  const message = await prisma.message.create({
+  // Create a thread first
+  const thread = await prisma.thread.create({
     data: {
       householdId,
+      authorId: users[0].id,
+      title: "Cleaning Schedule Discussion",
+      participants: {
+        connect: users.map((user) => ({
+          userId_householdId: {
+            userId: user.id,
+            householdId,
+          },
+        })),
+      },
+    },
+  });
+
+  // Create messages in the thread
+  const message = await prisma.message.create({
+    data: {
+      threadId: thread.id,
       authorId: users[0].id,
       content: "Hey everyone, let's discuss our cleaning schedule!",
       attachments: {
@@ -242,52 +278,52 @@ async function createMessagesAndThreads(householdId: string, users: any[]) {
     },
   });
 
-  await prisma.thread.createMany({
-    data: [
-      {
-        messageId: message.id,
-        authorId: users[1].id,
-        content: "Sounds good! I'm free on weekends.",
-      },
-      {
-        messageId: message.id,
-        authorId: users[2].id,
-        content: "I can take care of the kitchen on Wednesdays.",
-      },
-    ],
+  // Add reactions to the message
+  await prisma.reaction.create({
+    data: {
+      messageId: message.id,
+      userId: users[1].id,
+      emoji: "👍",
+      type: ReactionType.LIKE,
+    },
+  });
+
+  // Add message history
+  await prisma.messageRead.createMany({
+    data: users.map((user) => ({
+      messageId: message.id,
+      userId: user.id,
+    })),
   });
 }
 
 async function createEvents(householdId: string, users: any[]) {
-  await prisma.event.createMany({
-    data: [
-      {
-        householdId,
-        title: "House Meeting",
-        description: "Monthly catch-up and planning session",
-        startTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-        endTime: new Date(
-          Date.now() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000
-        ),
-        createdById: users[0].id,
-        category: EventCategory.MEETING,
-        status: EventStatus.SCHEDULED,
-        recurrence: EventRecurrence.MONTHLY,
+  // Create recurrence rule first
+  const monthlyRule = await prisma.recurrenceRule.create({
+    data: {
+      frequency: RecurrenceFrequency.MONTHLY,
+      interval: 1,
+    },
+  });
+
+  await prisma.event.create({
+    data: {
+      householdId,
+      title: "House Meeting",
+      description: "Monthly catch-up and planning session",
+      startTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000),
+      createdById: users[0].id,
+      category: EventCategory.MEETING,
+      status: EventStatus.SCHEDULED,
+      recurrenceRuleId: monthlyRule.id,
+      reminders: {
+        create: {
+          time: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+          type: EventReminderType.PUSH_NOTIFICATION,
+        },
       },
-      {
-        householdId,
-        title: "Game Night",
-        description: "Fun evening with board games",
-        startTime: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
-        endTime: new Date(
-          Date.now() + 10 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000
-        ),
-        createdById: users[1].id,
-        category: EventCategory.SOCIAL,
-        status: EventStatus.SCHEDULED,
-        recurrence: EventRecurrence.WEEKLY,
-      },
-    ],
+    },
   });
 }
 
@@ -296,19 +332,19 @@ async function createNotifications(users: any[]) {
     data: [
       {
         userId: users[0].id,
-        type: NotificationType.CHORE,
+        type: NotificationType.CHORE_ASSIGNED,
         message: "New chore assigned: Clean the kitchen",
         isRead: false,
       },
       {
         userId: users[1].id,
-        type: NotificationType.EXPENSE,
+        type: NotificationType.EXPENSE_UPDATED,
         message: "New expense added: Groceries ($50.00)",
         isRead: false,
       },
       {
         userId: users[2].id,
-        type: NotificationType.MESSAGE,
+        type: NotificationType.NEW_MESSAGE,
         message: "New message in Awesome Apartment",
         isRead: false,
       },
@@ -346,6 +382,24 @@ async function createReceipts(expenses: any[]) {
         expenseId: expense.id,
         url: `https://example.com/receipts/${expense.id}.jpg`,
         fileType: "image/jpeg",
+      },
+    });
+  }
+}
+
+async function createNotificationSettings(users: any[], householdId: string) {
+  for (const user of users) {
+    await prisma.notificationSettings.create({
+      data: {
+        userId: user.id,
+        householdId,
+        messageNotif: true,
+        mentionsNotif: true,
+        reactionsNotif: true,
+        choreNotif: true,
+        financeNotif: true,
+        calendarNotif: true,
+        remindersNotif: true,
       },
     });
   }
