@@ -11,33 +11,35 @@
 
    echo "PostgreSQL started"
 
-   # Run Prisma migrations
-   echo "Checking for schema changes and applying migrations..."
-   npx prisma migrate dev --name init
+   # In development, reset the database and apply migrations
+   if [ "$NODE_ENV" = "development" ]; then
+     echo "Development environment detected..."
+     
+     # Reset the database (this is safe in development)
+     # The --skip-seed flag prevents double seeding
+     echo "Resetting database..."
+     npx prisma migrate reset --force --skip-seed
+     
+     # Generate Prisma client
+     echo "Generating Prisma client..."
+     npx prisma generate
 
-   # Check if migrations were successful
-   if [ $? -ne 0 ]; then
-     echo "Prisma migrations failed. Exiting..."
-     exit 1
+     # Run database seeding
+     echo "Seeding the database..."
+     npx prisma db seed
+   else
+     # In production, just deploy existing migrations
+     echo "Applying existing migrations..."
+     npx prisma migrate deploy
+     
+     # Generate Prisma client
+     echo "Generating Prisma client..."
+     npx prisma generate
    fi
 
-   # Generate Prisma client
-   echo "Generating Prisma client..."
-   npx prisma generate
-
-   # Check if client generation was successful
+   # Check if operations were successful
    if [ $? -ne 0 ]; then
-     echo "Prisma client generation failed. Exiting..."
-     exit 1
-   fi
-
-   # Run Prisma seed
-   echo "Running Prisma seed..."
-   npm run seed
-
-   # Check if seed was successful
-   if [ $? -ne 0 ]; then
-     echo "Prisma seed failed. Exiting..."
+     echo "Prisma operations failed. Exiting..."
      exit 1
    fi
 

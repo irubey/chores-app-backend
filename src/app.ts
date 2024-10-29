@@ -1,30 +1,34 @@
-import express from 'express';
-import passport from './config/passport';
-import {initializeSocket} from './sockets';
-import http from 'http';
-import cookieParser from 'cookie-parser';
-import cors from 'cors';
-import { errorHandler } from './middlewares/errorHandler';
-import rateLimitMiddleware from './middlewares/rateLimit';
-import { connectDatabase } from './config/database';
-import routes from './routes';
-import logger from './utils/logger';
-import { initializeJobs } from './jobs';
+import express from "express";
+import passport from "./config/passport";
+import { initializeSocket } from "./sockets";
+import http from "http";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import { errorHandler } from "./middlewares/errorHandler";
+import rateLimitMiddleware from "./middlewares/rateLimit";
+import { connectDatabase } from "./config/database";
+import routes from "./routes";
+import logger from "./utils/logger";
+import { initializeJobs } from "./jobs";
+
+//TODO: update routes to accept AbortController if greater efficiency is needed
 
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
 
 // CORS Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'], 
-}));
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:3001",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // Handle Preflight Requests
-app.options('*', cors());
+app.options("*", cors());
 
 // Initialize Socket.io
 const io = initializeSocket(server);
@@ -48,13 +52,13 @@ app.use(cookieParser());
 app.use(passport.initialize());
 
 // Routes
-app.use('/api', routes);
+app.use("/api", routes);
 
 // Error Handling Middleware (should be after other middleware and routes)
 app.use(errorHandler);
 
 // Initialize Scheduled Jobs
-initializeJobs();
+// initializeJobs();
 
 // Start Server
 const PORT = process.env.PORT || 5000;
@@ -63,8 +67,6 @@ server.listen(PORT, () => {
 });
 
 // Health Check Endpoint
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
 });
-
-
