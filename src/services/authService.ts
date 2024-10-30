@@ -40,12 +40,16 @@ export class AuthService {
     accessToken: string,
     refreshToken: string
   ): void {
-    const cookieOptions = {
+    const cookieOptions: {
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: "strict" | "lax" | "none";
+      path: string;
+    } = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict" as const,
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
       path: "/",
-      domain: process.env.COOKIE_DOMAIN || undefined,
     };
 
     res.cookie("accessToken", accessToken, {
@@ -60,8 +64,18 @@ export class AuthService {
   }
 
   private static clearAuthCookies(res: Response): void {
-    res.clearCookie("accessToken", { path: "/" });
-    res.clearCookie("refreshToken", { path: "/" });
+    const cookieOptions = {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite:
+        process.env.NODE_ENV === "production"
+          ? ("strict" as const)
+          : ("lax" as const),
+    };
+
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
   }
 
   static async register(userData: RegisterUserDTO): Promise<ApiResponse<User>> {
@@ -141,7 +155,8 @@ export class AuthService {
     this.setAuthCookies(res, accessToken, refreshToken);
 
     const { passwordHash: _, ...userWithoutPassword } = user;
-    return wrapResponse(transformUser(userWithoutPassword));
+    const response = wrapResponse(transformUser(userWithoutPassword));
+    return response;
   }
 
   static async logout(res: Response): Promise<ApiResponse<void>> {

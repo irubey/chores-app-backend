@@ -21,8 +21,8 @@ export class ThreadController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId } = req.params;
-      const { data } = await threadService.getThreads(householdId, req.user.id);
-      res.status(200).json(data);
+      const response = await threadService.getThreads(householdId, req.user.id);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -46,8 +46,8 @@ export class ThreadController {
         householdId,
         authorId: req.user.id,
       };
-      const { data } = await threadService.createThread(threadData);
-      res.status(201).json(data);
+      const response = await threadService.createThread(threadData);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -66,12 +66,12 @@ export class ThreadController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, threadId } = req.params;
-      const { data } = await threadService.getThreadById(
+      const response = await threadService.getThreadById(
         householdId,
         threadId,
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -91,13 +91,13 @@ export class ThreadController {
       }
       const { householdId, threadId } = req.params;
       const updateData: UpdateThreadDTO = req.body;
-      const { data } = await threadService.updateThread(
+      const response = await threadService.updateThread(
         householdId,
         threadId,
         updateData,
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -137,13 +137,13 @@ export class ThreadController {
       }
       const { householdId, threadId } = req.params;
       const { userIds } = req.body;
-      const { data } = await threadService.inviteUsersToThread(
+      const response = await threadService.inviteUsersToThread(
         householdId,
         threadId,
         { userIds },
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

@@ -22,7 +22,7 @@ export class ChoreEventController {
         choreId,
         req.user!.id
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -45,7 +45,7 @@ export class ChoreEventController {
         choreEventData,
         req.user!.id
       );
-      res.status(201).json(response.data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -67,7 +67,7 @@ export class ChoreEventController {
         eventId,
         req.user!.id
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -91,7 +91,7 @@ export class ChoreEventController {
         updateData,
         req.user!.id
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -137,7 +137,7 @@ export class ChoreEventController {
         req.user!.id,
         status
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -162,7 +162,7 @@ export class ChoreEventController {
         new Date(newStartTime),
         new Date(newEndTime)
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -185,7 +185,7 @@ export class ChoreEventController {
         req.user!.id,
         limit ? parseInt(limit as string, 10) : undefined
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

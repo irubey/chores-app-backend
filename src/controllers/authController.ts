@@ -18,8 +18,8 @@ export class AuthController {
   ): Promise<void> {
     try {
       const userData = req.body;
-      const { data } = await AuthService.register(userData);
-      res.status(201).json(data);
+      const response = await AuthService.register(userData);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -34,8 +34,8 @@ export class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { data } = await AuthService.login(req.body, res);
-      res.status(200).json(data);
+      const response = await AuthService.login(req.body, res);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

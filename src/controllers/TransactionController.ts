@@ -21,11 +21,11 @@ export class TransactionController {
         throw new UnauthorizedError("Unauthorized");
       }
       const householdId = req.params.householdId;
-      const { data } = await transactionService.getTransactions(
+      const response = await transactionService.getTransactions(
         householdId,
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -52,12 +52,12 @@ export class TransactionController {
         status: req.body.status,
       };
 
-      const { data } = await transactionService.createTransaction(
+      const response = await transactionService.createTransaction(
         householdId,
         transactionData,
         req.user.id
       );
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -80,19 +80,19 @@ export class TransactionController {
         status: req.body.status,
       };
 
-      const { data } = await transactionService.updateTransactionStatus(
+      const response = await transactionService.updateTransactionStatus(
         householdId,
         transactionId,
         updateData,
         req.user.id
       );
 
-      if (!data) {
+      if (!response) {
         throw new NotFoundError(
           "Transaction not found or you do not have permission to update it"
         );
       }
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

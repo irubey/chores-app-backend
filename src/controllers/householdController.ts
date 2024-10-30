@@ -28,11 +28,11 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.createHousehold(
+      const response = await householdService.createHousehold(
         householdData,
         userId
       );
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -60,17 +60,17 @@ export class HouseholdController {
         (Array.isArray(includeMembersParam) &&
           includeMembersParam[0] === "true");
 
-      const { data } = await householdService.getHouseholdById(
+      const response = await householdService.getHouseholdById(
         householdId,
         userId,
         includeMembers
       );
 
-      if (!data) {
+      if (!response) {
         throw new NotFoundError("Household not found");
       }
 
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -93,19 +93,19 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.updateHousehold(
+      const response = await householdService.updateHousehold(
         householdId,
         updateData,
         userId
       );
 
-      if (!data) {
+      if (!response) {
         throw new NotFoundError(
           "Household not found or you do not have permission to update it"
         );
       }
 
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -151,13 +151,13 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.addMember(
+      const response = await householdService.addMember(
         householdId,
         memberData,
         userId
       );
 
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -179,8 +179,8 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.getMembers(householdId, userId);
-      res.status(200).json(data);
+      const response = await householdService.getMembers(householdId, userId);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -225,8 +225,8 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.getSelectedHousehold(userId);
-      res.status(200).json(data);
+      const response = await householdService.getSelectedHousehold(userId);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -255,13 +255,13 @@ export class HouseholdController {
         );
       }
 
-      const { data } = await householdService.updateSelectedHousehold(
+      const response = await householdService.updateSelectedHousehold(
         householdId,
         userId,
         isSelected
       );
 
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -288,12 +288,12 @@ export class HouseholdController {
         throw new UnauthorizedError("You can only update your own status");
       }
 
-      const { data } = await householdService.acceptOrRejectInvitation(
+      const response = await householdService.acceptOrRejectInvitation(
         householdId,
         memberId,
         status
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -316,13 +316,13 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.updateMemberRole(
+      const response = await householdService.updateMemberRole(
         householdId,
         memberId,
         role,
         userId
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -343,8 +343,8 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.getUserHouseholds(userId);
-      res.status(200).json(data);
+      const response = await householdService.getUserHouseholds(userId);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -367,12 +367,12 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const { data } = await householdService.sendInvitation(
+      const response = await householdService.sendInvitation(
         householdId,
         { email },
         userId
       );
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Response, NextFunction, response } from "express";
 import * as userService from "../services/userService";
 import { UnauthorizedError } from "../middlewares/errorHandler";
 import { AuthenticatedRequest } from "../types";
@@ -23,8 +23,8 @@ export class UserController {
       if (!req.user) {
         throw new UnauthorizedError("Unauthorized");
       }
-      const { data } = await userService.getUserProfile(req.user.id);
-      res.status(200).json(data);
+      const response = await userService.getUserProfile(req.user.id);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -51,11 +51,11 @@ export class UserController {
         profileImageURL: req.body.profileImageURL,
       };
 
-      const { data } = await userService.updateUserProfile(
+      const response = await userService.updateUserProfile(
         req.user.id,
         updateData
       );
-      ~res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

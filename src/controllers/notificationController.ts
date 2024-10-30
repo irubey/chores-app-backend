@@ -25,8 +25,8 @@ export class NotificationController {
         throw new UnauthorizedError("User not authenticated");
       }
 
-      const { data } = await notificationService.getNotifications(req.user.id);
-      res.status(200).json(data);
+      const response = await notificationService.getNotifications(req.user.id);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -50,10 +50,10 @@ export class NotificationController {
         userId: req.user.id, // Ensure the notification is created for the authenticated user
       };
 
-      const { data } = await notificationService.createNotification(
+      const response = await notificationService.createNotification(
         notificationData
       );
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -73,11 +73,11 @@ export class NotificationController {
       }
 
       const { notificationId } = req.params;
-      const { data } = await notificationService.markAsRead(
+      const response = await notificationService.markAsRead(
         req.user.id,
         notificationId
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -118,11 +118,11 @@ export class NotificationController {
       }
 
       const { householdId } = req.params;
-      const { data } = await notificationService.getNotificationSettings(
+      const response = await notificationService.getNotificationSettings(
         req.user.id,
         householdId
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -145,11 +145,11 @@ export class NotificationController {
       const settingsData = req.body;
 
       // Ensure the settings belong to the authenticated user
-      const { data } = await notificationService.updateNotificationSettings(
+      const response = await notificationService.updateNotificationSettings(
         settingsId,
         settingsData
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

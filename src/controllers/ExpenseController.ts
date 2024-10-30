@@ -26,11 +26,11 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const householdId = req.params.householdId;
-      const { data } = await expenseService.getExpenses(
+      const response = await expenseService.getExpenses(
         householdId,
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -50,12 +50,12 @@ export class ExpenseController {
       }
       const householdId = req.params.householdId;
       const expenseData = req.body;
-      const { data } = await expenseService.createExpense(
+      const response = await expenseService.createExpense(
         householdId,
         expenseData,
         req.user.id
       );
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -74,15 +74,15 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
-      const { data } = await expenseService.getExpenseById(
+      const response = await expenseService.getExpenseById(
         householdId,
         expenseId,
         req.user.id
       );
-      if (!data) {
+      if (!response) {
         throw new NotFoundError("Expense not found");
       }
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -102,18 +102,18 @@ export class ExpenseController {
       }
       const { householdId, expenseId } = req.params;
       const updateData = req.body;
-      const { data } = await expenseService.updateExpense(
+      const response = await expenseService.updateExpense(
         householdId,
         expenseId,
         updateData,
         req.user.id
       );
-      if (!data) {
+      if (!response) {
         throw new NotFoundError(
           "Expense not found or you do not have permission to update it"
         );
       }
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -162,7 +162,7 @@ export class ExpenseController {
       const fileType = req.file.mimetype;
 
       // Call the service to handle database and storage logic
-      const { data } = await expenseService.uploadReceipt(
+      const response = await expenseService.uploadReceipt(
         householdId,
         expenseId,
         req.user.id,
@@ -173,7 +173,7 @@ export class ExpenseController {
         }
       );
 
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -192,12 +192,12 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
-      const { data } = await expenseService.getReceipts(
+      const response = await expenseService.getReceipts(
         householdId,
         expenseId,
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -216,16 +216,16 @@ export class ExpenseController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId, receiptId } = req.params;
-      const { data } = await expenseService.getReceiptById(
+      const response = await expenseService.getReceiptById(
         householdId,
         expenseId,
         receiptId,
         req.user.id
       );
-      if (!data) {
+      if (!response) {
         throw new NotFoundError("Receipt not found");
       }
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -272,13 +272,13 @@ export class ExpenseController {
       const { householdId, expenseId } = req.params;
       const splits: UpdateExpenseSplitDTO[] = req.body.splits;
 
-      const { data } = await expenseService.updateExpenseSplits(
+      const response = await expenseService.updateExpenseSplits(
         householdId,
         expenseId,
         splits,
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
