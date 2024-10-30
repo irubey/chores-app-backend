@@ -25,7 +25,7 @@ export class ChoreController {
       }
 
       const response = await choreService.getChores(householdId, userId);
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -53,7 +53,7 @@ export class ChoreController {
         choreData,
         userId
       );
-      res.status(201).json(response.data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -80,7 +80,7 @@ export class ChoreController {
         choreId,
         userId
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -109,7 +109,7 @@ export class ChoreController {
         updateData,
         userId
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -160,7 +160,7 @@ export class ChoreController {
         { choreId, targetUserId },
         requestingUserId
       );
-      res.status(201).json(response.data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -190,7 +190,7 @@ export class ChoreController {
         approved,
         approvingUserId
       );
-      res.status(200).json(response.data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

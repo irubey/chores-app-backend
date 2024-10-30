@@ -27,13 +27,13 @@ export class SubtaskController {
       const { householdId, choreId } = req.params;
       const subtaskData: CreateSubtaskDTO = req.body;
 
-      const { data } = await subtaskService.addSubtask(
+      const response = await subtaskService.addSubtask(
         householdId,
         choreId,
         subtaskData,
         req.user.id
       );
-      res.status(201).json(data);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -55,15 +55,14 @@ export class SubtaskController {
       const { householdId, choreId, subtaskId } = req.params;
       const subtaskData: UpdateSubtaskDTO = req.body;
 
-      const { data } = await subtaskService.updateSubtask(
+      const response = await subtaskService.updateSubtask(
         householdId,
         choreId,
         subtaskId,
         subtaskData,
         req.user.id
       );
-
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
@@ -84,12 +83,12 @@ export class SubtaskController {
 
       const { householdId, choreId } = req.params;
 
-      const { data } = await subtaskService.getSubtasks(
+      const response = await subtaskService.getSubtasks(
         householdId,
         choreId,
         req.user.id
       );
-      res.status(200).json(data);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }

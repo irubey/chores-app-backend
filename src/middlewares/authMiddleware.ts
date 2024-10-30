@@ -22,42 +22,39 @@ const authMiddleware: RequestHandler = async (
     }
 
     try {
-      // Verify access token
-      const decoded = AuthService.verifyAccessToken(accessToken);
+      if (accessToken) {
+        const decoded = AuthService.verifyAccessToken(accessToken);
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImageURL: true,
+            createdAt: true,
+            updatedAt: true,
+            deletedAt: true,
+          },
+        });
 
-      // Get user with minimal fields
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImageURL: true,
-          createdAt: true,
-          updatedAt: true,
-          deletedAt: true,
-        },
-      });
-
-      if (!user) throw new AppError("User not found", 401);
-
-      // Transform user to match shared User interface
-      (req as AuthenticatedRequest).user = transformUser(user);
-      return next();
-    } catch (error) {
-      // Try to refresh the token if access token is invalid
+        if (!user) throw new AppError("User not found", 401);
+        (req as AuthenticatedRequest).user = transformUser(user);
+        return next();
+      }
+    } catch (accessError) {
+      // Access token invalid or expired, try refresh
       if (refreshToken) {
         try {
           await AuthService.refreshToken(refreshToken, res);
-          // Token refresh successful, continue with request
+          // Retry the original request after token refresh
           return next();
         } catch (refreshError) {
-          // If refresh fails, throw authentication error
           throw new AppError("Authentication failed", 401);
         }
       }
-      throw new AppError("Authentication failed", 401);
     }
+
+    throw new AppError("Authentication failed", 401);
   } catch (error) {
     next(error);
   }

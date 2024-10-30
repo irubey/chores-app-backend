@@ -22,7 +22,7 @@ export class MessageController {
         threadId,
         req.user!.id
       );
-      res.status(response.status || 200).json(response.data);
+      res.status(response.status || 200).json(response);
     } catch (error) {
       next(error);
     }
@@ -44,7 +44,7 @@ export class MessageController {
         req.body,
         req.user!.id
       );
-      res.status(response.status || 201).json(response.data);
+      res.status(response.status || 201).json(response);
     } catch (error) {
       next(error);
     }
@@ -66,10 +66,10 @@ export class MessageController {
         messageId,
         req.user!.id
       );
-      if (!response.data) {
+      if (!response) {
         throw new NotFoundError("Message not found");
       }
-      res.status(response.status || 200).json(response.data);
+      res.status(response.status || 200).json(response);
     } catch (error) {
       next(error);
     }
@@ -92,12 +92,12 @@ export class MessageController {
         req.body,
         req.user!.id
       );
-      if (!response.data) {
+      if (!response) {
         throw new NotFoundError(
           "Message not found or you do not have permission to update it"
         );
       }
-      res.status(response.status || 200).json(response.data);
+      res.status(response.status || 200).json(response);
     } catch (error) {
       next(error);
     }
@@ -142,7 +142,7 @@ export class MessageController {
         req.body,
         req.user!.id
       );
-      res.status(response.status || 201).json(response.data);
+      res.status(response.status || 201).json(response);
     } catch (error) {
       next(error);
     }
@@ -165,10 +165,10 @@ export class MessageController {
         attachmentId,
         req.user!.id
       );
-      if (!response.data) {
+      if (!response) {
         throw new NotFoundError("Attachment not found");
       }
-      res.status(response.status || 200).json(response.data);
+      res.status(response.status || 200).json(response);
     } catch (error) {
       next(error);
     }
