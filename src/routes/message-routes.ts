@@ -30,17 +30,6 @@ router.post(
 );
 
 /**
- * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId
- * @desc    Retrieve details of a specific message
- * @access  Protected
- */
-router.get(
-  "/:messageId",
-  authMiddleware,
-  asyncHandler(MessageController.getMessageDetails)
-);
-
-/**
  * @route   PATCH /api/households/:householdId/threads/:threadId/messages/:messageId
  * @desc    Update an existing message
  * @access  Protected, Message Owner
@@ -64,6 +53,40 @@ router.delete(
 );
 
 /**
+ * @route   PATCH /api/households/:householdId/threads/:threadId/messages/:messageId/read
+ * @desc    Mark a message as read
+ * @access  Protected
+ */
+router.patch(
+  "/:messageId/read",
+  authMiddleware,
+  asyncHandler(MessageController.markMessageAsRead)
+);
+
+/**
+ * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId/read-status
+ * @desc    Get message read status
+ * @access  Protected
+ */
+router.get(
+  "/:messageId/read-status",
+  authMiddleware,
+  asyncHandler(MessageController.getMessageReadStatus)
+);
+
+//Attachment related endpoints
+/**
+ * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId/attachments
+ * @desc    Get message attachments
+ * @access  Protected
+ */
+router.get(
+  "/:messageId/attachments",
+  authMiddleware,
+  asyncHandler(MessageController.getMessageAttachments)
+);
+
+/**
  * @route   POST /api/households/:householdId/threads/:threadId/messages/:messageId/attachments
  * @desc    Add an attachment to a specific message
  * @access  Protected
@@ -82,7 +105,7 @@ router.post(
 router.get(
   "/:messageId/attachments/:attachmentId",
   authMiddleware,
-  asyncHandler(MessageController.getAttachmentDetails)
+  asyncHandler(MessageController.getAttachment)
 );
 
 /**
@@ -94,6 +117,118 @@ router.delete(
   "/:messageId/attachments/:attachmentId",
   authMiddleware,
   asyncHandler(MessageController.deleteAttachment)
+);
+
+//Mention related endpoints
+/**
+ * @route   POST /api/households/:householdId/threads/:threadId/messages/:messageId/mentions
+ * @desc    Create a mention in a message
+ * @access  Protected
+ */
+router.post(
+  "/:messageId/mentions",
+  authMiddleware,
+  asyncHandler(MessageController.createMention)
+);
+
+/**
+ * @route   GET /api/households/:householdId/messages/mentions
+ * @desc    Get user mentions
+ * @access  Protected
+ */
+router.get(
+  "/mentions",
+  authMiddleware,
+  asyncHandler(MessageController.getUserMentions)
+);
+
+/**
+ * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId/mentions
+ * @desc    Get message mentions
+ * @access  Protected
+ */
+router.get(
+  "/:messageId/mentions",
+  authMiddleware,
+  asyncHandler(MessageController.getMessageMentions)
+);
+
+/**
+ * @route   DELETE /api/households/:householdId/threads/:threadId/messages/:messageId/mentions/:mentionId
+ * @desc    Delete a mention from a message
+ * @access  Protected
+ */
+router.delete(
+  "/:messageId/mentions/:mentionId",
+  authMiddleware,
+  asyncHandler(MessageController.deleteMention)
+);
+
+/**
+ * @route   GET /api/households/:householdId/messages/unread-mentions-count
+ * @desc    Get unread mentions count
+ * @access  Protected
+ */
+router.get(
+  "/unread-mentions-count",
+  authMiddleware,
+  asyncHandler(MessageController.getUnreadMentionsCount)
+);
+
+//Reaction related endpoints
+/**
+ * @route   POST /api/households/:householdId/threads/:threadId/messages/:messageId/reactions
+ * @desc    Add a reaction to a message
+ * @access  Protected
+ */
+router.post(
+  "/:messageId/reactions",
+  authMiddleware,
+  asyncHandler(MessageController.addReaction)
+);
+
+/**
+ * @route   DELETE /api/households/:householdId/threads/:threadId/messages/:messageId/reactions/:reactionId
+ * @desc    Remove a reaction from a message
+ * @access  Protected
+ */
+router.delete(
+  "/:messageId/reactions/:reactionId",
+  authMiddleware,
+  asyncHandler(MessageController.removeReaction)
+);
+
+/**
+ * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId/reactions
+ * @desc    Get message reactions
+ * @access  Protected
+ */
+router.get(
+  "/:messageId/reactions",
+  authMiddleware,
+  asyncHandler(MessageController.getMessageReactions)
+);
+
+/**
+ * @route   GET /api/households/:householdId/messages/reaction-analytics
+ * @desc    Get reaction analytics
+ * @access  Protected
+ */
+router.get(
+  "/reaction-analytics",
+  authMiddleware,
+  asyncHandler(MessageController.getReactionAnalytics)
+);
+
+/**
+ * @route   GET /api/households/:householdId/messages/reactions-by-type
+ * @desc    Get reactions by type
+ * @access  Protected
+ */
+router.get(
+  "/reactions-by-type",
+  authMiddleware,
+  asyncHandler(MessageController.getReactionsByType)
 );
 
 export default router;

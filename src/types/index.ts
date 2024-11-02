@@ -14,6 +14,7 @@ export interface AuthenticatedRequest extends Request {
   query: {
     includeMembers?: string;
     limit?: string;
+    cursor?: string;
   };
 }
 

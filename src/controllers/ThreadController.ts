@@ -46,7 +46,10 @@ export class ThreadController {
         householdId,
         authorId: req.user.id,
       };
-      const response = await threadService.createThread(threadData);
+      const response = await threadService.createThread(
+        threadData,
+        req.user.id
+      );
       res.status(201).json(response);
     } catch (error) {
       next(error);
@@ -56,7 +59,7 @@ export class ThreadController {
   /**
    * Retrieves details of a specific thread.
    */
-  static async getThreadDetails(
+  static async getThreadById(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -126,7 +129,7 @@ export class ThreadController {
   /**
    * Invites users to a thread.
    */
-  static async inviteUsers(
+  static async inviteUsersToThread(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction

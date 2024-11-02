@@ -301,31 +301,67 @@ export type PrismaSubtaskWithFullRelations = Prisma.SubtaskGetPayload<{
 
 export type PrismaThreadWithFullRelations = Prisma.ThreadGetPayload<{
   include: {
+    author: {
+      select: {
+        id: true;
+        email: true;
+        name: true;
+        profileImageURL: true;
+        createdAt: true;
+        updatedAt: true;
+        deletedAt: true;
+      };
+    };
+    household: {
+      select: {
+        id: true;
+        name: true;
+        createdAt: true;
+        updatedAt: true;
+        deletedAt: true;
+        currency: true;
+        icon: true;
+        timezone: true;
+        language: true;
+      };
+    };
     messages: {
       include: {
         thread: true;
-        author: true;
+        author: {
+          select: {
+            id: true;
+            email: true;
+            name: true;
+            profileImageURL: true;
+            createdAt: true;
+            updatedAt: true;
+            deletedAt: true;
+          };
+        };
         attachments: {
           include: {
-            message: true;
+            message: {
+              select: {
+                id: true;
+                threadId: true;
+              };
+            };
           };
         };
         reactions: {
           include: {
             user: true;
-            message: true;
           };
         };
         mentions: {
           include: {
             user: true;
-            message: true;
           };
         };
         reads: {
           include: {
             user: true;
-            message: true;
           };
         };
       };
@@ -340,29 +376,81 @@ export type PrismaThreadWithFullRelations = Prisma.ThreadGetPayload<{
 
 export type PrismaMessageWithFullRelations = Prisma.MessageGetPayload<{
   include: {
-    thread: true;
-    author: true;
+    thread: {
+      select: {
+        id: true;
+        householdId: true;
+        authorId: true;
+        title: true;
+        createdAt: true;
+        updatedAt: true;
+        deletedAt: true;
+      };
+    };
+    author: {
+      select: {
+        id: true;
+        email: true;
+        name: true;
+        profileImageURL: true;
+        createdAt: true;
+        updatedAt: true;
+        deletedAt: true;
+      };
+    };
     attachments: {
       include: {
-        message: true;
+        message: {
+          select: {
+            id: true;
+            threadId: true;
+          };
+        };
       };
     };
     reactions: {
       include: {
-        user: true;
-        message: true;
+        user: {
+          select: {
+            id: true;
+            email: true;
+            name: true;
+            profileImageURL: true;
+            createdAt: true;
+            updatedAt: true;
+            deletedAt: true;
+          };
+        };
       };
     };
     mentions: {
       include: {
-        user: true;
-        message: true;
+        user: {
+          select: {
+            id: true;
+            email: true;
+            name: true;
+            profileImageURL: true;
+            createdAt: true;
+            updatedAt: true;
+            deletedAt: true;
+          };
+        };
       };
     };
     reads: {
       include: {
-        user: true;
-        message: true;
+        user: {
+          select: {
+            id: true;
+            email: true;
+            name: true;
+            profileImageURL: true;
+            createdAt: true;
+            updatedAt: true;
+            deletedAt: true;
+          };
+        };
       };
     };
   };
@@ -371,8 +459,12 @@ export type PrismaMessageWithFullRelations = Prisma.MessageGetPayload<{
 export type PrismaMessageMinimal = Prisma.MessageGetPayload<{
   select: {
     id: true;
+    threadId: true;
+    authorId: true;
     content: true;
     createdAt: true;
+    updatedAt: true;
+    deletedAt: true;
   };
 }>;
 
@@ -474,28 +566,105 @@ export type PrismaChoreSwapRequestWithRelations =
 
 export type PrismaAttachmentWithFullRelations = Prisma.AttachmentGetPayload<{
   include: {
-    message: true;
+    message: {
+      select: {
+        id: true;
+        threadId: true;
+      };
+    };
   };
 }>;
 
 export type PrismaReactionWithFullRelations = Prisma.ReactionGetPayload<{
   include: {
-    message: true;
-    user: true;
+    user: {
+      select: {
+        id: true;
+        email: true;
+        name: true;
+        profileImageURL: true;
+        createdAt: true;
+        updatedAt: true;
+        deletedAt: true;
+      };
+    };
+    message: {
+      include: {
+        thread: {
+          select: {
+            id: true;
+            householdId: true;
+            authorId: true;
+            title: true;
+            createdAt: true;
+            updatedAt: true;
+            deletedAt: true;
+          };
+        };
+      };
+    };
   };
 }>;
 
 export type PrismaMentionWithFullRelations = Prisma.MentionGetPayload<{
   include: {
-    message: true;
-    user: true;
+    user: {
+      select: {
+        id: true;
+        email: true;
+        name: true;
+        profileImageURL: true;
+        createdAt: true;
+        updatedAt: true;
+        deletedAt: true;
+      };
+    };
+    message: {
+      include: {
+        thread: {
+          select: {
+            id: true;
+            householdId: true;
+            authorId: true;
+            title: true;
+            createdAt: true;
+            updatedAt: true;
+            deletedAt: true;
+          };
+        };
+      };
+    };
   };
 }>;
 
 export type PrismaMessageReadWithFullRelations = Prisma.MessageReadGetPayload<{
   include: {
-    message: true;
-    user: true;
+    user: {
+      select: {
+        id: true;
+        email: true;
+        name: true;
+        profileImageURL: true;
+        createdAt: true;
+        updatedAt: true;
+        deletedAt: true;
+      };
+    };
+    message: {
+      include: {
+        thread: {
+          select: {
+            id: true;
+            householdId: true;
+            authorId: true;
+            title: true;
+            createdAt: true;
+            updatedAt: true;
+            deletedAt: true;
+          };
+        };
+      };
+    };
   };
 }>;
 
@@ -547,3 +716,11 @@ export type PrismaThreadWithParticipantsOnly = Prisma.ThreadGetPayload<{
     };
   };
 }>;
+
+// Add new type for reaction analytics
+export type PrismaReactionAnalytics = {
+  type: string;
+  _count: {
+    type: number;
+  };
+}[];
