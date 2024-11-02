@@ -132,13 +132,13 @@ router.patch(
 
 /**
  * @route   GET /api/households/selected
- * @desc    Retrieve household selected by the user
+ * @desc    Retrieve households selected by the user
  * @access  Protected
  */
 router.get(
   "/selected",
   authMiddleware,
-  asyncHandler(HouseholdController.getSelectedHousehold)
+  asyncHandler(HouseholdController.getSelectedHouseholds)
 );
 
 /**

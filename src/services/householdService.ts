@@ -962,22 +962,6 @@ export async function updateSelectedHousehold(
     throw new BadRequestError("Invalid member status");
   }
 
-  // If setting as selected, unselect all other households
-  if (isSelected) {
-    await prisma.householdMember.updateMany({
-      where: {
-        userId,
-        isSelected: true,
-        householdId: {
-          not: householdId,
-        },
-      },
-      data: {
-        isSelected: false,
-      },
-    });
-  }
-
   const updatedMember = await prisma.householdMember.update({
     where: {
       userId_householdId: {
@@ -1007,12 +991,12 @@ export async function updateSelectedHousehold(
 }
 
 /**
- * Gets the currently selected household for a user.
+ * Gets the currently selected households for a user.
  */
-export async function getSelectedHousehold(
+export async function getSelectedHouseholds(
   userId: string
-): Promise<ApiResponse<HouseholdWithMembers>> {
-  const household = (await prisma.household.findFirst({
+): Promise<ApiResponse<HouseholdWithMembers[]>> {
+  const households = (await prisma.household.findMany({
     where: {
       members: {
         some: {
@@ -1047,11 +1031,11 @@ export async function getSelectedHousehold(
       choreTemplates: true,
       notificationSettings: true,
     },
-  })) as PrismaHouseholdWithFullRelations;
+  })) as PrismaHouseholdWithFullRelations[];
 
-  if (!household) {
+  if (!households) {
     throw new NotFoundError("No household selected");
   }
 
-  return wrapResponse(transformHouseholdToHouseholdWithMembers(household));
+  return wrapResponse(households.map(transformHouseholdToHouseholdWithMembers));
 }

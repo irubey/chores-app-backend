@@ -35,7 +35,7 @@ router.post(
 router.get(
   "/:threadId",
   authMiddleware,
-  asyncHandler(ThreadController.getThreadDetails)
+  asyncHandler(ThreadController.getThreadById)
 );
 
 /**
@@ -70,7 +70,7 @@ router.delete(
 router.post(
   "/:threadId/invite",
   authMiddleware,
-  asyncHandler(ThreadController.inviteUsers)
+  asyncHandler(ThreadController.inviteUsersToThread)
 );
 
 export default router;

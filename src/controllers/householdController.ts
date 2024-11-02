@@ -213,7 +213,7 @@ export class HouseholdController {
   /**
    * Retrieves all households selected by the authenticated user.
    */
-  static async getSelectedHousehold(
+  static async getSelectedHouseholds(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -225,7 +225,7 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const response = await householdService.getSelectedHousehold(userId);
+      const response = await householdService.getSelectedHouseholds(userId);
       res.status(200).json(response);
     } catch (error) {
       next(error);

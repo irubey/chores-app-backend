@@ -1,14 +1,18 @@
 import { Response, NextFunction } from "express";
-import * as messageService from "../services/messageService";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import * as messageService from "../services/messages/messageService";
+import * as attachmentService from "../services/messages/attachmentService";
+import * as mentionService from "../services/messages/mentionService";
+import * as reactionService from "../services/messages/reactionService";
 import { AuthenticatedRequest } from "../types";
+import { PaginationOptions } from "@shared/interfaces/pagination";
+import { ReactionType } from "@shared/enums";
 
 /**
- * MessageController handles all CRUD operations related to messages.
+ * MessageController handles all service operations related to messages.
  */
 export class MessageController {
   /**
-   * Retrieves all messages for a specific thread.
+   * Message related endpoints
    */
   static async getMessages(
     req: AuthenticatedRequest,
@@ -17,20 +21,25 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId } = req.params;
+      const { cursor, limit } = req.query;
+
+      const paginationOptions: PaginationOptions = {
+        cursor: cursor as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+      };
+
       const response = await messageService.getMessages(
         householdId,
         threadId,
-        req.user!.id
+        req.user!.id,
+        paginationOptions
       );
-      res.status(response.status || 200).json(response);
+      res.json(response);
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * Creates a new message within a thread.
-   */
   static async createMessage(
     req: AuthenticatedRequest,
     res: Response,
@@ -44,40 +53,12 @@ export class MessageController {
         req.body,
         req.user!.id
       );
-      res.status(response.status || 201).json(response);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * Retrieves details of a specific message.
-   */
-  static async getMessageDetails(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId, threadId, messageId } = req.params;
-      const response = await messageService.getMessageById(
-        householdId,
-        threadId,
-        messageId,
-        req.user!.id
-      );
-      if (!response) {
-        throw new NotFoundError("Message not found");
-      }
-      res.status(response.status || 200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Updates an existing message.
-   */
   static async updateMessage(
     req: AuthenticatedRequest,
     res: Response,
@@ -92,20 +73,12 @@ export class MessageController {
         req.body,
         req.user!.id
       );
-      if (!response) {
-        throw new NotFoundError(
-          "Message not found or you do not have permission to update it"
-        );
-      }
-      res.status(response.status || 200).json(response);
+      res.json(response);
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * Deletes a message from a thread.
-   */
   static async deleteMessage(
     req: AuthenticatedRequest,
     res: Response,
@@ -119,14 +92,50 @@ export class MessageController {
         messageId,
         req.user!.id
       );
-      res.status(response.status || 204).send();
+      res.status(204).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async markMessageAsRead(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await messageService.markMessageAsRead(
+        householdId,
+        messageId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMessageReadStatus(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await messageService.getMessageReadStatus(
+        householdId,
+        messageId,
+        req.user!.id
+      );
+      res.json(response);
     } catch (error) {
       next(error);
     }
   }
 
   /**
-   * Adds an attachment to a specific message.
+   * Attachment related endpoints
    */
   static async addAttachment(
     req: AuthenticatedRequest,
@@ -135,48 +144,19 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
-      const response = await messageService.addAttachment(
+      const response = await attachmentService.addAttachment(
         householdId,
         threadId,
         messageId,
         req.body,
         req.user!.id
       );
-      res.status(response.status || 201).json(response);
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * Retrieves details of a specific attachment.
-   */
-  static async getAttachmentDetails(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId, threadId, messageId, attachmentId } = req.params;
-      const response = await messageService.getAttachmentById(
-        householdId,
-        threadId,
-        messageId,
-        attachmentId,
-        req.user!.id
-      );
-      if (!response) {
-        throw new NotFoundError("Attachment not found");
-      }
-      res.status(response.status || 200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Deletes an attachment from a message.
-   */
   static async deleteAttachment(
     req: AuthenticatedRequest,
     res: Response,
@@ -184,14 +164,242 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId, attachmentId } = req.params;
-      const response = await messageService.deleteAttachment(
+      const response = await attachmentService.deleteAttachment(
         householdId,
         threadId,
         messageId,
         attachmentId,
         req.user!.id
       );
-      res.status(response.status || 204).send();
+      res.status(204).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getAttachment(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, messageId, attachmentId } = req.params;
+      const response = await attachmentService.getAttachment(
+        householdId,
+        threadId,
+        messageId,
+        attachmentId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMessageAttachments(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, messageId } = req.params;
+      const response = await attachmentService.getMessageAttachments(
+        householdId,
+        threadId,
+        messageId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Mention related endpoints
+   */
+  static async createMention(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await mentionService.createMention(
+        householdId,
+        messageId,
+        req.body,
+        req.user!.id
+      );
+      res.status(201).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getUserMentions(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId } = req.params;
+      const response = await mentionService.getUserMentions(
+        householdId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMessageMentions(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await mentionService.getMessageMentions(
+        householdId,
+        messageId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteMention(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId, mentionId } = req.params;
+      const response = await mentionService.deleteMention(
+        householdId,
+        messageId,
+        mentionId,
+        req.user!.id
+      );
+      res.status(204).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getUnreadMentionsCount(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId } = req.params;
+      const response = await mentionService.getUnreadMentionsCount(
+        householdId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Reaction related endpoints
+   */
+  static async addReaction(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await reactionService.addReaction(
+        householdId,
+        messageId,
+        req.user!.id,
+        req.body
+      );
+      res.status(201).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async removeReaction(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId, reactionId } = req.params;
+      const response = await reactionService.removeReaction(
+        householdId,
+        messageId,
+        reactionId,
+        req.user!.id
+      );
+      res.status(204).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMessageReactions(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await reactionService.getMessageReactions(
+        householdId,
+        messageId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getReactionAnalytics(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await reactionService.getReactionAnalytics(
+        householdId,
+        messageId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getReactionsByType(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, messageId } = req.params;
+      const response = await reactionService.getReactionsByType(
+        householdId,
+        messageId,
+        req.body.type as ReactionType,
+        req.user!.id
+      );
+      res.json(response);
     } catch (error) {
       next(error);
     }
