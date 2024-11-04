@@ -2,6 +2,7 @@ import { Message, MessageWithDetails } from "@shared/types";
 import {
   PrismaMessageBase,
   PrismaMessageWithFullRelations,
+  PrismaPollWithFullRelations,
 } from "../transformerPrismaTypes";
 import { transformThread } from "./thread";
 import { transformUser } from "../userTransformer";
@@ -52,6 +53,8 @@ export function transformMessageWithDetails(
     reactions: message.reactions?.map(transformReactionWithUser),
     mentions: message.mentions?.map(transformMentionWithUser),
     reads: message.reads?.map(transformMessageReadWithUser),
-    poll: message.poll ? transformPollWithDetails(message.poll) : undefined,
+    poll: message.poll
+      ? transformPollWithDetails(message.poll as PrismaPollWithFullRelations)
+      : undefined,
   };
 }

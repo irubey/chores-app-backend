@@ -9,37 +9,40 @@ import { HouseholdRole, MessageAction } from "@shared/enums";
 import { getIO } from "../../sockets";
 import { verifyMembership } from "../authService";
 import { Attachment, CreateAttachmentDTO } from "@shared/types";
-import { transformAttachment } from "../../utils/transformers/messageTransformer/messageTransformer";
+import { transformAttachment } from "../../utils/transformers/messageTransformer";
 import { PrismaAttachmentWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
 import logger from "../../utils/logger";
-
-// Constants for file validation
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_FILE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-] as const;
-
-type AllowedFileType = (typeof ALLOWED_FILE_TYPES)[number];
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
   return { data };
 }
 
+// Constants for file validation
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+export const MIME_TYPE_MAP = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "docx",
+} as const;
+
 /**
  * Validates file type and size
  */
-export function validateFile(fileType: string, fileSize: number): void {
-  if (!ALLOWED_FILE_TYPES.includes(fileType as AllowedFileType)) {
-    throw new ValidationError(
-      `Unsupported file type. Allowed types: ${ALLOWED_FILE_TYPES.join(", ")}`
-    );
+export function validateFileType(
+  fileType: string
+): asserts fileType is keyof typeof MIME_TYPE_MAP {
+  if (!Object.keys(MIME_TYPE_MAP).includes(fileType)) {
+    throw new Error(`Invalid file type: ${fileType}`);
   }
+}
+
+export function validateFile(fileType: string, fileSize: number): void {
+  validateFileType(fileType);
 
   if (fileSize > MAX_FILE_SIZE) {
     throw new ValidationError(

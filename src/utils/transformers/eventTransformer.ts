@@ -23,6 +23,8 @@ import {
 import { transformChoreToChoreWithAssignees } from "./choreTransformer";
 import { transformUser } from "./userTransformer";
 import { transformHousehold } from "./householdTransformer";
+import { transformPollWithDetails } from "./messageTransformer/poll";
+import { transformRecurrenceRule } from "./recurrenceRuleTransformer";
 
 function isValidEventCategory(category: string): category is EventCategory {
   return Object.values(EventCategory).includes(category as EventCategory);
@@ -98,8 +100,11 @@ export function transformEventWithDetails(
     chore: event.chore
       ? transformChoreToChoreWithAssignees(event.chore)
       : undefined,
-    recurrenceRuleId: event.recurrenceRuleId ?? undefined,
+    recurrenceRule: event.recurrenceRule
+      ? transformRecurrenceRule(event.recurrenceRule)
+      : undefined,
     history: event.history.map(transformCalendarEventHistory),
+    poll: event.poll ? transformPollWithDetails(event.poll) : undefined,
   };
 }
 

@@ -197,6 +197,40 @@ export type PrismaEventWithFullRelations = Prisma.EventGetPayload<{
         user: true;
       };
     };
+    poll: {
+      include: {
+        message: {
+          include: {
+            thread: true;
+          };
+        };
+        event: true;
+        options: {
+          include: {
+            votes: {
+              include: {
+                user: {
+                  select: typeof userMinimalSelect;
+                };
+              };
+            };
+            selectedForPolls: true;
+          };
+        };
+        selectedOption: {
+          include: {
+            votes: {
+              include: {
+                user: {
+                  select: typeof userMinimalSelect;
+                };
+              };
+            };
+            selectedForPolls: true;
+          };
+        };
+      };
+    };
   };
 }>;
 
@@ -547,9 +581,16 @@ export type PrismaChoreHistoryWithFullRelations =
 
 export type PrismaRecurrenceRuleWithFullRelations =
   Prisma.RecurrenceRuleGetPayload<{
-    include: {
-      chores: true;
-      events: true;
+    select: {
+      id: true;
+      frequency: true;
+      interval: true;
+      byWeekDay: true;
+      byMonthDay: true;
+      bySetPos: true;
+      count: true;
+      until: true;
+      customRuleString: true;
     };
   }>;
 
@@ -759,41 +800,6 @@ export type PrismaReactionAnalytics = {
 }[];
 
 // Add new poll-related Prisma types
-export type PrismaPollWithFullRelations = Prisma.PollGetPayload<{
-  include: {
-    message: {
-      include: {
-        thread: true;
-      };
-    };
-    event: true;
-    options: {
-      include: {
-        votes: {
-          include: {
-            user: {
-              select: typeof userMinimalSelect;
-            };
-          };
-        };
-        selectedForPolls: true;
-      };
-    };
-    selectedOption: {
-      include: {
-        votes: {
-          include: {
-            user: {
-              select: typeof userMinimalSelect;
-            };
-          };
-        };
-        selectedForPolls: true;
-      };
-    };
-  };
-}>;
-
 export type PrismaPollOptionWithFullRelations = Prisma.PollOptionGetPayload<{
   include: {
     poll: true;
@@ -825,6 +831,65 @@ export type PrismaPollVoteWithFullRelations = Prisma.PollVoteGetPayload<{
     };
     user: {
       select: typeof userMinimalSelect;
+    };
+  };
+}>;
+
+// Add this type for the event in poll relations
+export type PrismaEventInPollRelations = Prisma.EventGetPayload<{
+  select: {
+    id: true;
+    householdId: true;
+    title: true;
+    description: true;
+    startTime: true;
+    endTime: true;
+    createdById: true;
+    createdAt: true;
+    updatedAt: true;
+    choreId: true;
+    recurrenceRuleId: true;
+    category: true;
+    isAllDay: true;
+    location: true;
+    isPrivate: true;
+    status: true;
+    deletedAt: true;
+  };
+}>;
+
+// Update PrismaPollWithFullRelations to use the new type
+export type PrismaPollWithFullRelations = Prisma.PollGetPayload<{
+  include: {
+    message: {
+      include: {
+        thread: true;
+      };
+    };
+    event: true; // This will use PrismaEventInPollRelations
+    options: {
+      include: {
+        votes: {
+          include: {
+            user: {
+              select: typeof userMinimalSelect;
+            };
+          };
+        };
+        selectedForPolls: true;
+      };
+    };
+    selectedOption: {
+      include: {
+        votes: {
+          include: {
+            user: {
+              select: typeof userMinimalSelect;
+            };
+          };
+        };
+        selectedForPolls: true;
+      };
     };
   };
 }>;

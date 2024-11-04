@@ -3,7 +3,6 @@ import {
   ThreadWithDetails,
   ThreadWithMessages,
   ThreadWithParticipants,
-  ThreadWithMessagesAndParticipants,
 } from "@shared/types";
 import {
   PrismaThreadBase,
@@ -41,19 +40,27 @@ export function transformThreadWithDetails(
     throw new Error("Thread must have a household");
   }
 
+  const threadForMessage = {
+    id: thread.id,
+    householdId: thread.householdId,
+    authorId: thread.authorId,
+    title: thread.title,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+    deletedAt: thread.deletedAt,
+  };
+
   return {
     ...transformThread(thread),
     author: transformUser(thread.author),
     household: transformHousehold(thread.household),
-    messages: thread.messages?.map((message) =>
-      transformMessageWithDetails({
-        ...message,
-        thread: {
-          ...thread,
-          messages: undefined, // Prevent circular reference
-        },
-      })
-    ),
+    messages:
+      thread.messages?.map((message) =>
+        transformMessageWithDetails({
+          ...message,
+          thread: threadForMessage,
+        })
+      ) || [],
     participants: thread.participants?.map(transformHouseholdMember) || [],
   };
 }
@@ -72,25 +79,6 @@ export function transformThreadWithParticipants(
 ): ThreadWithParticipants {
   return {
     ...transformThread(thread),
-    participants: thread.participants?.map(transformHouseholdMember) || [],
-  };
-}
-
-export function transformThreadWithMessagesAndParticipants(
-  thread: PrismaThreadWithMessagesAndParticipants
-): ThreadWithMessagesAndParticipants {
-  return {
-    ...transformThread(thread),
-    messages:
-      thread.messages?.map((message) =>
-        transformMessageWithDetails({
-          ...message,
-          thread: {
-            ...thread,
-            messages: undefined, // Prevent circular reference
-          },
-        })
-      ) || [],
     participants: thread.participants?.map(transformHouseholdMember) || [],
   };
 }
