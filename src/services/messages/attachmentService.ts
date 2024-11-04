@@ -9,7 +9,7 @@ import { HouseholdRole, MessageAction } from "@shared/enums";
 import { getIO } from "../../sockets";
 import { verifyMembership } from "../authService";
 import { Attachment, CreateAttachmentDTO } from "@shared/types";
-import { transformAttachment } from "../../utils/transformers/messageTransformer";
+import { transformAttachment } from "../../utils/transformers/messageTransformer/messageTransformer";
 import { PrismaAttachmentWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
 import logger from "../../utils/logger";
 

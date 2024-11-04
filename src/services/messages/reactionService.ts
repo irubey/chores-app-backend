@@ -8,7 +8,7 @@ import { HouseholdRole, MessageAction, ReactionType } from "@shared/enums";
 import { CreateReactionDTO, ReactionWithUser } from "@shared/types";
 import { getIO } from "../../sockets";
 import { verifyMembership } from "../authService";
-import { transformReactionWithUser } from "../../utils/transformers/messageTransformer";
+import { transformReactionWithUser } from "../../utils/transformers/messageTransformer/messageTransformer";
 import { PrismaReactionWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
 import logger from "../../utils/logger";
 
