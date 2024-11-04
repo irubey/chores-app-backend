@@ -3,6 +3,7 @@ import * as messageService from "../services/messages/messageService";
 import * as attachmentService from "../services/messages/attachmentService";
 import * as mentionService from "../services/messages/mentionService";
 import * as reactionService from "../services/messages/reactionService";
+import * as pollService from "../services/messages/pollService";
 import { AuthenticatedRequest } from "../types";
 import { PaginationOptions } from "@shared/interfaces/pagination";
 import { ReactionType } from "@shared/enums";
@@ -397,6 +398,163 @@ export class MessageController {
         householdId,
         messageId,
         req.body.type as ReactionType,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Poll related endpoints
+   */
+  static async getPollsInThread(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId } = req.params;
+      const response = await pollService.getPollsInThread(
+        householdId,
+        threadId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getPoll(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, pollId } = req.params;
+      const response = await pollService.getPoll(
+        householdId,
+        threadId,
+        pollId,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async createPoll(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId } = req.params;
+      const response = await pollService.createPoll(
+        householdId,
+        threadId,
+        req.body,
+        req.user!.id
+      );
+      res.status(201).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updatePoll(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, pollId } = req.params;
+      const response = await pollService.updatePoll(
+        householdId,
+        threadId,
+        pollId,
+        req.body,
+        req.user!.id
+      );
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deletePoll(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, pollId } = req.params;
+      const response = await pollService.deletePoll(
+        householdId,
+        threadId,
+        pollId,
+        req.user!.id
+      );
+      res.status(204).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async votePoll(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, pollId } = req.params;
+      const response = await pollService.votePoll(
+        householdId,
+        threadId,
+        pollId,
+        req.body,
+        req.user!.id
+      );
+      res.status(201).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async removePollVote(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, pollId } = req.params;
+      const response = await pollService.removePollVote(
+        householdId,
+        threadId,
+        pollId,
+        req.body.voteId,
+        req.user!.id
+      );
+      res.status(204).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getPollAnalytics(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { householdId, threadId, pollId } = req.params;
+      const response = await pollService.getPollAnalytics(
+        householdId,
+        threadId,
+        pollId,
         req.user!.id
       );
       res.json(response);
