@@ -155,6 +155,8 @@ enum MessageAction {
   POLL_VOTED
   POLL_ENDED
   POLL_CONFIRMED
+  POLL_VOTE_REMOVED
+  POLL_DELETED
 }
 
 enum CalendarEventAction {

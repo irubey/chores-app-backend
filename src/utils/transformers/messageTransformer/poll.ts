@@ -6,15 +6,15 @@ import {
   PollOptionWithVotes,
   PollVoteWithUser,
 } from "@shared/types";
-import { Event, EventWithDetails } from "@shared/types/event";
 import {
   PrismaPollWithFullRelations,
   PrismaPollOptionWithFullRelations,
   PrismaPollVoteWithFullRelations,
   PrismaPollBase,
+  PrismaEventWithFullRelations,
 } from "../transformerPrismaTypes";
 import { transformUser } from "../userTransformer";
-import { transformEvent, transformEventWithDetails } from "../eventTransformer";
+import { transformEvent } from "../eventTransformer";
 import { PollStatus, PollType } from "@shared/enums";
 
 function isValidPollType(type: string): type is PollType {
