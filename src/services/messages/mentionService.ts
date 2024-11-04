@@ -8,7 +8,7 @@ import { HouseholdRole, MessageAction, NotificationType } from "@shared/enums";
 import { MentionWithUser, CreateMentionDTO } from "@shared/types";
 import { getIO } from "../../sockets";
 import { verifyMembership } from "../authService";
-import { transformMentionWithUser } from "../../utils/transformers/messageTransformer";
+import { transformMentionWithUser } from "../../utils/transformers/messageTransformer/messageTransformer";
 import { PrismaMentionWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
 import { createNotification } from "../notificationService";
 import logger from "../../utils/logger";

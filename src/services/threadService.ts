@@ -16,7 +16,7 @@ import {
   transformThread,
   transformThreadWithMessages,
   transformThreadWithParticipants,
-} from "../utils/transformers/messageTransformer";
+} from "../utils/transformers/messageTransformer/messageTransformer";
 import {
   PrismaThreadWithMessagesAndParticipants,
   PrismaThreadWithParticipantsOnly,

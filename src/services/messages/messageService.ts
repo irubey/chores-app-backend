@@ -9,7 +9,7 @@ import { verifyMembership } from "../authService";
 import {
   transformMessage,
   transformMessageWithDetails,
-} from "../../utils/transformers/messageTransformer";
+} from "../../utils/transformers/messageTransformer/messageTransformer";
 import {
   CreateMessageDTO,
   UpdateMessageDTO,

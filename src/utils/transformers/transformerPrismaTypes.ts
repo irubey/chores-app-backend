@@ -11,6 +11,9 @@ export type PrismaEventBase = Prisma.EventGetPayload<{}>;
 export type PrismaNotificationBase = Prisma.NotificationGetPayload<{}>;
 export type PrismaTransactionBase = Prisma.TransactionGetPayload<{}>;
 export type PrismaSubtaskBase = Prisma.SubtaskGetPayload<{}>;
+export type PrismaPollBase = Prisma.PollGetPayload<{}>;
+export type PrismaPollOptionBase = Prisma.PollOptionGetPayload<{}>;
+export type PrismaPollVoteBase = Prisma.PollVoteGetPayload<{}>;
 
 // User related types
 export type PrismaUserWithFullRelations = Prisma.UserGetPayload<{
@@ -43,16 +46,20 @@ export type PrismaUserWithFullRelations = Prisma.UserGetPayload<{
   };
 }>;
 
+// Define the select type for minimal user
+export const userMinimalSelect = {
+  id: true,
+  email: true,
+  name: true,
+  profileImageURL: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} as const;
+
+// Define the type using the select
 export type PrismaUserMinimal = Prisma.UserGetPayload<{
-  select: {
-    id: true;
-    email: true;
-    name: true;
-    profileImageURL: true;
-    createdAt: true;
-    updatedAt: true;
-    deletedAt: true;
-  };
+  select: typeof userMinimalSelect;
 }>;
 
 // Household related types
@@ -133,15 +140,7 @@ export type PrismaExpenseWithFullRelations = Prisma.ExpenseGetPayload<{
 export type PrismaExpenseSplitWithRelations = Prisma.ExpenseSplitGetPayload<{
   include: {
     user: {
-      select: {
-        id: true;
-        email: true;
-        name: true;
-        profileImageURL: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-      };
+      select: typeof userMinimalSelect;
     };
   };
 }>;
@@ -301,43 +300,11 @@ export type PrismaSubtaskWithFullRelations = Prisma.SubtaskGetPayload<{
 
 export type PrismaThreadWithFullRelations = Prisma.ThreadGetPayload<{
   include: {
-    author: {
-      select: {
-        id: true;
-        email: true;
-        name: true;
-        profileImageURL: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-      };
-    };
-    household: {
-      select: {
-        id: true;
-        name: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-        currency: true;
-        icon: true;
-        timezone: true;
-        language: true;
-      };
-    };
     messages: {
       include: {
         thread: true;
         author: {
-          select: {
-            id: true;
-            email: true;
-            name: true;
-            profileImageURL: true;
-            createdAt: true;
-            updatedAt: true;
-            deletedAt: true;
-          };
+          select: typeof userMinimalSelect;
         };
         attachments: {
           include: {
@@ -351,21 +318,75 @@ export type PrismaThreadWithFullRelations = Prisma.ThreadGetPayload<{
         };
         reactions: {
           include: {
-            user: true;
+            user: {
+              select: typeof userMinimalSelect;
+            };
+            message: {
+              include: {
+                thread: true;
+              };
+            };
           };
         };
         mentions: {
           include: {
-            user: true;
+            user: {
+              select: typeof userMinimalSelect;
+            };
+            message: {
+              include: {
+                thread: true;
+              };
+            };
           };
         };
         reads: {
           include: {
-            user: true;
+            user: {
+              select: typeof userMinimalSelect;
+            };
+            message: {
+              include: {
+                thread: true;
+              };
+            };
+          };
+        };
+        poll: {
+          include: {
+            event: true;
+            options: {
+              include: {
+                votes: {
+                  include: {
+                    user: {
+                      select: typeof userMinimalSelect;
+                    };
+                  };
+                };
+                selectedForPolls: true;
+              };
+            };
+            selectedOption: {
+              include: {
+                votes: {
+                  include: {
+                    user: {
+                      select: typeof userMinimalSelect;
+                    };
+                  };
+                };
+                selectedForPolls: true;
+              };
+            };
           };
         };
       };
     };
+    author: {
+      select: typeof userMinimalSelect;
+    };
+    household: true;
     participants: {
       include: {
         user: true;
@@ -376,27 +397,9 @@ export type PrismaThreadWithFullRelations = Prisma.ThreadGetPayload<{
 
 export type PrismaMessageWithFullRelations = Prisma.MessageGetPayload<{
   include: {
-    thread: {
-      select: {
-        id: true;
-        householdId: true;
-        authorId: true;
-        title: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-      };
-    };
+    thread: true;
     author: {
-      select: {
-        id: true;
-        email: true;
-        name: true;
-        profileImageURL: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-      };
+      select: typeof userMinimalSelect;
     };
     attachments: {
       include: {
@@ -411,14 +414,11 @@ export type PrismaMessageWithFullRelations = Prisma.MessageGetPayload<{
     reactions: {
       include: {
         user: {
-          select: {
-            id: true;
-            email: true;
-            name: true;
-            profileImageURL: true;
-            createdAt: true;
-            updatedAt: true;
-            deletedAt: true;
+          select: typeof userMinimalSelect;
+        };
+        message: {
+          include: {
+            thread: true;
           };
         };
       };
@@ -426,14 +426,11 @@ export type PrismaMessageWithFullRelations = Prisma.MessageGetPayload<{
     mentions: {
       include: {
         user: {
-          select: {
-            id: true;
-            email: true;
-            name: true;
-            profileImageURL: true;
-            createdAt: true;
-            updatedAt: true;
-            deletedAt: true;
+          select: typeof userMinimalSelect;
+        };
+        message: {
+          include: {
+            thread: true;
           };
         };
       };
@@ -441,14 +438,40 @@ export type PrismaMessageWithFullRelations = Prisma.MessageGetPayload<{
     reads: {
       include: {
         user: {
-          select: {
-            id: true;
-            email: true;
-            name: true;
-            profileImageURL: true;
-            createdAt: true;
-            updatedAt: true;
-            deletedAt: true;
+          select: typeof userMinimalSelect;
+        };
+        message: {
+          include: {
+            thread: true;
+          };
+        };
+      };
+    };
+    poll: {
+      include: {
+        event: true;
+        options: {
+          include: {
+            votes: {
+              include: {
+                user: {
+                  select: typeof userMinimalSelect;
+                };
+              };
+            };
+            selectedForPolls: true;
+          };
+        };
+        selectedOption: {
+          include: {
+            votes: {
+              include: {
+                user: {
+                  select: typeof userMinimalSelect;
+                };
+              };
+            };
+            selectedForPolls: true;
           };
         };
       };
@@ -578,15 +601,7 @@ export type PrismaAttachmentWithFullRelations = Prisma.AttachmentGetPayload<{
 export type PrismaReactionWithFullRelations = Prisma.ReactionGetPayload<{
   include: {
     user: {
-      select: {
-        id: true;
-        email: true;
-        name: true;
-        profileImageURL: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-      };
+      select: typeof userMinimalSelect;
     };
     message: {
       include: {
@@ -609,15 +624,7 @@ export type PrismaReactionWithFullRelations = Prisma.ReactionGetPayload<{
 export type PrismaMentionWithFullRelations = Prisma.MentionGetPayload<{
   include: {
     user: {
-      select: {
-        id: true;
-        email: true;
-        name: true;
-        profileImageURL: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-      };
+      select: typeof userMinimalSelect;
     };
     message: {
       include: {
@@ -640,15 +647,7 @@ export type PrismaMentionWithFullRelations = Prisma.MentionGetPayload<{
 export type PrismaMessageReadWithFullRelations = Prisma.MessageReadGetPayload<{
   include: {
     user: {
-      select: {
-        id: true;
-        email: true;
-        name: true;
-        profileImageURL: true;
-        createdAt: true;
-        updatedAt: true;
-        deletedAt: true;
-      };
+      select: typeof userMinimalSelect;
     };
     message: {
       include: {
@@ -697,6 +696,40 @@ export type PrismaThreadWithMessagesAndParticipants = Prisma.ThreadGetPayload<{
             message: true;
           };
         };
+        poll: {
+          include: {
+            message: {
+              include: {
+                thread: true;
+              };
+            };
+            event: true;
+            options: {
+              include: {
+                votes: {
+                  include: {
+                    user: {
+                      select: typeof userMinimalSelect;
+                    };
+                  };
+                };
+                selectedForPolls: true;
+              };
+            };
+            selectedOption: {
+              include: {
+                votes: {
+                  include: {
+                    user: {
+                      select: typeof userMinimalSelect;
+                    };
+                  };
+                };
+                selectedForPolls: true;
+              };
+            };
+          };
+        };
       };
     };
     participants: {
@@ -724,3 +757,74 @@ export type PrismaReactionAnalytics = {
     type: number;
   };
 }[];
+
+// Add new poll-related Prisma types
+export type PrismaPollWithFullRelations = Prisma.PollGetPayload<{
+  include: {
+    message: {
+      include: {
+        thread: true;
+      };
+    };
+    event: true;
+    options: {
+      include: {
+        votes: {
+          include: {
+            user: {
+              select: typeof userMinimalSelect;
+            };
+          };
+        };
+        selectedForPolls: true;
+      };
+    };
+    selectedOption: {
+      include: {
+        votes: {
+          include: {
+            user: {
+              select: typeof userMinimalSelect;
+            };
+          };
+        };
+        selectedForPolls: true;
+      };
+    };
+  };
+}>;
+
+export type PrismaPollOptionWithFullRelations = Prisma.PollOptionGetPayload<{
+  include: {
+    poll: true;
+    votes: {
+      include: {
+        user: {
+          select: typeof userMinimalSelect;
+        };
+      };
+    };
+    selectedForPolls: true;
+  };
+}>;
+
+export type PrismaPollVoteWithFullRelations = Prisma.PollVoteGetPayload<{
+  include: {
+    option: {
+      include: {
+        poll: true;
+        votes: {
+          include: {
+            user: {
+              select: typeof userMinimalSelect;
+            };
+          };
+        };
+        selectedForPolls: true;
+      };
+    };
+    user: {
+      select: typeof userMinimalSelect;
+    };
+  };
+}>;

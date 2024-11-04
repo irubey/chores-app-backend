@@ -23,6 +23,7 @@ enum DaysOfWeek {
 }
 
 enum EventStatus {
+  PROPOSED
   SCHEDULED
   CANCELLED
   COMPLETED
@@ -87,6 +88,20 @@ enum RecurrenceFrequency {
   YEARLY
 }
 
+enum PollStatus {
+  OPEN
+  CLOSED
+  CONFIRMED
+  CANCELLED
+}
+
+enum PollType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  RANKED_CHOICE
+  EVENT_DATE
+}
+
 enum ExpenseCategory {
   FOOD
   TRANSPORTATION
@@ -136,6 +151,10 @@ enum MessageAction {
   ATTACHMENT_ADDED
   ATTACHMENT_REMOVED
   MENTIONED
+  POLL_CREATED
+  POLL_VOTED
+  POLL_ENDED
+  POLL_CONFIRMED
 }
 
 enum CalendarEventAction {
@@ -180,6 +199,7 @@ model User {
   expenseHistory               ExpenseHistory[]
   messageReads                 MessageRead[]
   refreshTokens                RefreshToken[]
+  pollVotes                    PollVote[]
 }
 
 model Household {
@@ -272,6 +292,7 @@ model Message {
   reactions   Reaction[]
   mentions    Mention[]
   reads       MessageRead[]
+  poll        Poll?       @relation("PollMessage")
 
   @@index([threadId, createdAt])
 }
@@ -324,6 +345,64 @@ model MessageRead {
   user      User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, messageId])
+}
+
+
+model Poll {
+  id          String    @id @default(uuid())
+  messageId   String    @unique
+  question    String
+  pollType    PollType  @default(SINGLE_CHOICE)
+  maxChoices  Int?      // For MULTIPLE_CHOICE: max selections allowed
+  maxRank     Int?      // For RANKED_CHOICE: how many options to rank
+  endDate     DateTime?
+  eventId     String?   @unique  // The final event that will be created
+  status      PollStatus @default(OPEN)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  selectedOptionId String? // The winning option that was selected
+
+
+  message     Message   @relation("PollMessage", fields: [messageId], references: [id])
+  event       Event?    @relation("PollEvent", fields: [eventId], references: [id])
+  options     PollOption[]
+  selectedOption PollOption? @relation("PollSelectedOption", fields: [selectedOptionId], references: [id])
+}
+
+model PollOption {
+  id          String    @id @default(uuid())
+  pollId      String
+  text        String
+  order       Int
+  // New fields for event date voting
+  startTime   DateTime? // For event date options
+  endTime     DateTime? // For event date options
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  poll        Poll      @relation(fields: [pollId], references: [id])
+  votes       PollVote[]
+  selectedForPolls Poll[] @relation("PollSelectedOption")
+  
+
+  @@index([pollId, order])
+}
+
+model PollVote {
+  id          String    @id @default(uuid())
+  optionId    String
+  pollId      String
+  userId      String
+  rank        Int?      // Used for RANKED_CHOICE
+  availability Boolean? // Used for EVENT_DATE type (true = available, false = unavailable)
+  createdAt   DateTime  @default(now())
+
+  option      PollOption @relation(fields: [optionId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([pollId])
+  @@unique([userId, optionId])
+  @@unique([userId, rank, pollId])
 }
 
 //Chores Models
@@ -516,7 +595,7 @@ model Event {
   isAllDay         Boolean         @default(false)
   location         String?
   isPrivate        Boolean         @default(false)
-  status           EventStatus     @default(SCHEDULED)
+  status           EventStatus     @default(PROPOSED)
   deletedAt        DateTime?
   
   reminders        EventReminder[]
@@ -525,6 +604,7 @@ model Event {
   chore            Chore?          @relation("ChoreEvent")
   recurrenceRule   RecurrenceRule? @relation("EventRecurrence", fields: [recurrenceRuleId], references: [id])
   history          CalendarEventHistory[]
+  poll             Poll?           @relation("PollEvent")
 }
 
 model EventReminder {
