@@ -231,4 +231,71 @@ router.get(
   asyncHandler(MessageController.getReactionsByType)
 );
 
+//Poll related endpoints
+/**
+ * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId/polls
+ * @desc    Get polls in a thread
+ * @access  Protected
+ */
+router.get(
+  "/:messageId/polls",
+  authMiddleware,
+  asyncHandler(MessageController.getPollsInThread)
+);
+
+/**
+ * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId/polls/:pollId
+ * @desc    Get a poll
+ * @access  Protected
+ */
+router.get(
+  "/:messageId/polls/:pollId",
+  authMiddleware,
+  asyncHandler(MessageController.getPoll)
+);
+
+/**
+ * @route   POST /api/households/:householdId/threads/:threadId/messages/:messageId/polls
+ * @desc    Create a poll
+ * @access  Protected
+ */
+router.post(
+  "/:messageId/polls",
+  authMiddleware,
+  asyncHandler(MessageController.createPoll)
+);
+
+/**
+ * @route   PATCH /api/households/:householdId/threads/:threadId/messages/:messageId/polls/:pollId
+ * @desc    Update a poll
+ * @access  Protected
+ */
+router.patch(
+  "/:messageId/polls/:pollId",
+  authMiddleware,
+  asyncHandler(MessageController.updatePoll)
+);
+
+/**
+ * @route   DELETE /api/households/:householdId/threads/:threadId/messages/:messageId/polls/:pollId
+ * @desc    Delete a poll
+ * @access  Protected
+ */
+router.delete(
+  "/:messageId/polls/:pollId",
+  authMiddleware,
+  asyncHandler(MessageController.deletePoll)
+);
+
+/**
+ * @route   POST /api/households/:householdId/threads/:threadId/messages/:messageId/polls/:pollId/vote
+ * @desc    Vote on a poll
+ * @access  Protected
+ */
+router.post(
+  "/:messageId/polls/:pollId/vote",
+  authMiddleware,
+  asyncHandler(MessageController.votePoll)
+);
+
 export default router;

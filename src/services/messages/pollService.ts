@@ -501,51 +501,7 @@ export async function votePoll(
   }
 }
 
-export async function getPollAnalytics(
-  householdId: string,
-  messageId: string,
-  pollId: string,
-  userId: string
-): Promise<ApiResponse<any>> {
-  try {
-    logger.info(`Getting analytics for poll ${pollId}`);
-    await verifyMembership(householdId, userId, [
-      HouseholdRole.ADMIN,
-      HouseholdRole.MEMBER,
-    ]);
-
-    const poll = await prisma.poll.findFirst({
-      where: {
-        id: pollId,
-        messageId,
-        message: {
-          thread: { householdId },
-        },
-      },
-      include: {
-        options: {
-          include: {
-            votes: true,
-          },
-        },
-      },
-    });
-
-    if (!poll) {
-      throw new NotFoundError("Poll not found");
-    }
-
-    const analytics = transformPollAnalytics(
-      poll as PrismaPollWithFullRelations
-    );
-    return wrapResponse(analytics);
-  } catch (error) {
-    logger.error(`Error getting poll analytics: ${error}`);
-    throw error;
-  }
-}
-
-export async function deleteVote(
+export async function removePollVote(
   householdId: string,
   messageId: string,
   pollId: string,
@@ -592,6 +548,50 @@ export async function deleteVote(
     return wrapResponse(undefined);
   } catch (error) {
     logger.error(`Error deleting vote: ${error}`);
+    throw error;
+  }
+}
+
+export async function getPollAnalytics(
+  householdId: string,
+  messageId: string,
+  pollId: string,
+  userId: string
+): Promise<ApiResponse<any>> {
+  try {
+    logger.info(`Getting analytics for poll ${pollId}`);
+    await verifyMembership(householdId, userId, [
+      HouseholdRole.ADMIN,
+      HouseholdRole.MEMBER,
+    ]);
+
+    const poll = await prisma.poll.findFirst({
+      where: {
+        id: pollId,
+        messageId,
+        message: {
+          thread: { householdId },
+        },
+      },
+      include: {
+        options: {
+          include: {
+            votes: true,
+          },
+        },
+      },
+    });
+
+    if (!poll) {
+      throw new NotFoundError("Poll not found");
+    }
+
+    const analytics = transformPollAnalytics(
+      poll as PrismaPollWithFullRelations
+    );
+    return wrapResponse(analytics);
+  } catch (error) {
+    logger.error(`Error getting poll analytics: ${error}`);
     throw error;
   }
 }
