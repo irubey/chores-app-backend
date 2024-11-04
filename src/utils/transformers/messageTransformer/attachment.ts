@@ -14,3 +14,9 @@ export function transformAttachment(
     deletedAt: attachment.deletedAt ?? undefined,
   };
 }
+
+export function transformAttachments(
+  attachments: PrismaAttachmentWithFullRelations[]
+): Attachment[] {
+  return attachments.map(transformAttachment);
+}
