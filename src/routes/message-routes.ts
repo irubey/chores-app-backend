@@ -298,4 +298,26 @@ router.post(
   asyncHandler(MessageController.votePoll)
 );
 
+/**
+ * @route   DELETE /api/households/:householdId/threads/:threadId/messages/:messageId/polls/:pollId/vote
+ * @desc    Remove a vote from a poll
+ * @access  Protected
+ */
+router.delete(
+  "/:messageId/polls/:pollId/vote",
+  authMiddleware,
+  asyncHandler(MessageController.removePollVote)
+);
+
+/**
+ * @route   GET /api/households/:householdId/threads/:threadId/messages/:messageId/polls/:pollId/analytics
+ * @desc    Get poll analytics
+ * @access  Protected
+ */
+router.get(
+  "/:messageId/polls/:pollId/analytics",
+  authMiddleware,
+  asyncHandler(MessageController.getPollAnalytics)
+);
+
 export default router;
