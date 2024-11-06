@@ -9,7 +9,6 @@ import {
   addMemberSchema,
 } from "../utils/validationSchemas";
 import { asyncHandler } from "../utils/asyncHandler";
-import { updateSelectedHousehold } from "../services/householdService";
 
 const router = Router();
 
@@ -120,7 +119,7 @@ router.patch(
 );
 
 /**
- * @route   PATCH /api/households/:householdId/members/:memberId
+ * @route   PATCH /api/households/:householdId/members/:memberId/role
  * @desc    Update a household member role
  * @access  Protected
  */
@@ -162,6 +161,17 @@ router.post(
   authMiddleware,
   rbacMiddleware("ADMIN"),
   asyncHandler(HouseholdController.sendInvitation)
+);
+
+/**
+ * @route   GET /api/households/invitations
+ * @desc    Get all pending invitations for the current user
+ * @access  Protected
+ */
+router.get(
+  "/invitations",
+  authMiddleware,
+  asyncHandler(HouseholdController.getInvitations)
 );
 
 export default router;

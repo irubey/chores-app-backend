@@ -343,3 +343,15 @@ export const updateTransactionStatusSchema = Joi.object({
       "any.required": `'status' is a required field`,
     }),
 });
+
+export const updateMemberRoleSchema = {
+  role: Joi.string().valid("ADMIN", "MEMBER").required(),
+};
+
+export const updateMemberStatusSchema = {
+  accept: Joi.boolean().required(),
+};
+
+export const updateMemberSelectionSchema = {
+  isSelected: Joi.boolean().required(),
+};

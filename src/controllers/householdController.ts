@@ -255,7 +255,7 @@ export class HouseholdController {
         );
       }
 
-      const response = await householdService.updateSelectedHousehold(
+      const response = await householdService.updateHouseholdMemberSelection(
         householdId,
         userId,
         isSelected
@@ -316,7 +316,7 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
-      const response = await householdService.updateMemberRole(
+      const response = await householdService.updateHouseholdMemberRole(
         householdId,
         memberId,
         role,
@@ -373,6 +373,27 @@ export class HouseholdController {
         userId
       );
       res.status(201).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+  /**
+   * Get all pending invitations for the current user
+   */
+  static async getInvitations(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const response = await householdService.getInvitations(userId);
+      res.status(200).json(response);
     } catch (error) {
       next(error);
     }
