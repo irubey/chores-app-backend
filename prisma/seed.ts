@@ -9,12 +9,15 @@ import {
   EventStatus,
   EventCategory,
   ChoreSwapRequestStatus,
-  Chore,
-  Expense,
-  RecurrenceFrequency,
-  EventReminderType,
   ExpenseCategory,
   ReactionType,
+  RecurrenceFrequency,
+  EventReminderType,
+  ChoreAction,
+  PollStatus,
+  PollType,
+  Chore,
+  Expense,
 } from "@prisma/client";
 import bcrypt from "bcrypt";
 
@@ -42,6 +45,10 @@ async function main() {
     await prisma.householdMember.deleteMany();
     await prisma.household.deleteMany();
     await prisma.user.deleteMany();
+    await prisma.pollVote.deleteMany();
+    await prisma.pollOption.deleteMany();
+    await prisma.poll.deleteMany();
+    await prisma.choreHistory.deleteMany();
     console.log("Existing data cleared.");
   }
 
@@ -58,7 +65,7 @@ async function main() {
   const expenses = await createExpenses(household.id, users);
 
   // Create messages and threads
-  await createMessagesAndThreads(household.id, users);
+  const messages = await createMessagesAndThreads(household.id, users);
 
   // Create events
   await createEvents(household.id, users);
@@ -76,6 +83,8 @@ async function main() {
 
   await createNotificationSettings(users, household.id);
 
+  await createPollsAndVotes(users, messages);
+
   console.log("Database has been seeded. 🌱");
 }
 
@@ -86,6 +95,9 @@ async function createUsers(): Promise<any[]> {
     { email: "alice@example.com", name: "Alice Johnson" },
     { email: "bob@example.com", name: "Bob Smith" },
     { email: "charlie@example.com", name: "Charlie Brown" },
+    { email: "diana@example.com", name: "Diana Prince" },
+    { email: "edward@example.com", name: "Edward Blake" },
+    { email: "fiona@example.com", name: "Fiona Apple" },
   ];
 
   const users = await Promise.all(
@@ -108,20 +120,59 @@ async function createUsers(): Promise<any[]> {
 }
 
 async function createHousehold(users: any[]) {
-  const household = await prisma.household.create({
-    data: {
-      name: "Awesome Apartment",
-      members: {
-        create: [
-          { userId: users[0].id, role: HouseholdRole.ADMIN, isAccepted: true },
-          { userId: users[1].id, role: HouseholdRole.MEMBER, isAccepted: true },
-          { userId: users[2].id, role: HouseholdRole.MEMBER, isInvited: true },
-        ],
+  // Create multiple households
+  const households = await Promise.all([
+    prisma.household.create({
+      data: {
+        name: "Awesome Apartment",
+        members: {
+          create: [
+            {
+              userId: users[0].id,
+              role: HouseholdRole.ADMIN,
+              isAccepted: true,
+            },
+            {
+              userId: users[1].id,
+              role: HouseholdRole.MEMBER,
+              isAccepted: true,
+            },
+            {
+              userId: users[2].id,
+              role: HouseholdRole.MEMBER,
+              isAccepted: true,
+            },
+          ],
+        },
       },
-    },
-  });
+    }),
+    prisma.household.create({
+      data: {
+        name: "Student House",
+        members: {
+          create: [
+            {
+              userId: users[3].id,
+              role: HouseholdRole.ADMIN,
+              isAccepted: true,
+            },
+            {
+              userId: users[4].id,
+              role: HouseholdRole.MEMBER,
+              isAccepted: true,
+            },
+            {
+              userId: users[5].id,
+              role: HouseholdRole.MEMBER,
+              isInvited: true,
+            },
+          ],
+        },
+      },
+    }),
+  ]);
 
-  return household;
+  return households[0]; // Return first household for backward compatibility
 }
 
 async function createChores(
@@ -190,6 +241,15 @@ async function createChores(
     createdChores.push(createdChore);
   }
 
+  // Add chore history
+  await prisma.choreHistory.create({
+    data: {
+      choreId: createdChores[0].id,
+      action: ChoreAction.CREATED,
+      changedById: users[0].id,
+    },
+  });
+
   return createdChores;
 }
 
@@ -246,27 +306,55 @@ async function createExpenses(
 }
 
 async function createMessagesAndThreads(householdId: string, users: any[]) {
-  // Create a thread first
-  const thread = await prisma.thread.create({
-    data: {
-      householdId,
-      authorId: users[0].id,
-      title: "Cleaning Schedule Discussion",
-      participants: {
-        connect: users.map((user) => ({
-          userId_householdId: {
-            userId: user.id,
-            householdId,
-          },
-        })),
-      },
-    },
-  });
+  type Message = {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt: Date | null;
+    authorId: string;
+    threadId: string;
+    content: string;
+  };
 
-  // Create messages in the thread
-  const message = await prisma.message.create({
+  const threads = await Promise.all([
+    prisma.thread.create({
+      data: {
+        householdId,
+        authorId: users[0].id,
+        title: "Cleaning Schedule Discussion",
+        participants: {
+          connect: users.slice(0, 3).map((user) => ({
+            userId_householdId: {
+              userId: user.id,
+              householdId,
+            },
+          })),
+        },
+      },
+    }),
+    prisma.thread.create({
+      data: {
+        householdId,
+        authorId: users[1].id,
+        title: "Weekend Party Planning",
+        participants: {
+          connect: users.slice(0, 3).map((user) => ({
+            userId_householdId: {
+              userId: user.id,
+              householdId,
+            },
+          })),
+        },
+      },
+    }),
+  ]);
+
+  const messages: Message[] = [];
+
+  // Create messages for first thread
+  const message1 = await prisma.message.create({
     data: {
-      threadId: thread.id,
+      threadId: threads[0].id,
       authorId: users[0].id,
       content: "Hey everyone, let's discuss our cleaning schedule!",
       attachments: {
@@ -277,32 +365,126 @@ async function createMessagesAndThreads(householdId: string, users: any[]) {
       },
     },
   });
+  messages.push(message1);
 
-  // Add reactions to the message
-  await prisma.reaction.create({
+  // Add reactions to first message
+  await prisma.reaction.createMany({
+    data: [
+      {
+        messageId: message1.id,
+        userId: users[1].id,
+        emoji: "👍",
+        type: ReactionType.LIKE,
+      },
+      {
+        messageId: message1.id,
+        userId: users[2].id,
+        emoji: "❤️",
+        type: ReactionType.LOVE,
+      },
+    ],
+  });
+
+  // Create message with mentions
+  const message2 = await prisma.message.create({
     data: {
-      messageId: message.id,
-      userId: users[1].id,
-      emoji: "👍",
-      type: ReactionType.LIKE,
+      threadId: threads[0].id,
+      authorId: users[1].id,
+      content:
+        "Hey @Alice and @Charlie, can we move the cleaning day to Saturday?",
+      mentions: {
+        create: [{ userId: users[0].id }, { userId: users[2].id }],
+      },
+    },
+  });
+  messages.push(message2);
+
+  // Create message with poll
+  const message3 = await prisma.message.create({
+    data: {
+      threadId: threads[1].id,
+      authorId: users[0].id,
+      content: "When should we have our house party?",
     },
   });
 
-  // Add message history
-  await prisma.messageRead.createMany({
-    data: users.map((user) => ({
-      messageId: message.id,
-      userId: user.id,
-    })),
+  const poll = await prisma.poll.create({
+    data: {
+      messageId: message3.id,
+      question: "Best weekend for the party?",
+      pollType: PollType.EVENT_DATE,
+      maxChoices: 1,
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: PollStatus.OPEN,
+      options: {
+        create: [
+          {
+            text: "Next Saturday 8PM",
+            order: 1,
+            startTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            endTime: new Date(
+              Date.now() + 7 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000
+            ),
+          },
+          {
+            text: "Next Sunday 7PM",
+            order: 2,
+            startTime: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+            endTime: new Date(
+              Date.now() + 8 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000
+            ),
+          },
+        ],
+      },
+    },
   });
+
+  // Add some votes to the poll
+  const options = await prisma.pollOption.findMany({
+    where: { pollId: poll.id },
+  });
+
+  await prisma.pollVote.createMany({
+    data: [
+      {
+        optionId: options[0].id,
+        pollId: poll.id,
+        userId: users[0].id,
+        availability: true,
+      },
+      {
+        optionId: options[1].id,
+        pollId: poll.id,
+        userId: users[1].id,
+        availability: true,
+      },
+    ],
+  });
+
+  // Create some unread messages
+  await prisma.message.create({
+    data: {
+      threadId: threads[1].id,
+      authorId: users[2].id,
+      content: "I'll bring snacks and drinks!",
+      reads: {
+        create: [
+          { userId: users[2].id }, // Only the author has read it
+        ],
+      },
+    },
+  });
+
+  return messages;
 }
 
 async function createEvents(householdId: string, users: any[]) {
-  // Create recurrence rule first
   const monthlyRule = await prisma.recurrenceRule.create({
     data: {
       frequency: RecurrenceFrequency.MONTHLY,
       interval: 1,
+      byWeekDay: [],
+      byMonthDay: [],
     },
   });
 
@@ -317,6 +499,8 @@ async function createEvents(householdId: string, users: any[]) {
       category: EventCategory.MEETING,
       status: EventStatus.SCHEDULED,
       recurrenceRuleId: monthlyRule.id,
+      isAllDay: false,
+      isPrivate: false,
       reminders: {
         create: {
           time: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
@@ -403,6 +587,53 @@ async function createNotificationSettings(users: any[], householdId: string) {
       },
     });
   }
+}
+
+async function createPollsAndVotes(users: any[], messages: any[]) {
+  const poll = await prisma.poll.create({
+    data: {
+      messageId: messages[0].id,
+      question: "When should we schedule the next house meeting?",
+      pollType: PollType.EVENT_DATE,
+      maxChoices: 1,
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: PollStatus.OPEN,
+      options: {
+        create: [
+          {
+            text: "Next Monday 6PM",
+            order: 1,
+            startTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            endTime: new Date(
+              Date.now() + 7 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000
+            ),
+          },
+          {
+            text: "Next Tuesday 7PM",
+            order: 2,
+            startTime: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+            endTime: new Date(
+              Date.now() + 8 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000
+            ),
+          },
+        ],
+      },
+    },
+  });
+
+  // Create some votes
+  const options = await prisma.pollOption.findMany({
+    where: { pollId: poll.id },
+  });
+
+  await prisma.pollVote.create({
+    data: {
+      optionId: options[0].id,
+      pollId: poll.id,
+      userId: users[0].id,
+      availability: true,
+    },
+  });
 }
 
 main()
