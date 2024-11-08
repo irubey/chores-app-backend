@@ -81,15 +81,17 @@ export function transformChoreToChoreWithAssignees(
     recurrenceRuleId: chore.recurrenceRuleId ?? undefined,
   };
 
-  // Type assertion to help TypeScript understand the structure
   const assignments = (chore.assignments ??
     []) as PrismaChoreAssignmentWithRelations[];
   const subtasks = (chore.subtasks ?? []) as PrismaSubtaskMinimal[];
+  const swapRequests = (chore.choreSwapRequests ??
+    []) as PrismaChoreSwapRequestWithRelations[];
 
   return {
     ...baseChore,
     assignments: assignments.map(transformChoreAssignment),
     subtasks: subtasks.map(transformSubtask),
+    swapRequests: swapRequests.map(transformChoreSwapRequest),
   };
 }
 

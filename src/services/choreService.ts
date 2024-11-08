@@ -93,7 +93,9 @@ export async function getChores(
     include: {
       subtasks: true,
       assignments: {
-        include: { user: true },
+        include: {
+          user: true,
+        },
       },
     },
   })) as PrismaChoreWithFullRelations[];
@@ -186,6 +188,13 @@ export async function getChoreById(
       subtasks: true,
       assignments: {
         include: { user: true },
+      },
+      choreSwapRequests: {
+        where: { status: ChoreSwapRequestStatus.PENDING },
+        include: {
+          requestingUser: true,
+          targetUser: true,
+        },
       },
     },
   })) as PrismaChoreWithFullRelations;

@@ -13,6 +13,28 @@ import { asyncHandler } from "../utils/asyncHandler";
 const router = Router();
 
 /**
+ * @route   GET /api/households/selected
+ * @desc    Retrieve households selected by the user
+ * @access  Protected
+ */
+router.get(
+  "/selected",
+  authMiddleware,
+  asyncHandler(HouseholdController.getSelectedHouseholds)
+);
+
+/**
+ * @route   GET /api/households/invitations
+ * @desc    Get all pending invitations for the current user
+ * @access  Protected
+ */
+router.get(
+  "/invitations",
+  authMiddleware,
+  asyncHandler(HouseholdController.getInvitations)
+);
+
+/**
  * @route   GET /api/households
  * @desc    Retrieve all households for the authenticated user
  * @access  Protected
@@ -130,17 +152,6 @@ router.patch(
 );
 
 /**
- * @route   GET /api/households/selected
- * @desc    Retrieve households selected by the user
- * @access  Protected
- */
-router.get(
-  "/selected",
-  authMiddleware,
-  asyncHandler(HouseholdController.getSelectedHouseholds)
-);
-
-/**
  * @route   PATCH /api/households/:householdId/members/:memberId/selection
  * @desc    Update the selection of a household member
  * @access  Protected
@@ -161,17 +172,6 @@ router.post(
   authMiddleware,
   rbacMiddleware("ADMIN"),
   asyncHandler(HouseholdController.sendInvitation)
-);
-
-/**
- * @route   GET /api/households/invitations
- * @desc    Get all pending invitations for the current user
- * @access  Protected
- */
-router.get(
-  "/invitations",
-  authMiddleware,
-  asyncHandler(HouseholdController.getInvitations)
 );
 
 export default router;

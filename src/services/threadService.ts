@@ -1,4 +1,3 @@
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import prisma from "../config/database";
 import {
   CreateThreadDTO,
@@ -9,145 +8,24 @@ import {
   InviteUsersDTO,
 } from "@shared/types";
 import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import { HouseholdRole, ThreadAction } from "@shared/enums";
-import { getIO } from "../sockets";
 import { verifyMembership } from "./authService";
 import {
   transformThread,
   transformThreadWithMessages,
   transformThreadWithParticipants,
-} from "../utils/transformers/messageTransformer/messageTransformer";
+} from "../utils/transformers/messageTransformer";
 import {
   PrismaThreadWithMessagesAndParticipants,
   PrismaThreadWithParticipantsOnly,
-  PrismaThreadWithFullRelations,
-  PrismaThreadBase,
 } from "../utils/transformers/transformerPrismaTypes";
 import logger from "../utils/logger";
-
-// Helper function to wrap data in ApiResponse
-function wrapResponse<T>(data: T): ApiResponse<T> {
-  return { data };
-}
-
-// Create a consistent include object for threads
-const threadInclude = {
-  author: {
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      profileImageURL: true,
-      createdAt: true,
-      updatedAt: true,
-      deletedAt: true,
-    },
-  },
-  household: {
-    select: {
-      id: true,
-      name: true,
-      createdAt: true,
-      updatedAt: true,
-      deletedAt: true,
-      currency: true,
-      icon: true,
-      timezone: true,
-      language: true,
-    },
-  },
-  messages: {
-    include: {
-      thread: true,
-      author: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImageURL: true,
-          createdAt: true,
-          updatedAt: true,
-          deletedAt: true,
-        },
-      },
-      attachments: {
-        include: {
-          message: {
-            select: {
-              id: true,
-              threadId: true,
-            },
-          },
-        },
-      },
-      reactions: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              profileImageURL: true,
-              createdAt: true,
-              updatedAt: true,
-              deletedAt: true,
-            },
-          },
-          message: {
-            include: {
-              thread: true,
-            },
-          },
-        },
-      },
-      mentions: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              profileImageURL: true,
-              createdAt: true,
-              updatedAt: true,
-              deletedAt: true,
-            },
-          },
-          message: {
-            include: {
-              thread: true,
-            },
-          },
-        },
-      },
-      reads: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              profileImageURL: true,
-              createdAt: true,
-              updatedAt: true,
-              deletedAt: true,
-            },
-          },
-          message: {
-            include: {
-              thread: true,
-            },
-          },
-        },
-      },
-    },
-  },
-  participants: {
-    include: {
-      user: true,
-    },
-  },
-} as const;
+import {
+  wrapResponse,
+  handleServiceError,
+  emitThreadEvent,
+} from "../utils/servicesUtils";
 
 /**
  * Retrieves all threads for a specific household.
@@ -156,8 +34,9 @@ export async function getThreads(
   householdId: string,
   userId: string
 ): Promise<ApiResponse<ThreadWithMessages[]>> {
+  logger.debug("Fetching threads for household", { householdId, userId });
+
   try {
-    logger.info(`Fetching threads for household ${householdId}`);
     await verifyMembership(householdId, userId, [
       HouseholdRole.ADMIN,
       HouseholdRole.MEMBER,
@@ -165,22 +44,61 @@ export async function getThreads(
 
     const threads = await prisma.thread.findMany({
       where: { householdId },
-      include: threadInclude,
+      include: {
+        messages: {
+          include: {
+            thread: true,
+            author: true,
+            attachments: {
+              include: {
+                message: true,
+              },
+            },
+            reactions: {
+              include: {
+                user: true,
+                message: true,
+              },
+            },
+            mentions: {
+              include: {
+                user: true,
+                message: true,
+              },
+            },
+            reads: {
+              include: {
+                user: true,
+                message: true,
+              },
+            },
+          },
+        },
+        participants: {
+          include: {
+            user: true,
+          },
+        },
+      },
       orderBy: {
         updatedAt: "desc",
       },
     });
 
-    const transformedThreads = threads.map((thread) =>
-      transformThreadWithMessages(
-        thread as PrismaThreadWithMessagesAndParticipants
+    logger.info("Successfully retrieved threads", {
+      householdId,
+      threadCount: threads.length,
+    });
+
+    return wrapResponse(
+      threads.map((thread) =>
+        transformThreadWithMessages(
+          thread as PrismaThreadWithMessagesAndParticipants
+        )
       )
     );
-
-    return wrapResponse(transformedThreads);
   } catch (error) {
-    logger.error(`Error fetching threads: ${error}`);
-    throw error;
+    return handleServiceError(error, "fetch threads", { householdId }) as never;
   }
 }
 
@@ -191,11 +109,13 @@ export async function createThread(
   data: CreateThreadDTO,
   userId: string
 ): Promise<ApiResponse<ThreadWithParticipants>> {
-  try {
-    logger.info(`Creating new thread in household ${data.householdId}`);
+  logger.debug("Creating new thread", {
+    householdId: data.householdId,
+    userId,
+  });
 
+  try {
     const thread = await prisma.$transaction(async (tx) => {
-      // Create the thread first
       const newThread = await tx.thread.create({
         data: {
           householdId: data.householdId,
@@ -210,10 +130,15 @@ export async function createThread(
             })),
           },
         },
-        include: threadInclude,
+        include: {
+          participants: {
+            include: {
+              user: true,
+            },
+          },
+        },
       });
 
-      // If there's an initial message, create it with proper typing
       if (data.initialMessage) {
         await tx.message.create({
           data: {
@@ -237,35 +162,29 @@ export async function createThread(
               },
             }),
           },
-          include: {
-            thread: true,
-            author: true,
-            attachments: true,
-            mentions: {
-              include: {
-                user: true,
-              },
-            },
-          },
         });
       }
 
       return newThread;
     });
 
+    logger.info("Successfully created thread", {
+      threadId: thread.id,
+      householdId: data.householdId,
+    });
+
     const transformedThread = transformThreadWithParticipants(
       thread as PrismaThreadWithParticipantsOnly
     );
 
-    getIO().to(`household_${data.householdId}`).emit("thread_update", {
+    emitThreadEvent("thread_update", thread.id, data.householdId, {
       action: ThreadAction.CREATED,
       thread: transformedThread,
     });
 
     return wrapResponse(transformedThread);
   } catch (error) {
-    logger.error(`Error creating thread: ${error}`);
-    throw error;
+    return handleServiceError(error, "create thread") as never;
   }
 }
 
@@ -277,60 +196,67 @@ export async function getThreadById(
   threadId: string,
   userId: string
 ): Promise<ApiResponse<ThreadWithMessages>> {
-  await verifyMembership(householdId, userId, [
-    HouseholdRole.ADMIN,
-    HouseholdRole.MEMBER,
-  ]);
+  logger.debug("Fetching thread by ID", { householdId, threadId, userId });
 
-  const thread = await prisma.thread.findUnique({
-    where: { id: threadId },
-    include: {
-      messages: {
-        include: {
-          thread: true,
-          author: true,
-          attachments: {
-            include: {
-              message: true,
+  try {
+    await verifyMembership(householdId, userId, [
+      HouseholdRole.ADMIN,
+      HouseholdRole.MEMBER,
+    ]);
+
+    const thread = await prisma.thread.findUnique({
+      where: { id: threadId },
+      include: {
+        messages: {
+          include: {
+            thread: true,
+            author: true,
+            attachments: true,
+            reactions: {
+              include: {
+                user: true,
+                message: true,
+              },
             },
-          },
-          reactions: {
-            include: {
-              user: true,
-              message: true,
+            mentions: {
+              include: {
+                user: true,
+                message: true,
+              },
             },
-          },
-          mentions: {
-            include: {
-              user: true,
-              message: true,
-            },
-          },
-          reads: {
-            include: {
-              user: true,
-              message: true,
+            reads: {
+              include: {
+                user: true,
+                message: true,
+              },
             },
           },
         },
-      },
-      participants: {
-        include: {
-          user: true,
+        participants: {
+          include: {
+            user: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!thread) {
-    throw new NotFoundError("Thread not found");
+    if (!thread) {
+      logger.warn("Thread not found", { threadId });
+      throw new NotFoundError("Thread not found");
+    }
+
+    logger.info("Successfully retrieved thread", { threadId });
+
+    return wrapResponse(
+      transformThreadWithMessages(
+        thread as PrismaThreadWithMessagesAndParticipants
+      )
+    );
+  } catch (error) {
+    return handleServiceError(error, "fetch thread by ID", {
+      threadId,
+    }) as never;
   }
-
-  const transformedThread = transformThreadWithMessages(
-    thread as PrismaThreadWithMessagesAndParticipants
-  );
-
-  return wrapResponse(transformedThread);
 }
 
 /**
@@ -342,8 +268,9 @@ export async function updateThread(
   data: UpdateThreadDTO,
   userId: string
 ): Promise<ApiResponse<Thread>> {
+  logger.debug("Updating thread", { householdId, threadId, userId });
+
   try {
-    logger.info(`Updating thread ${threadId}`);
     await verifyMembership(householdId, userId, [
       HouseholdRole.ADMIN,
       HouseholdRole.MEMBER,
@@ -364,22 +291,20 @@ export async function updateThread(
           },
         }),
       },
-      include: threadInclude,
     });
 
-    const transformedThread = transformThread(
-      updatedThread as PrismaThreadBase
-    );
+    logger.info("Successfully updated thread", { threadId });
 
-    getIO().to(`household_${householdId}`).emit("thread_update", {
+    const transformedThread = transformThread(updatedThread);
+
+    emitThreadEvent("thread_update", threadId, householdId, {
       action: ThreadAction.UPDATED,
       thread: transformedThread,
     });
 
     return wrapResponse(transformedThread);
   } catch (error) {
-    logger.error(`Error updating thread: ${error}`);
-    throw error;
+    return handleServiceError(error, "update thread", { threadId }) as never;
   }
 }
 
@@ -391,16 +316,24 @@ export async function deleteThread(
   threadId: string,
   userId: string
 ): Promise<ApiResponse<void>> {
-  await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
+  logger.debug("Deleting thread", { householdId, threadId, userId });
 
-  await prisma.thread.delete({ where: { id: threadId } });
+  try {
+    await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-  getIO().to(`household_${householdId}`).emit("thread_update", {
-    action: ThreadAction.DELETED,
-    threadId,
-  });
+    await prisma.thread.delete({ where: { id: threadId } });
 
-  return wrapResponse(undefined);
+    logger.info("Successfully deleted thread", { threadId });
+
+    emitThreadEvent("thread_update", threadId, householdId, {
+      action: ThreadAction.DELETED,
+      threadId,
+    });
+
+    return wrapResponse(undefined);
+  } catch (error) {
+    return handleServiceError(error, "delete thread", { threadId }) as never;
+  }
 }
 
 /**
@@ -412,55 +345,73 @@ export async function inviteUsersToThread(
   data: InviteUsersDTO,
   userId: string
 ): Promise<ApiResponse<ThreadWithParticipants>> {
-  await verifyMembership(householdId, userId, [
-    HouseholdRole.ADMIN,
-    HouseholdRole.MEMBER,
-  ]);
+  logger.debug("Inviting users to thread", {
+    householdId,
+    threadId,
+    userIds: data.userIds,
+    requestingUserId: userId,
+  });
 
-  const updatedThread = await prisma.$transaction(async (tx) => {
-    const householdMembers = await tx.householdMember.findMany({
-      where: {
-        householdId,
-        userId: { in: data.userIds },
-      },
-    });
+  try {
+    await verifyMembership(householdId, userId, [
+      HouseholdRole.ADMIN,
+      HouseholdRole.MEMBER,
+    ]);
 
-    if (householdMembers.length !== data.userIds.length) {
-      throw new UnauthorizedError(
-        "Some users are not members of this household"
-      );
-    }
-
-    return tx.thread.update({
-      where: { id: threadId },
-      data: {
-        participants: {
-          connect: data.userIds.map((userId) => ({
-            userId_householdId: {
-              userId,
-              householdId,
-            },
-          })),
+    const updatedThread = await prisma.$transaction(async (tx) => {
+      const householdMembers = await tx.householdMember.findMany({
+        where: {
+          householdId,
+          userId: { in: data.userIds },
         },
-      },
-      include: {
-        participants: {
-          include: {
-            user: true,
+      });
+
+      if (householdMembers.length !== data.userIds.length) {
+        throw new UnauthorizedError(
+          "Some users are not members of this household"
+        );
+      }
+
+      return tx.thread.update({
+        where: { id: threadId },
+        data: {
+          participants: {
+            connect: data.userIds.map((userId) => ({
+              userId_householdId: {
+                userId,
+                householdId,
+              },
+            })),
           },
         },
-      },
+        include: {
+          participants: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      });
     });
-  });
 
-  const transformedThread = transformThreadWithParticipants(
-    updatedThread as PrismaThreadWithParticipantsOnly
-  );
+    logger.info("Successfully invited users to thread", {
+      threadId,
+      invitedUserCount: data.userIds.length,
+    });
 
-  getIO().to(`household_${householdId}`).emit("thread_update", {
-    action: ThreadAction.USERS_INVITED,
-    thread: transformedThread,
-  });
+    const transformedThread = transformThreadWithParticipants(
+      updatedThread as PrismaThreadWithParticipantsOnly
+    );
 
-  return wrapResponse(transformedThread);
+    emitThreadEvent("thread_update", threadId, householdId, {
+      action: ThreadAction.USERS_INVITED,
+      thread: transformedThread,
+    });
+
+    return wrapResponse(transformedThread);
+  } catch (error) {
+    return handleServiceError(error, "invite users to thread", {
+      threadId,
+    }) as never;
+  }
 }
