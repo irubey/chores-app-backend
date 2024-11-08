@@ -103,7 +103,7 @@ export type PrismaChoreWithFullRelations = Prisma.ChoreGetPayload<{
         user: true;
       };
     };
-    swapRequests: {
+    choreSwapRequests: {
       include: {
         requestingUser: true;
         targetUser: true;

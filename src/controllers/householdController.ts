@@ -7,6 +7,7 @@ import {
   AddMemberDTO,
 } from "@shared/types";
 import { AuthenticatedRequest } from "../types";
+import logger from "../utils/logger";
 
 /**
  * HouseholdController handles all CRUD operations related to households.
@@ -225,9 +226,21 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
+      logger.info("Getting selected households", { userId });
+
       const response = await householdService.getSelectedHouseholds(userId);
+
+      logger.info("Selected households retrieved", {
+        userId,
+        count: response.data?.length,
+      });
+
       res.status(200).json(response);
     } catch (error) {
+      logger.error("Failed to get selected households", {
+        userId: req.user?.id,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       next(error);
     }
   }
@@ -343,9 +356,21 @@ export class HouseholdController {
         throw new UnauthorizedError("Unauthorized");
       }
 
+      logger.info("Getting user households", { userId });
+
       const response = await householdService.getUserHouseholds(userId);
+
+      logger.info("User households retrieved", {
+        userId,
+        count: response.data.length,
+      });
+
       res.status(200).json(response);
     } catch (error) {
+      logger.error("Failed to get user households", {
+        userId: req.user?.id,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       next(error);
     }
   }

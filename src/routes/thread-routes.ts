@@ -9,8 +9,8 @@ import { asyncHandler } from "../utils/asyncHandler";
 const router = Router({ mergeParams: true });
 
 /**
- * @route   GET /api/households/:householdId/threads
- * @desc    Retrieve all threads for a specific household
+ * @route   GET /api/threads
+ * @desc    Get threads for a household
  * @access  Protected
  */
 router.get("/", authMiddleware, asyncHandler(ThreadController.getThreads));

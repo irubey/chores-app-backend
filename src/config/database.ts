@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import logger from "../utils/logger";
 import { prismaExtensions } from "./prismaExtensions";
 
-// Initialize base Prisma Client
+// Initialize base Prisma Client with logging
 const basePrisma = new PrismaClient({
   log: [
     { emit: "event", level: "query" },
@@ -35,7 +35,10 @@ export const connectDatabase = async (): Promise<void> => {
     await basePrisma.$connect();
     logger.info("Successfully connected to the database");
   } catch (error) {
-    logger.error("Failed to connect to the database:", error);
+    logger.error("Failed to connect to the database", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     process.exit(1);
   }
 };
