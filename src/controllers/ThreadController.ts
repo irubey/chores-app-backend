@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import * as threadService from "../services/threadService";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import { CreateThreadDTO, UpdateThreadDTO } from "@shared/types";
+import { PaginationOptions } from "@shared/interfaces";
 import { AuthenticatedRequest } from "../types";
 
 /**
@@ -21,7 +22,28 @@ export class ThreadController {
         throw new UnauthorizedError("Unauthorized");
       }
       const { householdId } = req.params;
-      const response = await threadService.getThreads(householdId, req.user.id);
+      const { limit, cursor, direction, sortBy } = req.query as {
+        limit?: string;
+        cursor?: string;
+        direction?: "asc" | "desc";
+        sortBy?: string;
+      };
+
+      // Validate pagination parameters
+      const paginationOptions: PaginationOptions = {
+        limit: limit ? Math.min(Math.max(parseInt(limit), 1), 100) : 20, // Limit between 1 and 100
+        cursor: cursor,
+        direction: direction === "asc" ? "asc" : "desc", // Default to desc if invalid
+        sortBy: ["updatedAt", "createdAt"].includes(sortBy || "")
+          ? sortBy
+          : "updatedAt", // Validate sortBy field
+      };
+
+      const response = await threadService.getThreads(
+        householdId,
+        req.user.id,
+        paginationOptions
+      );
       res.status(200).json(response);
     } catch (error) {
       next(error);

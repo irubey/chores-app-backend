@@ -1,14 +1,21 @@
-import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { ApiResponse, PaginationMeta } from "@shared/interfaces";
 import logger from "./logger";
 import { getIO } from "../sockets";
 
 /**
- * Wraps data in an ApiResponse object.
+ * Wraps data in an ApiResponse object with optional pagination metadata.
  * @param data - The data to wrap
- * @returns ApiResponse containing the data
+ * @param paginationMeta - Optional pagination metadata
+ * @returns ApiResponse containing the data and optional pagination metadata
  */
-export function wrapResponse<T>(data: T): ApiResponse<T> {
-  return { data };
+export function wrapResponse<T>(
+  data: T,
+  paginationMeta?: PaginationMeta
+): ApiResponse<T> {
+  return {
+    data,
+    pagination: paginationMeta,
+  };
 }
 
 /**
