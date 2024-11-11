@@ -6,19 +6,24 @@ import {
   ThreadWithParticipants,
   UpdateThreadDTO,
   InviteUsersDTO,
+  ThreadWithDetails,
 } from "@shared/types";
+import { PaginationOptions } from "@shared/interfaces";
 import { ApiResponse } from "@shared/interfaces/apiResponse";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import { HouseholdRole, ThreadAction } from "@shared/enums";
 import { verifyMembership } from "./authService";
 import {
   transformThread,
+  transformThreadWithDetails,
   transformThreadWithMessages,
   transformThreadWithParticipants,
 } from "../utils/transformers/messageTransformer";
 import {
+  PrismaThreadWithFullRelations,
   PrismaThreadWithMessagesAndParticipants,
   PrismaThreadWithParticipantsOnly,
+  userMinimalSelect,
 } from "../utils/transformers/transformerPrismaTypes";
 import logger from "../utils/logger";
 import {
@@ -32,9 +37,14 @@ import {
  */
 export async function getThreads(
   householdId: string,
-  userId: string
-): Promise<ApiResponse<ThreadWithMessages[]>> {
-  logger.debug("Fetching threads for household", { householdId, userId });
+  userId: string,
+  options?: PaginationOptions
+): Promise<ApiResponse<ThreadWithDetails[]>> {
+  logger.debug("Fetching threads for household", {
+    householdId,
+    userId,
+    options,
+  });
 
   try {
     await verifyMembership(householdId, userId, [
@@ -44,32 +54,143 @@ export async function getThreads(
 
     const threads = await prisma.thread.findMany({
       where: { householdId },
+      take: options?.limit || 20,
+      skip: options?.cursor ? 1 : 0,
+      cursor: options?.cursor ? { id: options.cursor } : undefined,
+      orderBy: {
+        [options?.sortBy || "updatedAt"]: options?.direction || "desc",
+      },
       include: {
+        author: {
+          select: userMinimalSelect,
+        },
+        household: true,
         messages: {
+          take: 20, // Fixed limit for initial messages
+          orderBy: { createdAt: "desc" },
           include: {
-            thread: true,
-            author: true,
+            thread: {
+              select: {
+                id: true,
+                householdId: true,
+                authorId: true,
+                title: true,
+                createdAt: true,
+                updatedAt: true,
+                deletedAt: true,
+              },
+            },
+            author: {
+              select: userMinimalSelect,
+            },
             attachments: {
               include: {
-                message: true,
+                message: {
+                  select: {
+                    id: true,
+                    threadId: true,
+                  },
+                },
               },
             },
             reactions: {
               include: {
-                user: true,
-                message: true,
+                user: {
+                  select: userMinimalSelect,
+                },
+                message: {
+                  include: {
+                    thread: {
+                      select: {
+                        id: true,
+                        householdId: true,
+                        authorId: true,
+                        title: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        deletedAt: true,
+                      },
+                    },
+                  },
+                },
               },
             },
             mentions: {
               include: {
-                user: true,
-                message: true,
+                user: {
+                  select: userMinimalSelect,
+                },
+                message: {
+                  include: {
+                    thread: {
+                      select: {
+                        id: true,
+                        householdId: true,
+                        authorId: true,
+                        title: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        deletedAt: true,
+                      },
+                    },
+                  },
+                },
               },
             },
             reads: {
               include: {
-                user: true,
-                message: true,
+                user: {
+                  select: userMinimalSelect,
+                },
+                message: {
+                  include: {
+                    thread: {
+                      select: {
+                        id: true,
+                        householdId: true,
+                        authorId: true,
+                        title: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        deletedAt: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            poll: {
+              include: {
+                message: {
+                  include: {
+                    thread: true,
+                  },
+                },
+                event: true,
+                options: {
+                  include: {
+                    votes: {
+                      include: {
+                        user: {
+                          select: userMinimalSelect,
+                        },
+                      },
+                    },
+                    selectedForPolls: true,
+                  },
+                },
+                selectedOption: {
+                  include: {
+                    votes: {
+                      include: {
+                        user: {
+                          select: userMinimalSelect,
+                        },
+                      },
+                    },
+                    selectedForPolls: true,
+                  },
+                },
               },
             },
           },
@@ -80,22 +201,27 @@ export async function getThreads(
           },
         },
       },
-      orderBy: {
-        updatedAt: "desc",
-      },
     });
+
+    const lastThread = threads[threads.length - 1];
+    const hasMore = threads.length === (options?.limit || 20);
 
     logger.info("Successfully retrieved threads", {
       householdId,
       threadCount: threads.length,
+      hasMore,
+      lastThreadId: lastThread?.id,
     });
 
     return wrapResponse(
       threads.map((thread) =>
-        transformThreadWithMessages(
-          thread as PrismaThreadWithMessagesAndParticipants
-        )
-      )
+        transformThreadWithDetails(thread as PrismaThreadWithFullRelations)
+      ),
+      {
+        hasMore,
+        nextCursor: hasMore ? lastThread?.id : undefined,
+        total: threads.length,
+      }
     );
   } catch (error) {
     return handleServiceError(error, "fetch threads", { householdId }) as never;

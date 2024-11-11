@@ -21,6 +21,7 @@ import { ApiResponse } from "@shared/interfaces/apiResponse";
 import { PaginationOptions } from "@shared/interfaces/pagination";
 import { HouseholdRole, MessageAction } from "@shared/enums";
 import { PrismaMessageWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
+import { wrapResponse, handleServiceError } from "../../utils/servicesUtils";
 
 /**
  * Get messages for a thread with pagination
@@ -31,28 +32,21 @@ export async function getMessages(
   userId: string,
   options: PaginationOptions = {}
 ): Promise<ApiResponse<MessageWithDetails[]>> {
+  logger.info(`Fetching messages for thread ${threadId}`);
+
   try {
-    logger.info(`Fetching messages for thread ${threadId}`);
     await verifyMembership(householdId, userId, [
       HouseholdRole.ADMIN,
       HouseholdRole.MEMBER,
     ]);
 
-    const limit = options.limit || 50;
-    const cursor = options.cursor;
-
     const messages = await prisma.message.findMany({
-      where: {
-        threadId,
-        ...(cursor && {
-          createdAt: {
-            lt: new Date(cursor),
-          },
-        }),
-      },
-      take: limit + 1,
+      where: { threadId },
+      take: options?.limit || 20,
+      skip: options?.cursor ? 1 : 0,
+      cursor: options?.cursor ? { id: options.cursor } : undefined,
       orderBy: {
-        createdAt: "desc",
+        [options?.sortBy || "createdAt"]: options?.direction || "desc",
       },
       include: {
         thread: true,
@@ -140,26 +134,28 @@ export async function getMessages(
       },
     });
 
-    const hasMore = messages.length > limit;
-    const paginatedMessages = hasMore ? messages.slice(0, -1) : messages;
-    const nextCursor = hasMore
-      ? messages[limit].createdAt.toISOString()
-      : undefined;
+    const lastMessage = messages[messages.length - 1];
+    const hasMore = messages.length === (options?.limit || 20);
 
-    const transformedMessages = paginatedMessages.map((msg) =>
-      transformMessageWithDetails(msg as PrismaMessageWithFullRelations)
-    );
+    logger.info("Successfully retrieved messages", {
+      threadId,
+      messageCount: messages.length,
+      hasMore,
+      lastMessageId: lastMessage?.id,
+    });
 
-    return {
-      data: transformedMessages,
-      pagination: {
+    return wrapResponse(
+      messages.map((msg) =>
+        transformMessageWithDetails(msg as PrismaMessageWithFullRelations)
+      ),
+      {
         hasMore,
-        nextCursor,
-      },
-    };
+        nextCursor: hasMore ? lastMessage?.id : undefined,
+        total: messages.length,
+      }
+    );
   } catch (error) {
-    logger.error(`Error fetching messages: ${error}`);
-    throw error;
+    return handleServiceError(error, "fetch messages", { threadId }) as never;
   }
 }
 
@@ -272,7 +268,6 @@ export async function createMessage(
         },
       });
 
-      // Update thread's updatedAt timestamp
       await tx.thread.update({
         where: { id: threadId },
         data: { updatedAt: new Date() },
@@ -290,10 +285,9 @@ export async function createMessage(
       message: transformedMessage,
     });
 
-    return { data: transformedMessage };
+    return wrapResponse(transformedMessage);
   } catch (error) {
-    logger.error(`Error creating message: ${error}`);
-    throw error;
+    return handleServiceError(error, "create message", { threadId }) as never;
   }
 }
 
@@ -424,10 +418,9 @@ export async function updateMessage(
       message: transformedMessage,
     });
 
-    return { data: transformedMessage };
+    return wrapResponse(transformedMessage);
   } catch (error) {
-    logger.error(`Error updating message: ${error}`);
-    throw error;
+    return handleServiceError(error, "update message", { messageId }) as never;
   }
 }
 
@@ -466,10 +459,9 @@ export async function deleteMessage(
       messageId,
     });
 
-    return { data: undefined };
+    return wrapResponse(undefined);
   } catch (error) {
-    logger.error(`Error deleting message: ${error}`);
-    throw error;
+    return handleServiceError(error, "delete message", { messageId }) as never;
   }
 }
 
@@ -503,10 +495,11 @@ export async function markMessageAsRead(
       update: {},
     });
 
-    return { data: undefined };
+    return wrapResponse(undefined);
   } catch (error) {
-    logger.error(`Error marking message as read: ${error}`);
-    throw error;
+    return handleServiceError(error, "mark message as read", {
+      messageId,
+    }) as never;
   }
 }
 
@@ -556,15 +549,14 @@ export async function getMessageReadStatus(
     const readUserIds = readBy.map((r) => r.userId);
     const unreadBy = participantIds.filter((id) => !readUserIds.includes(id));
 
-    return {
-      data: {
-        messageId,
-        readBy,
-        unreadBy,
-      },
-    };
+    return wrapResponse({
+      messageId,
+      readBy,
+      unreadBy,
+    });
   } catch (error) {
-    logger.error(`Error getting message read status: ${error}`);
-    throw error;
+    return handleServiceError(error, "get message read status", {
+      messageId,
+    }) as never;
   }
 }
