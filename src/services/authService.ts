@@ -11,27 +11,61 @@ import { HouseholdMember } from "@shared/types/household";
 import { transformUser } from "../utils/transformers/userTransformer";
 import { User } from "@shared/types";
 import { ApiResponse } from "@shared/interfaces/apiResponse";
+import ms from "ms";
+import logger from "../utils/logger";
+import { ExtendedPrismaClient } from "../config/database";
+import type { Prisma } from "@prisma/client";
+
+type TransactionClient = Omit<
+  ExtendedPrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
 /**
  * AuthService handles the business logic for authentication.
  */
 export class AuthService {
   private static generateAccessToken(payload: TokenPayload): string {
+    if (!payload.userId || !payload.email) {
+      logger.error("Invalid token payload", { payload });
+      throw new UnauthorizedError("Invalid token payload");
+    }
     return jwt.sign(payload, authConfig.jwt.accessSecret, {
       expiresIn: authConfig.jwt.accessTokenExpiration,
     });
   }
 
   private static generateRefreshToken(payload: TokenPayload): string {
-    return jwt.sign(payload, authConfig.jwt.refreshSecret, {
+    if (!payload.userId || !payload.email) {
+      logger.error("Invalid token payload", { payload });
+      throw new UnauthorizedError("Invalid token payload");
+    }
+    const nonce = Math.random().toString(36).substring(2);
+    const tokenPayload = { ...payload, nonce };
+    return jwt.sign(tokenPayload, authConfig.jwt.refreshSecret, {
       expiresIn: authConfig.jwt.refreshTokenExpiration,
     });
   }
 
   private static verifyToken(token: string, secret: string): TokenPayload {
     try {
-      return jwt.verify(token, secret) as TokenPayload;
+      logger.debug("Verifying token");
+      const decoded = jwt.verify(token, secret) as TokenPayload;
+
+      if (!decoded.userId || !decoded.email) {
+        logger.error("Invalid token payload after verification", { decoded });
+        throw new UnauthorizedError("Invalid token payload");
+      }
+
+      return decoded;
     } catch (error) {
-      throw new UnauthorizedError("Invalid or expired token.");
+      logger.error("Token verification failed:", { error });
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new UnauthorizedError("Token has expired");
+      } else if (error instanceof jwt.JsonWebTokenError) {
+        throw new UnauthorizedError("Invalid token");
+      }
+      throw new UnauthorizedError("Token verification failed");
     }
   }
 
@@ -40,50 +74,71 @@ export class AuthService {
     accessToken: string,
     refreshToken: string
   ): void {
-    const cookieOptions: {
-      httpOnly: boolean;
-      secure: boolean;
-      sameSite: "strict" | "lax" | "none";
-      path: string;
-    } = {
+    const isDev = process.env.NODE_ENV === "development";
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      secure: !isDev,
+      sameSite: isDev ? ("lax" as const) : ("strict" as const),
       path: "/",
+      domain: process.env.COOKIE_DOMAIN || undefined,
     };
+
+    // Convert JWT time strings to milliseconds
+    const accessExpMs = ms(authConfig.jwt.accessTokenExpiration);
+    const refreshExpMs = ms(authConfig.jwt.refreshTokenExpiration);
+
+    logger.debug("Setting auth cookies", {
+      accessExpMs,
+      refreshExpMs,
+      secure: cookieOptions.secure,
+      sameSite: cookieOptions.sameSite,
+      isDev,
+      domain: cookieOptions.domain,
+    });
 
     res.cookie("accessToken", accessToken, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: accessExpMs,
     });
 
     res.cookie("refreshToken", refreshToken, {
       ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: refreshExpMs,
     });
   }
 
-  private static clearAuthCookies(res: Response): void {
+  public static clearAuthCookies(res: Response): void {
+    const isDev = process.env.NODE_ENV === "development";
     const cookieOptions = {
       path: "/",
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite:
-        process.env.NODE_ENV === "production"
-          ? ("strict" as const)
-          : ("lax" as const),
+      secure: !isDev,
+      sameSite: isDev ? ("lax" as const) : ("strict" as const),
+      domain: process.env.COOKIE_DOMAIN || undefined,
     };
+
+    logger.debug("Clearing auth cookies", {
+      secure: cookieOptions.secure,
+      sameSite: cookieOptions.sameSite,
+      isDev,
+      domain: cookieOptions.domain,
+    });
 
     res.clearCookie("accessToken", cookieOptions);
     res.clearCookie("refreshToken", cookieOptions);
   }
 
   static async register(userData: RegisterUserDTO): Promise<ApiResponse<User>> {
+    logger.debug("Registering new user", { email: userData.email });
+
     const existingUser = await prisma.user.findUnique({
       where: { email: userData.email },
     });
 
     if (existingUser) {
+      logger.warn("Registration failed - email in use", {
+        email: userData.email,
+      });
       throw new UnauthorizedError("Email already in use.");
     }
 
@@ -106,6 +161,7 @@ export class AuthService {
       },
     });
 
+    logger.info("User registered successfully", { userId: user.id });
     return wrapResponse(transformUser(user));
   }
 
@@ -113,6 +169,8 @@ export class AuthService {
     credentials: LoginCredentials,
     res: Response
   ): Promise<ApiResponse<User>> {
+    logger.debug("Login attempt", { email: credentials.email });
+
     const user = await prisma.user.findUnique({
       where: { email: credentials.email },
       select: {
@@ -128,6 +186,9 @@ export class AuthService {
     });
 
     if (!user || !user.passwordHash) {
+      logger.warn("Login failed - user not found", {
+        email: credentials.email,
+      });
       throw new UnauthorizedError("Invalid credentials.");
     }
 
@@ -137,6 +198,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
+      logger.warn("Login failed - invalid password", { userId: user.id });
       throw new UnauthorizedError("Invalid credentials.");
     }
 
@@ -148,15 +210,18 @@ export class AuthService {
       data: {
         token: refreshToken,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(
+          Date.now() + ms(authConfig.jwt.refreshTokenExpiration)
+        ),
       },
     });
 
     this.setAuthCookies(res, accessToken, refreshToken);
 
+    logger.info("User logged in successfully", { userId: user.id });
+
     const { passwordHash: _, ...userWithoutPassword } = user;
-    const response = wrapResponse(transformUser(userWithoutPassword));
-    return response;
+    return wrapResponse(transformUser(userWithoutPassword));
   }
 
   static async logout(res: Response): Promise<ApiResponse<void>> {
@@ -167,7 +232,9 @@ export class AuthService {
   static async refreshToken(
     refreshToken: string,
     res: Response
-  ): Promise<ApiResponse<string>> {
+  ): Promise<ApiResponse<{ userId: string; email: string }>> {
+    logger.debug("Token refresh attempt");
+
     const decoded = this.verifyToken(
       refreshToken,
       authConfig.jwt.refreshSecret
@@ -175,44 +242,86 @@ export class AuthService {
 
     const existingToken = await prisma.refreshToken.findUnique({
       where: { token: refreshToken },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            deletedAt: true,
+          },
+        },
+      },
     });
 
     if (!existingToken || existingToken.revoked) {
-      throw new UnauthorizedError("Invalid refresh token.");
+      logger.warn("Token refresh failed - invalid token", {
+        userId: decoded.userId,
+      });
+      throw new UnauthorizedError("Invalid refresh token");
     }
 
-    await prisma.refreshToken.update({
-      where: { id: existingToken.id },
-      data: { revoked: true },
-    });
-
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-      },
-    });
-
-    if (!user) {
-      throw new UnauthorizedError("Invalid refresh token.");
+    if (!existingToken.user) {
+      logger.warn("Token refresh failed - user not found", {
+        userId: decoded.userId,
+      });
+      throw new UnauthorizedError("Invalid refresh token");
     }
 
-    const newPayload: TokenPayload = { userId: user.id, email: user.email };
+    if (existingToken.user.deletedAt) {
+      logger.warn("Token refresh failed - deleted user", {
+        userId: existingToken.user.id,
+        deletedAt: existingToken.user.deletedAt,
+      });
+      throw new UnauthorizedError("Account has been deleted");
+    }
+
+    // Create new tokens
+    const newPayload: TokenPayload = {
+      userId: existingToken.user.id,
+      email: existingToken.user.email,
+    };
+
+    // Generate new tokens first
     const newAccessToken = this.generateAccessToken(newPayload);
     const newRefreshToken = this.generateRefreshToken(newPayload);
 
-    await prisma.refreshToken.create({
-      data: {
-        token: newRefreshToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
+    try {
+      await prisma.$transaction(async (tx: TransactionClient) => {
+        // Only revoke old token after new cookies are set
+        await tx.refreshToken.update({
+          where: { id: existingToken.id },
+          data: { revoked: true },
+        });
 
-    this.setAuthCookies(res, newAccessToken, newRefreshToken);
+        // Create new refresh token in DB
+        await tx.refreshToken.create({
+          data: {
+            token: newRefreshToken,
+            userId: existingToken.user.id,
+            expiresAt: new Date(
+              Date.now() + ms(authConfig.jwt.refreshTokenExpiration)
+            ),
+          },
+        });
 
-    return wrapResponse(newAccessToken);
+        // Set cookies inside transaction to ensure atomicity
+        this.setAuthCookies(res, newAccessToken, newRefreshToken);
+      });
+
+      logger.info("Token refresh successful", {
+        userId: existingToken.user.id,
+      });
+
+      return wrapResponse({
+        userId: existingToken.user.id,
+        email: existingToken.user.email,
+      });
+    } catch (error) {
+      // If database operations fail, clear cookies
+      this.clearAuthCookies(res);
+      logger.error("Token refresh database operation failed", { error });
+      throw error;
+    }
   }
 
   static verifyAccessToken(accessToken: string): TokenPayload {

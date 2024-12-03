@@ -240,6 +240,9 @@ export const createHouseholdSchema = Joi.object({
     "string.max": `'name' should have a maximum length of {#limit}`,
     "any.required": `'name' is a required field`,
   }),
+  currency: Joi.string().required(),
+  timezone: Joi.string().required(),
+  language: Joi.string().required(),
 });
 
 /**
@@ -251,6 +254,9 @@ export const updateHouseholdSchema = Joi.object({
     "string.min": `'name' should have a minimum length of {#limit}`,
     "string.max": `'name' should have a maximum length of {#limit}`,
   }),
+  currency: Joi.string().optional(),
+  timezone: Joi.string().optional(),
+  language: Joi.string().optional(),
 });
 
 /**

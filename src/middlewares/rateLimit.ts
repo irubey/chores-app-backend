@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import rateLimit from "express-rate-limit";
-import RedisStore from "rate-limit-redis"; // Corrected to default import
+import RedisStore from "rate-limit-redis";
 import Redis from "ioredis";
-import { logError } from "../utils/logger";
+import logger from "../utils/logger";
 
 // Initialize Redis client
 const redisClient = new Redis({
@@ -11,38 +11,61 @@ const redisClient = new Redis({
   password: process.env.REDIS_PASSWORD || undefined,
 });
 
-// Define a type for the sendCommand function based on rate-limit-redis's SendCommandFn
 type SendCommandFn = (
   command: string,
   ...args: Array<string | number | Buffer>
 ) => Promise<any>;
 
-// Define rate limit options
-const rateLimitOptions = {
-  windowMs: 0.5 * 60 * 1000, // 30 seconds
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  store: new RedisStore({
-    // Define the sendCommand function with explicit types
-    sendCommand: (async (
-      command: string,
-      ...args: Array<string | number | Buffer>
-    ) => {
-      try {
-        // Explicitly cast args to the expected types
-        return (await redisClient.call(command, ...args)) as any;
-      } catch (error) {
-        logError("Redis command error", error as Error);
-        throw error;
-      }
-    }) as SendCommandFn, // Cast to SendCommandFn to satisfy type requirements
-  }),
-  message: "Too many requests, please try again later.",
+// Define rate limit options based on environment
+const getRateLimitOptions = () => {
+  if (process.env.NODE_ENV === "test") {
+    return {
+      windowMs: 1 * 1000, // 1 second
+      max: 1000, // Much higher limit for tests
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({
+        sendCommand: (async (
+          command: string,
+          ...args: Array<string | number | Buffer>
+        ) => {
+          try {
+            return (await redisClient.call(command, ...args)) as any;
+          } catch (error) {
+            logger.error("Redis command error", { error });
+            throw error;
+          }
+        }) as SendCommandFn,
+      }),
+      message: "Too many requests, please try again later.",
+    };
+  }
+
+  // Production/Development rate limit options
+  return {
+    windowMs: 0.5 * 60 * 1000, // 30 seconds
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: (async (
+        command: string,
+        ...args: Array<string | number | Buffer>
+      ) => {
+        try {
+          return (await redisClient.call(command, ...args)) as any;
+        } catch (error) {
+          logger.error("Redis command error", { error });
+          throw error;
+        }
+      }) as SendCommandFn,
+    }),
+    message: "Too many requests, please try again later.",
+  };
 };
 
-// Create rate limiter
-const limiter = rateLimit(rateLimitOptions);
+// Create rate limiter with environment-specific options
+const limiter = rateLimit(getRateLimitOptions());
 
 // Middleware function
 const rateLimitMiddleware = (
@@ -50,6 +73,11 @@ const rateLimitMiddleware = (
   res: Response,
   next: NextFunction
 ) => {
+  // Skip rate limiting entirely in test environment for specific endpoints
+  if (process.env.NODE_ENV === "test" && req.path.startsWith("/api/auth")) {
+    return next();
+  }
+
   // Apply rate limiting to all routes except those starting with /public
   if (!req.path.startsWith("/public")) {
     return limiter(req, res, next);

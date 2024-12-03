@@ -1,6 +1,21 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import logger from "../utils/logger";
 import { prismaExtensions } from "./prismaExtensions";
+
+// Define types for Prisma events
+type PrismaLogEvent = {
+  timestamp: Date;
+  message: string;
+  target: string;
+};
+
+type PrismaQueryEvent = {
+  timestamp: Date;
+  query: string;
+  params: string;
+  duration: number;
+  target: string;
+};
 
 // Initialize base Prisma Client with logging
 const basePrisma = new PrismaClient({
@@ -12,22 +27,24 @@ const basePrisma = new PrismaClient({
   ],
 });
 
-// Apply extensions
-const prisma = basePrisma.$extends(prismaExtensions);
-
-// Log queries in development environment
+// Set up event listeners before extending
 if (process.env.NODE_ENV === "development") {
-  basePrisma.$on("query", (e) => {
+  basePrisma.$on("query", (e: PrismaQueryEvent) => {
     logger.debug("Query: " + e.query);
     logger.debug("Params: " + e.params);
     logger.debug("Duration: " + e.duration + "ms");
   });
 }
 
-// Log errors
-basePrisma.$on("error", (e) => {
+basePrisma.$on("error", (e: PrismaLogEvent) => {
   logger.error("Prisma Error: " + e.message);
 });
+
+// Apply extensions after setting up listeners
+const prisma = basePrisma.$extends(prismaExtensions);
+
+// Export the type of our extended client
+export type ExtendedPrismaClient = typeof prisma;
 
 // Function to connect to the database
 export const connectDatabase = async (): Promise<void> => {

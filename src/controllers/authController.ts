@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from "../types";
 import { AuthService } from "../services/authService";
 import { UnauthorizedError } from "../middlewares/errorHandler";
 import { LoginCredentials, RegisterUserDTO } from "@shared/types";
+import logger from "../utils/logger";
 
 /**
  * AuthController handles user authentication processes.
@@ -68,11 +69,25 @@ export class AuthController {
     try {
       const refreshToken = req.cookies.refreshToken;
       if (!refreshToken) {
+        logger.debug("No refresh token in cookies");
         throw new UnauthorizedError("No refresh token provided.");
       }
-      const { data } = await AuthService.refreshToken(refreshToken, res);
-      res.status(200).json({ accessToken: data });
+
+      logger.debug("Attempting token refresh", {
+        hasRefreshToken: true,
+        cookies: Object.keys(req.cookies),
+      });
+
+      await AuthService.refreshToken(refreshToken, res);
+
+      logger.debug("Token refresh successful", {
+        cookies: Object.keys(res.getHeaders()["set-cookie"] || []),
+      });
+
+      // Return a simple success response - tokens are in cookies
+      res.status(200).json({ status: "success" });
     } catch (error) {
+      logger.error("Token refresh failed", { error });
       next(error);
     }
   }

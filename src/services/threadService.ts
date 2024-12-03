@@ -213,16 +213,7 @@ export async function getThreads(
       lastThreadId: lastThread?.id,
     });
 
-    return wrapResponse(
-      threads.map((thread) =>
-        transformThreadWithDetails(thread as PrismaThreadWithFullRelations)
-      ),
-      {
-        hasMore,
-        nextCursor: hasMore ? lastThread?.id : undefined,
-        total: threads.length,
-      }
-    );
+    return wrapResponse(threads.map(transformThreadWithDetails));
   } catch (error) {
     return handleServiceError(error, "fetch threads", { householdId }) as never;
   }
@@ -234,7 +225,7 @@ export async function getThreads(
 export async function createThread(
   data: CreateThreadDTO,
   userId: string
-): Promise<ApiResponse<ThreadWithParticipants>> {
+): Promise<ApiResponse<ThreadWithDetails>> {
   logger.debug("Creating new thread", {
     householdId: data.householdId,
     userId,
@@ -257,6 +248,21 @@ export async function createThread(
           },
         },
         include: {
+          author: {
+            select: userMinimalSelect,
+          },
+          household: true,
+          messages: {
+            include: {
+              author: {
+                select: userMinimalSelect,
+              },
+              thread: true,
+              attachments: true,
+              reactions: true,
+              mentions: true,
+            },
+          },
           participants: {
             include: {
               user: true,
@@ -299,9 +305,7 @@ export async function createThread(
       householdId: data.householdId,
     });
 
-    const transformedThread = transformThreadWithParticipants(
-      thread as PrismaThreadWithParticipantsOnly
-    );
+    const transformedThread = transformThreadWithDetails(thread);
 
     emitThreadEvent("thread_update", thread.id, data.householdId, {
       action: ThreadAction.CREATED,
@@ -321,7 +325,7 @@ export async function getThreadById(
   householdId: string,
   threadId: string,
   userId: string
-): Promise<ApiResponse<ThreadWithMessages>> {
+): Promise<ApiResponse<ThreadWithDetails>> {
   logger.debug("Fetching thread by ID", { householdId, threadId, userId });
 
   try {
@@ -333,29 +337,19 @@ export async function getThreadById(
     const thread = await prisma.thread.findUnique({
       where: { id: threadId },
       include: {
+        author: {
+          select: userMinimalSelect,
+        },
+        household: true,
         messages: {
           include: {
+            author: {
+              select: userMinimalSelect,
+            },
             thread: true,
-            author: true,
             attachments: true,
-            reactions: {
-              include: {
-                user: true,
-                message: true,
-              },
-            },
-            mentions: {
-              include: {
-                user: true,
-                message: true,
-              },
-            },
-            reads: {
-              include: {
-                user: true,
-                message: true,
-              },
-            },
+            reactions: true,
+            mentions: true,
           },
         },
         participants: {
@@ -373,11 +367,7 @@ export async function getThreadById(
 
     logger.info("Successfully retrieved thread", { threadId });
 
-    return wrapResponse(
-      transformThreadWithMessages(
-        thread as PrismaThreadWithMessagesAndParticipants
-      )
-    );
+    return wrapResponse(transformThreadWithDetails(thread));
   } catch (error) {
     return handleServiceError(error, "fetch thread by ID", {
       threadId,
@@ -393,7 +383,7 @@ export async function updateThread(
   threadId: string,
   data: UpdateThreadDTO,
   userId: string
-): Promise<ApiResponse<Thread>> {
+): Promise<ApiResponse<ThreadWithDetails>> {
   logger.debug("Updating thread", { householdId, threadId, userId });
 
   try {
@@ -402,26 +392,69 @@ export async function updateThread(
       HouseholdRole.MEMBER,
     ]);
 
-    const updatedThread = await prisma.thread.update({
-      where: { id: threadId },
-      data: {
-        title: data.title,
-        ...(data.participants && {
-          participants: {
-            connect: data.participants.add?.map((userId) => ({
-              userId_householdId: { userId, householdId },
-            })),
-            disconnect: data.participants.remove?.map((userId) => ({
-              userId_householdId: { userId, householdId },
-            })),
+    const updatedThread = await prisma.$transaction(async (tx) => {
+      if (data.participants?.add?.length) {
+        const householdMembers = await tx.householdMember.findMany({
+          where: {
+            householdId,
+            userId: { in: data.participants.add },
           },
-        }),
-      },
+        });
+
+        if (householdMembers.length !== data.participants.add.length) {
+          throw new UnauthorizedError(
+            "Some users are not members of this household"
+          );
+        }
+      }
+
+      return tx.thread.update({
+        where: { id: threadId },
+        data: {
+          title: data.title,
+          ...(data.participants && {
+            participants: {
+              ...(data.participants.add && {
+                connect: data.participants.add.map((userId) => ({
+                  userId_householdId: { userId, householdId },
+                })),
+              }),
+              ...(data.participants.remove && {
+                disconnect: data.participants.remove.map((userId) => ({
+                  userId_householdId: { userId, householdId },
+                })),
+              }),
+            },
+          }),
+        },
+        include: {
+          author: {
+            select: userMinimalSelect,
+          },
+          household: true,
+          messages: {
+            include: {
+              author: {
+                select: userMinimalSelect,
+              },
+              thread: true,
+              attachments: true,
+              reactions: true,
+              mentions: true,
+            },
+          },
+          participants: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      });
     });
 
     logger.info("Successfully updated thread", { threadId });
 
-    const transformedThread = transformThread(updatedThread);
+    const transformedThread = transformThreadWithDetails(updatedThread);
 
     emitThreadEvent("thread_update", threadId, householdId, {
       action: ThreadAction.UPDATED,
@@ -470,7 +503,7 @@ export async function inviteUsersToThread(
   threadId: string,
   data: InviteUsersDTO,
   userId: string
-): Promise<ApiResponse<ThreadWithParticipants>> {
+): Promise<ApiResponse<ThreadWithDetails>> {
   logger.debug("Inviting users to thread", {
     householdId,
     threadId,
@@ -511,6 +544,21 @@ export async function inviteUsersToThread(
           },
         },
         include: {
+          author: {
+            select: userMinimalSelect,
+          },
+          household: true,
+          messages: {
+            include: {
+              author: {
+                select: userMinimalSelect,
+              },
+              thread: true,
+              attachments: true,
+              reactions: true,
+              mentions: true,
+            },
+          },
           participants: {
             include: {
               user: true,
@@ -525,9 +573,7 @@ export async function inviteUsersToThread(
       invitedUserCount: data.userIds.length,
     });
 
-    const transformedThread = transformThreadWithParticipants(
-      updatedThread as PrismaThreadWithParticipantsOnly
-    );
+    const transformedThread = transformThreadWithDetails(updatedThread);
 
     emitThreadEvent("thread_update", threadId, householdId, {
       action: ThreadAction.USERS_INVITED,
