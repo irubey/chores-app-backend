@@ -37,7 +37,7 @@ export const errorHandler = (
   }
 
   // Log error
-  logger.error({
+  logger.error("Request failed", {
     message: err.message,
     stack: err.stack,
     statusCode,
