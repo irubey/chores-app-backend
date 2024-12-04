@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as householdService from "../services/householdService";
 import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
 import {
@@ -8,6 +8,11 @@ import {
 } from "@shared/types";
 import { AuthenticatedRequest } from "../types";
 import logger from "../utils/logger";
+import {
+  sendEmail,
+  generateInvitationEmailTemplate,
+} from "../utils/emailUtils";
+import { BadRequestError } from "../middlewares/errorHandler";
 
 /**
  * HouseholdController handles all CRUD operations related to households.
@@ -290,7 +295,7 @@ export class HouseholdController {
   ): Promise<void> {
     try {
       const { householdId, memberId } = req.params;
-      const { status } = req.body;
+      const { accept } = req.body;
       const userId = req.user?.id;
 
       if (!userId) {
@@ -304,7 +309,7 @@ export class HouseholdController {
       const response = await householdService.acceptOrRejectInvitation(
         householdId,
         memberId,
-        status
+        accept
       );
       res.status(200).json(response);
     } catch (error) {
@@ -397,7 +402,13 @@ export class HouseholdController {
         { email },
         userId
       );
-      res.status(201).json(response);
+
+      // If it's a pending invitation (user needs to register)
+      if ("pending" in response.data) {
+        res.status(202).json(response);
+      } else {
+        res.status(201).json(response);
+      }
     } catch (error) {
       next(error);
     }
@@ -422,5 +433,37 @@ export class HouseholdController {
     } catch (error) {
       next(error);
     }
+  }
+
+  /**
+   * Test email functionality
+   */
+  public static async testEmail(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    const testEmail = req.query.email as string;
+    if (!testEmail) {
+      throw new BadRequestError("Email parameter required");
+    }
+
+    const emailHtml = generateInvitationEmailTemplate(
+      "Test User",
+      "Test Household",
+      "http://localhost:3000/test-invite"
+    );
+
+    const success = await sendEmail({
+      to: testEmail,
+      subject: "Test Invitation Email",
+      html: emailHtml,
+    });
+
+    if (!success) {
+      throw new Error("Failed to send test email");
+    }
+
+    res.json({ success: true });
   }
 }

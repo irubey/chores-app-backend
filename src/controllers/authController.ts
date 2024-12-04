@@ -19,7 +19,7 @@ export class AuthController {
   ): Promise<void> {
     try {
       const userData = req.body;
-      const response = await AuthService.register(userData);
+      const response = await AuthService.register(userData, res);
       res.status(201).json(response);
     } catch (error) {
       next(error);

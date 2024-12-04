@@ -1,6 +1,7 @@
 import { Request } from "express";
 import { User } from "@shared/types";
 import { Provider } from "@shared/enums";
+import { HouseholdMemberWithUser } from "@shared/types";
 
 /**
  * Extends the Express Request interface to include authenticated user information.
@@ -15,6 +16,7 @@ export interface AuthenticatedRequest extends Request {
     includeMembers?: string;
     limit?: string;
     cursor?: string;
+    email?: string;
   };
 }
 
@@ -27,4 +29,11 @@ export interface OAuthIntegrationDTO {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: Date;
+}
+
+export interface EmailOptions {
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
 }

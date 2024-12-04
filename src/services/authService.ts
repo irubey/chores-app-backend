@@ -25,7 +25,7 @@ type TransactionClient = Omit<
  * AuthService handles the business logic for authentication.
  */
 export class AuthService {
-  private static generateAccessToken(payload: TokenPayload): string {
+  public static generateAccessToken(payload: TokenPayload): string {
     if (!payload.userId || !payload.email) {
       logger.error("Invalid token payload", { payload });
       throw new UnauthorizedError("Invalid token payload");
@@ -35,7 +35,7 @@ export class AuthService {
     });
   }
 
-  private static generateRefreshToken(payload: TokenPayload): string {
+  public static generateRefreshToken(payload: TokenPayload): string {
     if (!payload.userId || !payload.email) {
       logger.error("Invalid token payload", { payload });
       throw new UnauthorizedError("Invalid token payload");
@@ -69,7 +69,7 @@ export class AuthService {
     }
   }
 
-  private static setAuthCookies(
+  public static setAuthCookies(
     res: Response,
     accessToken: string,
     refreshToken: string
@@ -128,7 +128,10 @@ export class AuthService {
     res.clearCookie("refreshToken", cookieOptions);
   }
 
-  static async register(userData: RegisterUserDTO): Promise<ApiResponse<User>> {
+  static async register(
+    userData: RegisterUserDTO,
+    res: Response
+  ): Promise<ApiResponse<User>> {
     logger.debug("Registering new user", { email: userData.email });
 
     const existingUser = await prisma.user.findUnique({
@@ -160,6 +163,25 @@ export class AuthService {
         deletedAt: true,
       },
     });
+
+    // Generate tokens
+    const payload: TokenPayload = { userId: user.id, email: user.email };
+    const accessToken = this.generateAccessToken(payload);
+    const refreshToken = this.generateRefreshToken(payload);
+
+    // Store refresh token
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(
+          Date.now() + ms(authConfig.jwt.refreshTokenExpiration)
+        ),
+      },
+    });
+
+    // Set auth cookies
+    this.setAuthCookies(res, accessToken, refreshToken);
 
     logger.info("User registered successfully", { userId: user.id });
     return wrapResponse(transformUser(user));

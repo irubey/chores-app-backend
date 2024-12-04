@@ -13,6 +13,13 @@ import { asyncHandler } from "../utils/asyncHandler";
 const router = Router();
 
 /**
+ * @route   GET /api/households/test-email
+ * @desc    Test email functionality (remove in production)
+ * @access  Public
+ */
+router.get("/test-email", asyncHandler(HouseholdController.testEmail));
+
+/**
  * @route   GET /api/households/selected
  * @desc    Retrieve households selected by the user
  * @access  Protected
