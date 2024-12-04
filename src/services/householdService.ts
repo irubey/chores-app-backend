@@ -29,6 +29,11 @@ import {
   emitHouseholdEvent,
   emitUserEvent,
 } from "../utils/servicesUtils";
+import {
+  sendEmail,
+  generateInvitationEmailTemplate,
+  generateInviteToken,
+} from "../utils/emailUtils";
 
 /**
  * Creates a new household and adds the creator as an ADMIN member.
@@ -422,13 +427,23 @@ export async function removeMember(
       HouseholdRole.ADMIN,
     ]);
 
-    await prisma.householdMember.delete({
-      where: {
-        userId_householdId: {
-          householdId,
-          userId: memberId,
+    const member = await prisma.householdMember.findUnique({
+      where: { id: memberId },
+      include: {
+        user: {
+          select: {
+            id: true,
+          },
         },
       },
+    });
+
+    if (!member) {
+      throw new NotFoundError("Member not found");
+    }
+
+    await prisma.householdMember.delete({
+      where: { id: memberId },
     });
 
     logger.info("Successfully removed member from household", {
@@ -439,7 +454,7 @@ export async function removeMember(
 
     getIO()
       .to(`household_${householdId}`)
-      .emit("member_removed", { userId: memberId });
+      .emit("member_removed", { userId: member.user?.id });
 
     return wrapResponse(undefined);
   } catch (error) {
@@ -523,7 +538,9 @@ export async function acceptOrRejectInvitation(
         isAccepted: accept,
         isRejected: !accept,
         joinedAt: accept ? new Date() : member.joinedAt,
-        leftAt: accept ? null : new Date(),
+        leftAt: !accept ? new Date() : null,
+        isSelected: accept,
+        role: accept ? HouseholdRole.MEMBER : member.role,
       },
       include: {
         user: {
@@ -537,6 +554,31 @@ export async function acceptOrRejectInvitation(
             deletedAt: true,
           },
         },
+        household: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    profileImageURL: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                  },
+                },
+              },
+            },
+            notificationSettings: true,
+            threads: true,
+            chores: true,
+            expenses: true,
+            choreTemplates: true,
+            events: true,
+          },
+        },
       },
     });
 
@@ -546,7 +588,13 @@ export async function acceptOrRejectInvitation(
       accepted: accept,
     });
 
-    const transformedMember = transformHouseholdMember(updatedMember);
+    const transformedMember = {
+      ...transformHouseholdMember(updatedMember),
+      household: updatedMember.household
+        ? transformHouseholdToHouseholdWithMembers(updatedMember.household)
+        : undefined,
+    };
+
     const eventName = accept ? "invitation_accepted" : "invitation_rejected";
     getIO()
       .to(`household_${householdId}`)
@@ -776,7 +824,7 @@ export async function sendInvitation(
   householdId: string,
   data: AddMemberDTO,
   requestingUserId: string
-): Promise<ApiResponse<HouseholdMemberWithUser>> {
+): Promise<ApiResponse<HouseholdMemberWithUser | { pending: true }>> {
   logger.debug("Sending household invitation", {
     householdId,
     email: data.email,
@@ -788,18 +836,132 @@ export async function sendInvitation(
       HouseholdRole.ADMIN,
     ]);
 
+    // Get the household details for the email
+    const household = await prisma.household.findUnique({
+      where: { id: householdId },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                profileImageURL: true,
+                createdAt: true,
+                updatedAt: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
+        notificationSettings: true,
+        threads: true,
+        chores: true,
+        expenses: true,
+        choreTemplates: true,
+        events: true,
+      },
+    });
+
+    if (!household) {
+      throw new NotFoundError("Household not found");
+    }
+
+    const inviterName =
+      household.members.find((m) => m.userId === requestingUserId)?.user
+        ?.name || "Someone";
+    const inviteToken = generateInviteToken();
+
     const user = await prisma.user.findUnique({
       where: { email: data.email },
     });
 
     if (!user) {
-      logger.warn("User not found when sending invitation", {
+      // User doesn't exist, send registration invitation
+      const invitationLink = `${process.env.FRONTEND_URL}/signup?email=${data.email}&inviteToken=${inviteToken}`;
+      const emailHtml = generateInvitationEmailTemplate(
+        inviterName,
+        household.name,
+        invitationLink
+      );
+
+      const emailSent = await sendEmail({
+        to: data.email,
+        subject: `Join ${household.name} on ChoresApp`,
+        html: emailHtml,
+      });
+
+      if (!emailSent) {
+        throw new Error("Failed to send invitation email");
+      }
+
+      // Create pending invitation for unregistered user
+      const pendingMember = await prisma.householdMember.create({
+        data: {
+          householdId,
+          role: data.role || HouseholdRole.MEMBER,
+          isInvited: true,
+          isAccepted: false,
+          isRejected: false,
+          isSelected: true,
+          // Set a temporary userId that will be updated when they register
+          userId: inviteToken, // Using inviteToken as a temporary userId
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              profileImageURL: true,
+              createdAt: true,
+              updatedAt: true,
+              deletedAt: true,
+            },
+          },
+          household: {
+            include: {
+              members: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      email: true,
+                      name: true,
+                      profileImageURL: true,
+                      createdAt: true,
+                      updatedAt: true,
+                      deletedAt: true,
+                    },
+                  },
+                },
+              },
+              notificationSettings: true,
+              threads: true,
+              chores: true,
+              expenses: true,
+              choreTemplates: true,
+              events: true,
+            },
+          },
+        },
+      });
+
+      logger.info("Sent registration invitation email", {
         email: data.email,
         householdId,
       });
-      throw new NotFoundError("User not found");
+
+      return wrapResponse({
+        ...transformHouseholdMember(pendingMember),
+        household: transformHouseholdToHouseholdWithMembers(
+          pendingMember.household
+        ),
+      });
     }
 
+    // Check if user is already a member
     const existingMember = await prisma.householdMember.findUnique({
       where: {
         userId_householdId: {
@@ -810,25 +972,21 @@ export async function sendInvitation(
     });
 
     if (existingMember) {
-      logger.warn("User already has pending invitation", {
-        userId: user.id,
-        householdId,
-      });
       throw new BadRequestError(
         "User is already a member or has a pending invitation"
       );
     }
 
+    // Create invitation for existing user
     const newMember = await prisma.householdMember.create({
       data: {
-        householdId,
-        userId: user.id,
+        household: { connect: { id: householdId } },
+        user: { connect: { id: user.id } },
         role: data.role || HouseholdRole.MEMBER,
         isInvited: true,
         isAccepted: false,
         isRejected: false,
-        isSelected: false,
-        joinedAt: new Date(),
+        isSelected: true,
       },
       include: {
         user: {
@@ -842,16 +1000,66 @@ export async function sendInvitation(
             deletedAt: true,
           },
         },
+        household: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    profileImageURL: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                  },
+                },
+              },
+            },
+            notificationSettings: true,
+            threads: true,
+            chores: true,
+            expenses: true,
+            choreTemplates: true,
+            events: true,
+          },
+        },
       },
     });
 
-    logger.info("Successfully sent household invitation", {
-      householdId,
-      newUserId: user.id,
-      requestingUserId,
+    // Send invitation email to existing user
+    const invitationLink = `${process.env.FRONTEND_URL}/households/join?token=${inviteToken}`;
+    const emailHtml = generateInvitationEmailTemplate(
+      inviterName,
+      household.name,
+      invitationLink
+    );
+
+    const emailSent = await sendEmail({
+      to: data.email,
+      subject: `You've been invited to join ${household.name}`,
+      html: emailHtml,
     });
 
-    const transformedMember = transformHouseholdMember(newMember);
+    if (!emailSent) {
+      // Clean up the created member if email fails
+      await prisma.householdMember.delete({
+        where: { id: newMember.id },
+      });
+      throw new Error("Failed to send invitation email");
+    }
+
+    logger.info("Successfully sent household invitation", {
+      householdId,
+      userId: user.id,
+      email: data.email,
+    });
+
+    const transformedMember = {
+      ...transformHouseholdMember(newMember),
+      household: transformHouseholdToHouseholdWithMembers(newMember.household),
+    };
     getIO()
       .to(`user_${user.id}`)
       .emit("household_invitation", { member: transformedMember });
@@ -925,13 +1133,28 @@ export async function getInvitations(
   try {
     const invitations = await prisma.householdMember.findMany({
       where: {
-        userId,
-        isInvited: true,
-        isAccepted: false,
-        isRejected: false,
-        household: {
-          deletedAt: null,
-        },
+        OR: [
+          {
+            userId,
+            isInvited: true,
+            isAccepted: false,
+            isRejected: false,
+            household: {
+              deletedAt: null,
+            },
+          },
+          {
+            userId: {
+              startsWith: "invite_", // Match temporary invite tokens
+            },
+            isInvited: true,
+            isAccepted: false,
+            isRejected: false,
+            household: {
+              deletedAt: null,
+            },
+          },
+        ],
       },
       include: {
         user: {
@@ -945,16 +1168,49 @@ export async function getInvitations(
             deletedAt: true,
           },
         },
-        household: true,
+        household: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    profileImageURL: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                  },
+                },
+              },
+            },
+            notificationSettings: true,
+            threads: true,
+            chores: true,
+            expenses: true,
+            choreTemplates: true,
+            events: true,
+          },
+        },
       },
     });
 
     logger.info("Successfully retrieved user invitations", {
       userId,
       count: invitations.length,
+      pendingCount: invitations.filter((i) => i.userId.startsWith("invite_"))
+        .length,
     });
 
-    return wrapResponse(invitations.map(transformHouseholdMember));
+    return wrapResponse(
+      invitations.map((invitation) => ({
+        ...transformHouseholdMember(invitation),
+        household: invitation.household
+          ? transformHouseholdToHouseholdWithMembers(invitation.household)
+          : undefined,
+      }))
+    );
   } catch (error) {
     return handleServiceError(error, "get user invitations") as never;
   }

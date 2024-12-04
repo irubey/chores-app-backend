@@ -1,11 +1,13 @@
-import nodemailer from 'nodemailer';
-import { EmailOptions } from '../types/index';
+import nodemailer from "nodemailer";
+import { EmailOptions } from "../types/index";
+import crypto from "crypto";
+import logger from "../utils/logger";
 
 // Configure the email transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587', 10),
-  secure: process.env.SMTP_SECURE === 'true',
+  port: parseInt(process.env.SMTP_PORT || "587", 10),
+  secure: process.env.SMTP_SECURE === "true",
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -19,6 +21,14 @@ const transporter = nodemailer.createTransport({
  */
 export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
   try {
+    logger.info("Attempting to send email", {
+      to: options.to,
+      subject: options.subject,
+      smtpHost: process.env.SMTP_HOST,
+      smtpPort: process.env.SMTP_PORT,
+      smtpUser: process.env.SMTP_USER,
+    });
+
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: options.to,
@@ -26,9 +36,16 @@ export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
       text: options.text,
       html: options.html,
     });
+
+    logger.info("Email sent successfully", { to: options.to });
     return true;
   } catch (error) {
-    console.error('Error sending email:', error);
+    logger.error("Failed to send email", {
+      error: error instanceof Error ? error.message : String(error),
+      to: options.to,
+      smtpHost: process.env.SMTP_HOST,
+      smtpPort: process.env.SMTP_PORT,
+    });
     return false;
   }
 };
@@ -94,4 +111,13 @@ export const generateChoreReminderEmailTemplate = (
 export const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
+};
+
+/**
+ * Generates a secure token for invitations
+ * @returns string A random token for invitation links
+ */
+export const generateInviteToken = (): string => {
+  const token = crypto.randomBytes(32).toString("hex");
+  return `invite_${token}`;
 };
