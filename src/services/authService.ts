@@ -74,11 +74,11 @@ export class AuthService {
     accessToken: string,
     refreshToken: string
   ): void {
-    const isDev = process.env.NODE_ENV === "development";
     const cookieOptions = {
-      httpOnly: true,
-      secure: !isDev,
-      sameSite: isDev ? ("lax" as const) : ("strict" as const),
+      httpOnly: process.env.COOKIE_HTTP_ONLY !== "false",
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite:
+        (process.env.COOKIE_SAME_SITE as "lax" | "strict" | "none") || "lax",
       path: "/",
       domain: process.env.COOKIE_DOMAIN || undefined,
     };
@@ -90,10 +90,14 @@ export class AuthService {
     logger.debug("Setting auth cookies", {
       accessExpMs,
       refreshExpMs,
-      secure: cookieOptions.secure,
-      sameSite: cookieOptions.sameSite,
-      isDev,
-      domain: cookieOptions.domain,
+      cookieOptions,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        COOKIE_DOMAIN: process.env.COOKIE_DOMAIN,
+        COOKIE_SECURE: process.env.COOKIE_SECURE,
+        COOKIE_SAME_SITE: process.env.COOKIE_SAME_SITE,
+        COOKIE_HTTP_ONLY: process.env.COOKIE_HTTP_ONLY,
+      },
     });
 
     res.cookie("accessToken", accessToken, {
@@ -108,20 +112,24 @@ export class AuthService {
   }
 
   public static clearAuthCookies(res: Response): void {
-    const isDev = process.env.NODE_ENV === "development";
     const cookieOptions = {
+      httpOnly: process.env.COOKIE_HTTP_ONLY !== "false",
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite:
+        (process.env.COOKIE_SAME_SITE as "lax" | "strict" | "none") || "lax",
       path: "/",
-      httpOnly: true,
-      secure: !isDev,
-      sameSite: isDev ? ("lax" as const) : ("strict" as const),
       domain: process.env.COOKIE_DOMAIN || undefined,
     };
 
     logger.debug("Clearing auth cookies", {
-      secure: cookieOptions.secure,
-      sameSite: cookieOptions.sameSite,
-      isDev,
-      domain: cookieOptions.domain,
+      cookieOptions,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        COOKIE_DOMAIN: process.env.COOKIE_DOMAIN,
+        COOKIE_SECURE: process.env.COOKIE_SECURE,
+        COOKIE_SAME_SITE: process.env.COOKIE_SAME_SITE,
+        COOKIE_HTTP_ONLY: process.env.COOKIE_HTTP_ONLY,
+      },
     });
 
     res.clearCookie("accessToken", cookieOptions);
@@ -367,7 +375,10 @@ export async function verifyMembership(
 
   if (
     !membership ||
-    !requiredRoles.includes(membership.role as HouseholdRole)
+    !requiredRoles.includes(membership.role as HouseholdRole) ||
+    !membership.isAccepted ||
+    membership.isRejected ||
+    membership.leftAt !== null
   ) {
     throw new UnauthorizedError("Access denied.");
   }

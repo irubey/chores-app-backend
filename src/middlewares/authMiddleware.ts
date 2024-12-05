@@ -15,14 +15,19 @@ const authMiddleware: RequestHandler = async (
   next: NextFunction
 ) => {
   try {
-    const accessToken = req.cookies.accessToken;
-    const refreshToken = req.cookies.refreshToken;
+    const accessToken = req.cookies?.accessToken;
+    const refreshToken = req.cookies?.refreshToken;
 
     logger.debug("Auth tokens received", {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       path: req.path,
       method: req.method,
+      cookies: req.cookies,
+      headers: {
+        cookie: req.headers.cookie,
+        authorization: req.headers.authorization,
+      },
     });
 
     // Skip auth for refresh token endpoint

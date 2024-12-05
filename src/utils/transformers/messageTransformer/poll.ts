@@ -69,17 +69,6 @@ export function transformPollWithDetails(
     throw new Error("Poll must have options array");
   }
 
-  const transformedPoll = transformPoll(poll);
-  const transformedOptions = poll.options.map((option) => {
-    if (!option.votes) {
-      throw new Error("Poll option must have votes array");
-    }
-    return transformPollOptionWithVotes({
-      ...option,
-      poll: pollData,
-    });
-  });
-
   const pollData = {
     id: poll.id,
     messageId: poll.messageId,
@@ -94,6 +83,17 @@ export function transformPollWithDetails(
     createdAt: poll.createdAt,
     updatedAt: poll.updatedAt,
   };
+
+  const transformedPoll = transformPoll(poll);
+  const transformedOptions = poll.options.map((option) => {
+    if (!option.votes) {
+      throw new Error("Poll option must have votes array");
+    }
+    return transformPollOptionWithVotes({
+      ...option,
+      poll: pollData,
+    });
+  });
 
   return {
     ...transformedPoll,

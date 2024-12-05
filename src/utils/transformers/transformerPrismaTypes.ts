@@ -67,7 +67,9 @@ export type PrismaHouseholdWithFullRelations = Prisma.HouseholdGetPayload<{
   include: {
     members: {
       include: {
-        user: true;
+        user: {
+          select: typeof userMinimalSelect;
+        };
       };
     };
     threads: true;

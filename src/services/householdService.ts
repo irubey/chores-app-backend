@@ -1215,3 +1215,79 @@ export async function getInvitations(
     return handleServiceError(error, "get user invitations") as never;
   }
 }
+
+/**
+ * Gets all pending household invitations for a user.
+ */
+export async function getPendingInvitations(
+  userId: string
+): Promise<ApiResponse<HouseholdMemberWithUser[]>> {
+  logger.debug("Getting pending household invitations", { userId });
+
+  try {
+    const members = await prisma.householdMember.findMany({
+      where: {
+        userId,
+        isInvited: true,
+        isAccepted: false,
+        isRejected: false,
+        leftAt: null,
+        household: {
+          deletedAt: null,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImageURL: true,
+            createdAt: true,
+            updatedAt: true,
+            deletedAt: true,
+          },
+        },
+        household: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    profileImageURL: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                  },
+                },
+              },
+            },
+            notificationSettings: true,
+            threads: true,
+            chores: true,
+            expenses: true,
+            choreTemplates: true,
+            events: true,
+          },
+        },
+      },
+    });
+
+    logger.info("Found pending invitations", {
+      userId,
+      count: members.length,
+    });
+
+    return wrapResponse(
+      members.map((m) => ({
+        ...transformHouseholdMember(m),
+        household: transformHouseholdToHouseholdWithMembers(m.household),
+      }))
+    );
+  } catch (error) {
+    return handleServiceError(error, "get pending invitations") as never;
+  }
+}

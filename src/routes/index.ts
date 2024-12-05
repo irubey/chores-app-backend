@@ -10,6 +10,7 @@ import notificationRoutes from "./notification-routes";
 import calendarIntegrationRoutes from "./calendar-integration-routes";
 import calendarEventRoutes from "./calendar-event-routes";
 import choreEventRoutes from "./chore-event-routes";
+import threadRoutes from "./thread-routes";
 
 const router = Router();
 
@@ -78,5 +79,11 @@ router.use("/households/:householdId/calendar/events", calendarEventRoutes);
  * @desc    Chore event routes
  */
 router.use("/households/:householdId/chores/:choreId/events", choreEventRoutes);
+
+/**
+ * @route   /api/households/:householdId/threads
+ * @desc    Thread management routes
+ */
+router.use("/households/:householdId/threads", threadRoutes);
 
 export default router;

@@ -46,8 +46,8 @@ app.use(rateLimitMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Cookie Parser
-app.use(cookieParser());
+// Cookie Parser with secure settings
+app.use(cookieParser(process.env.SESSION_SECRET));
 
 // Initialize Passport
 app.use(passport.initialize());
