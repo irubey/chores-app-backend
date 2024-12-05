@@ -9,7 +9,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 const router = Router({ mergeParams: true });
 
 /**
- * @route   GET /api/threads
+ * @route   GET /api/households/:householdId/threads
  * @desc    Get threads for a household
  * @access  Protected
  */
