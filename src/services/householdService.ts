@@ -1291,3 +1291,132 @@ export async function getPendingInvitations(
     return handleServiceError(error, "get pending invitations") as never;
   }
 }
+
+/**
+ * Handles a member leaving a household.
+ * @param householdId - The ID of the household
+ * @param memberId - The ID of the member leaving
+ * @param requestingUserId - The ID of the user making the request
+ * @returns void
+ * @throws UnauthorizedError if the user doesn't have permission
+ * @throws NotFoundError if the member or household is not found
+ */
+export async function leaveHousehold(
+  householdId: string,
+  memberId: string,
+  requestingUserId: string
+): Promise<ApiResponse<HouseholdMemberWithUser>> {
+  logger.debug("Processing household leave request", {
+    householdId,
+    memberId,
+    requestingUserId,
+  });
+
+  try {
+    // Get the member with their role
+    const member = await prisma.householdMember.findUnique({
+      where: { id: memberId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImageURL: true,
+            createdAt: true,
+            updatedAt: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!member) {
+      throw new NotFoundError("Member not found");
+    }
+
+    // Check if the requesting user is the member leaving or an admin
+    if (member.userId !== requestingUserId) {
+      // If not the member themselves, verify admin status
+      await verifyMembership(householdId, requestingUserId, [
+        HouseholdRole.ADMIN,
+      ]);
+    }
+
+    // Check if they're the last admin
+    if (member.role === HouseholdRole.ADMIN) {
+      const adminCount = await prisma.householdMember.count({
+        where: {
+          householdId,
+          role: HouseholdRole.ADMIN,
+          leftAt: null,
+        },
+      });
+
+      if (adminCount === 1) {
+        throw new BadRequestError(
+          "Cannot leave household - you are the last admin. Please assign another admin first."
+        );
+      }
+    }
+
+    // Check if they're the last member
+    const memberCount = await prisma.householdMember.count({
+      where: {
+        householdId,
+        leftAt: null,
+      },
+    });
+
+    if (memberCount === 1) {
+      // Delete the household if they're the last member
+      await prisma.household.delete({
+        where: { id: householdId },
+      });
+
+      logger.info("Household deleted - last member left", {
+        householdId,
+        memberId,
+      });
+
+      return wrapResponse(transformHouseholdMember(member));
+    }
+
+    // Update the member's status
+    const updatedMember = await prisma.householdMember.update({
+      where: { id: memberId },
+      data: {
+        leftAt: new Date(),
+        isSelected: false,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImageURL: true,
+            createdAt: true,
+            updatedAt: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    logger.info("Member left household", {
+      householdId,
+      memberId,
+      requestingUserId,
+    });
+
+    // Emit socket event
+    getIO()
+      .to(`household_${householdId}`)
+      .emit("member_left", { member: transformHouseholdMember(updatedMember) });
+
+    return wrapResponse(transformHouseholdMember(updatedMember));
+  } catch (error) {
+    return handleServiceError(error, "leave household") as never;
+  }
+}

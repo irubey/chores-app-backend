@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { NotificationController } from "../controllers/NotificationController";
-import authMiddleware from "../middlewares/authMiddleware";
+import { authMiddleware } from "../middlewares/authMiddleware";
 import { validate } from "../middlewares/validationMiddleware";
 import {
   createNotificationSchema,

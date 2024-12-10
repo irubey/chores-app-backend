@@ -1,15 +1,21 @@
-import { Request, Response, NextFunction, RequestHandler } from "express";
-import { AuthService } from "../services/authService";
-import { AppError } from "./errorHandler";
-import { AuthenticatedRequest } from "../types";
-import { transformUser } from "../utils/transformers/userTransformer";
-import prisma from "../config/database";
+import { Response, NextFunction, Request } from "express";
+import { UnauthorizedError } from "./errorHandler";
 import logger from "../utils/logger";
+import { AuthService } from "../services/authService";
+import { AuthenticatedRequest } from "../types";
+import prisma from "../config/database";
+import { transformUser } from "../utils/transformers/userTransformer";
 
-/**
- * Authentication middleware to protect routes.
- */
-const authMiddleware: RequestHandler = async (
+// Auth endpoints that don't require any token
+const PUBLIC_AUTH_ENDPOINTS = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/verify-email",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+];
+
+export const authMiddleware = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -23,42 +29,84 @@ const authMiddleware: RequestHandler = async (
       hasRefreshToken: !!refreshToken,
       path: req.path,
       method: req.method,
-      cookies: req.cookies,
-      headers: {
-        cookie: req.headers.cookie,
-        authorization: req.headers.authorization,
-      },
     });
 
-    // Skip auth for refresh token endpoint
-    if (req.path === "/api/auth/refresh-token") {
-      if (!refreshToken) {
-        logger.debug("No refresh token provided for refresh endpoint");
-        throw new AppError("No refresh token provided", 401);
+    // Handle auth endpoints specially
+    if (req.path.startsWith("/api/auth/")) {
+      // Public endpoints - no auth needed
+      if (PUBLIC_AUTH_ENDPOINTS.includes(req.path)) {
+        return next();
       }
-      return next();
+
+      // Refresh token endpoint - only needs refresh token
+      if (req.path === "/api/auth/refresh-token") {
+        if (!refreshToken) {
+          logger.debug("No refresh token provided for refresh endpoint");
+          throw new UnauthorizedError("No refresh token provided");
+        }
+        return next();
+      }
+
+      // Logout endpoint - proceed even with invalid tokens
+      if (req.path === "/api/auth/logout") {
+        // If we have an access token and it's valid, attach the user
+        if (accessToken) {
+          try {
+            const tokenPayload = await AuthService.verifyAccessToken(
+              accessToken
+            );
+            if (tokenPayload?.userId) {
+              const user = await prisma.user.findUnique({
+                where: { id: tokenPayload.userId },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  profileImageURL: true,
+                  createdAt: true,
+                  updatedAt: true,
+                  deletedAt: true,
+                },
+              });
+              if (user && !user.deletedAt) {
+                (req as AuthenticatedRequest).user = transformUser(user);
+              }
+            }
+          } catch (error) {
+            // Ignore errors for logout - we'll clear tokens anyway
+            logger.debug("Token validation failed during logout", {
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          }
+        }
+        return next();
+      }
+
+      // Change password endpoint - requires valid auth
+      if (req.path === "/api/auth/change-password") {
+        // Fall through to normal auth flow
+      }
     }
 
-    // If no tokens at all, fail immediately
+    // For all other endpoints, require valid authentication
     if (!accessToken && !refreshToken) {
       logger.debug("No tokens provided");
-      throw new AppError("No tokens provided", 401);
+      throw new UnauthorizedError("Authentication required");
     }
 
     // Try access token first if available
     if (accessToken) {
       try {
         logger.debug("Attempting to verify access token");
-        const decoded = AuthService.verifyAccessToken(accessToken);
-        logger.debug("Access token verification result", { decoded });
+        const tokenPayload = await AuthService.verifyAccessToken(accessToken);
 
-        if (!decoded || !decoded.userId) {
+        if (!tokenPayload?.userId) {
           logger.debug("Invalid access token payload");
-          throw new AppError("Invalid access token", 401);
+          throw new UnauthorizedError("Invalid access token");
         }
 
         const user = await prisma.user.findUnique({
-          where: { id: decoded.userId },
+          where: { id: tokenPayload.userId },
           select: {
             id: true,
             email: true,
@@ -70,37 +118,24 @@ const authMiddleware: RequestHandler = async (
           },
         });
 
-        if (!user) {
-          logger.debug("User not found with decoded token", {
-            userId: decoded.userId,
+        if (!user || user.deletedAt) {
+          logger.debug("User not found or deleted", {
+            userId: tokenPayload.userId,
+            deletedAt: user?.deletedAt,
           });
-          throw new AppError("User not found", 401);
-        }
-
-        if (user.deletedAt) {
-          logger.debug("Deleted user attempted access", {
-            userId: user.id,
-            deletedAt: user.deletedAt,
-          });
-          throw new AppError("Account has been deleted", 401);
+          throw new UnauthorizedError("User not found or deleted");
         }
 
         logger.debug("User authenticated via access token", {
           userId: user.id,
         });
+
         (req as AuthenticatedRequest).user = transformUser(user);
         return next();
-      } catch (accessError) {
-        logger.debug(
-          "Access token verification failed, will try refresh token",
-          {
-            error:
-              accessError instanceof Error
-                ? accessError.message
-                : "Unknown error",
-            stack: accessError instanceof Error ? accessError.stack : undefined,
-          }
-        );
+      } catch (error) {
+        logger.debug("Access token verification failed, attempting refresh", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
     }
 
@@ -109,18 +144,23 @@ const authMiddleware: RequestHandler = async (
       try {
         logger.debug("Attempting token refresh");
         const refreshResult = await AuthService.refreshToken(refreshToken, res);
-        logger.debug("Token refresh successful", {
-          userId: refreshResult.data.userId,
-        });
+        const { accessToken: newAccessToken } = refreshResult.data;
 
-        if (!refreshResult.data || !refreshResult.data.userId) {
-          logger.debug("Invalid refresh token response");
-          throw new AppError("Invalid refresh token response", 401);
+        if (!newAccessToken) {
+          logger.debug("Token refresh failed - no new access token");
+          throw new UnauthorizedError("Token refresh failed");
         }
 
-        // Get user details after successful refresh
+        const tokenPayload = await AuthService.verifyAccessToken(
+          newAccessToken
+        );
+        if (!tokenPayload?.userId) {
+          logger.debug("Invalid new access token payload");
+          throw new UnauthorizedError("Invalid access token after refresh");
+        }
+
         const user = await prisma.user.findUnique({
-          where: { id: refreshResult.data.userId },
+          where: { id: tokenPayload.userId },
           select: {
             id: true,
             email: true,
@@ -132,68 +172,49 @@ const authMiddleware: RequestHandler = async (
           },
         });
 
-        if (!user) {
-          logger.debug("User not found after successful token refresh", {
-            userId: refreshResult.data.userId,
+        if (!user || user.deletedAt) {
+          logger.debug("User not found or deleted after refresh", {
+            userId: tokenPayload.userId,
+            deletedAt: user?.deletedAt,
           });
-          throw new AppError("User not found", 401);
-        }
-
-        if (user.deletedAt) {
-          logger.debug("Deleted user attempted refresh", {
-            userId: user.id,
-            deletedAt: user.deletedAt,
-          });
-          throw new AppError("Account has been deleted", 401);
+          throw new UnauthorizedError("User not found or deleted");
         }
 
         logger.debug("User authenticated via refresh token", {
           userId: user.id,
         });
-        (req as AuthenticatedRequest).user = transformUser(user);
 
+        (req as AuthenticatedRequest).user = transformUser(user);
         return next();
-      } catch (refreshError) {
+      } catch (error) {
         logger.debug("Refresh token verification failed", {
-          error:
-            refreshError instanceof Error
-              ? refreshError.message
-              : "Unknown error",
-          stack: refreshError instanceof Error ? refreshError.stack : undefined,
+          error: error instanceof Error ? error.message : "Unknown error",
         });
 
-        // Clear invalid cookies
         AuthService.clearAuthCookies(res);
-
-        throw new AppError(
-          refreshError instanceof Error
-            ? refreshError.message
-            : "Invalid refresh token",
-          401
-        );
+        throw new UnauthorizedError("Session expired. Please login again.");
       }
     }
 
-    // If we get here, no valid tokens were found
     logger.debug("Authentication failed - no valid tokens available");
-    throw new AppError("Authentication failed", 401);
+    throw new UnauthorizedError("Authentication failed");
   } catch (error) {
-    // Log the full error details
-    logger.error("Authentication middleware error", {
-      error: error instanceof Error ? error.message : JSON.stringify(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      path: req.path,
-      method: req.method,
-    });
-
-    // Clear cookies on auth errors
-    if (error instanceof AppError && error.statusCode === 401) {
+    if (error instanceof UnauthorizedError) {
       AuthService.clearAuthCookies(res);
+      return res.status(401).json({
+        status: "error",
+        message: error.message,
+      });
     }
 
-    // Pass error to error handling middleware
-    next(error);
+    logger.error("Unexpected error in auth middleware", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      path: req.path,
+    });
+
+    return res.status(500).json({
+      status: "error",
+      message: "Internal server error",
+    });
   }
 };
-
-export default authMiddleware;

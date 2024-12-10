@@ -1,10 +1,13 @@
-import { Router } from 'express';
-import { TransactionController } from '../controllers/TransactionController';
-import authMiddleware from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
-import { createTransactionSchema, updateTransactionStatusSchema } from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
+import { Router } from "express";
+import { TransactionController } from "../controllers/TransactionController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
+import {
+  createTransactionSchema,
+  updateTransactionStatusSchema,
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router({ mergeParams: true });
 
@@ -13,7 +16,11 @@ const router = Router({ mergeParams: true });
  * @desc    Retrieve all transactions for a specific household
  * @access  Protected
  */
-router.get('/', authMiddleware, asyncHandler(TransactionController.getTransactions));
+router.get(
+  "/",
+  authMiddleware,
+  asyncHandler(TransactionController.getTransactions)
+);
 
 /**
  * @route   POST /api/households/:householdId/transactions
@@ -21,9 +28,9 @@ router.get('/', authMiddleware, asyncHandler(TransactionController.getTransactio
  * @access  Protected, Write access required
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware("WRITE"),
   validate(createTransactionSchema),
   asyncHandler(TransactionController.createTransaction)
 );
@@ -34,9 +41,9 @@ router.post(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:transactionId',
+  "/:transactionId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware("WRITE"),
   validate(updateTransactionStatusSchema),
   asyncHandler(TransactionController.updateTransactionStatus)
 );
@@ -47,9 +54,9 @@ router.patch(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:transactionId',
+  "/:transactionId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware("ADMIN"),
   asyncHandler(TransactionController.deleteTransaction)
 );
 

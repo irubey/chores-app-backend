@@ -43,7 +43,7 @@ connectDatabase();
 app.use(rateLimitMiddleware);
 
 // Body Parsers
-app.use(express.json());
+app.use(express.json({ strict: false }));
 app.use(express.urlencoded({ extended: true }));
 
 // Cookie Parser with secure settings

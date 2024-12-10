@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { CalendarIntegrationController } from "../controllers/CalendarIntegrationController";
-import authMiddleware from "../middlewares/authMiddleware";
+import { authMiddleware } from "../middlewares/authMiddleware";
 import { validate } from "../middlewares/validationMiddleware";
 import { syncCalendarSchema } from "../utils/validationSchemas";
 import { asyncHandler } from "../utils/asyncHandler";

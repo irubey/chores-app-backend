@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { ChoreEventController } from "../controllers/ChoreEventController";
-import authMiddleware from "../middlewares/authMiddleware";
+import { authMiddleware } from "../middlewares/authMiddleware";
 import { rbacMiddleware } from "../middlewares/rbacMiddleware";
 import { validate } from "../middlewares/validationMiddleware";
 import { asyncHandler } from "../utils/asyncHandler";
