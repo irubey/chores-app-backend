@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { HouseholdController } from "../controllers/HouseholdController";
-import authMiddleware from "../middlewares/authMiddleware";
+import { authMiddleware } from "../middlewares/authMiddleware";
 import { rbacMiddleware } from "../middlewares/rbacMiddleware";
 import { validate } from "../middlewares/validationMiddleware";
 import {
@@ -179,6 +179,17 @@ router.post(
   authMiddleware,
   rbacMiddleware("ADMIN"),
   asyncHandler(HouseholdController.sendInvitation)
+);
+
+/**
+ * @route   POST /api/households/:householdId/members/:memberId/leave
+ * @desc    Leave a household (can be used by the member themselves or an admin)
+ * @access  Protected
+ */
+router.post(
+  "/:householdId/members/:memberId/leave",
+  authMiddleware,
+  asyncHandler(HouseholdController.leaveHousehold)
 );
 
 export default router;

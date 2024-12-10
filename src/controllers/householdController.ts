@@ -466,4 +466,33 @@ export class HouseholdController {
 
     res.json({ success: true });
   }
+
+  /**
+   * Handles a member leaving a household
+   */
+  static async leaveHousehold(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const householdId = req.params.householdId;
+      const memberId = req.params.memberId;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new UnauthorizedError("Unauthorized");
+      }
+
+      const response = await householdService.leaveHousehold(
+        householdId,
+        memberId,
+        userId
+      );
+
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

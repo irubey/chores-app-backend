@@ -37,3 +37,10 @@ export interface EmailOptions {
   text?: string;
   html?: string;
 }
+
+export interface TokenPayload {
+  userId: string;
+  email: string;
+  iat?: number;
+  exp?: number;
+}

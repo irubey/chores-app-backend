@@ -6,7 +6,7 @@ import {
   loginUserSchema,
 } from "../utils/validationSchemas";
 import { asyncHandler } from "../utils/asyncHandler";
-import authMiddleware from "../middlewares/authMiddleware";
+import { authMiddleware } from "../middlewares/authMiddleware";
 import rateLimit from "express-rate-limit";
 
 const authLimiter = rateLimit({

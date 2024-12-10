@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { UserController } from "../controllers/UserController";
-import authMiddleware from "../middlewares/authMiddleware";
+import { authMiddleware } from "../middlewares/authMiddleware";
 import { rbacMiddleware } from "../middlewares/rbacMiddleware";
 import { validate } from "../middlewares/validationMiddleware";
 import {

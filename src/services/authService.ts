@@ -1,5 +1,5 @@
 import prisma from "../config/database";
-import { TokenPayload } from "@shared/interfaces/auth";
+import { TokenPayload } from "@backendTypes/index";
 import { RegisterUserDTO, LoginCredentials } from "@shared/types/user";
 import { hash, compare } from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -14,7 +14,6 @@ import { ApiResponse } from "@shared/interfaces/apiResponse";
 import ms from "ms";
 import logger from "../utils/logger";
 import { ExtendedPrismaClient } from "../config/database";
-import type { Prisma } from "@prisma/client";
 
 type TransactionClient = Omit<
   ExtendedPrismaClient,
@@ -49,22 +48,23 @@ export class AuthService {
 
   private static verifyToken(token: string, secret: string): TokenPayload {
     try {
-      logger.debug("Verifying token");
       const decoded = jwt.verify(token, secret) as TokenPayload;
-
-      if (!decoded.userId || !decoded.email) {
-        logger.error("Invalid token payload after verification", { decoded });
-        throw new UnauthorizedError("Invalid token payload");
-      }
-
       return decoded;
     } catch (error) {
-      logger.error("Token verification failed:", { error });
-      if (error instanceof jwt.TokenExpiredError) {
-        throw new UnauthorizedError("Token has expired");
-      } else if (error instanceof jwt.JsonWebTokenError) {
+      if (error instanceof jwt.JsonWebTokenError) {
+        logger.error("Token verification failed", { error: error.message });
         throw new UnauthorizedError("Invalid token");
       }
+      if (error instanceof jwt.TokenExpiredError) {
+        logger.error("Token expired", { error: error.message });
+        throw new UnauthorizedError("Token expired");
+      }
+      if (error instanceof jwt.NotBeforeError) {
+        logger.error("Token not yet valid", { error: error.message });
+        throw new UnauthorizedError("Token not yet valid");
+      }
+      // For any other unexpected errors
+      logger.error("Unexpected token verification error", { error });
       throw new UnauthorizedError("Token verification failed");
     }
   }
@@ -262,7 +262,14 @@ export class AuthService {
   static async refreshToken(
     refreshToken: string,
     res: Response
-  ): Promise<ApiResponse<{ userId: string; email: string }>> {
+  ): Promise<
+    ApiResponse<{
+      userId: string;
+      email: string;
+      accessToken: string;
+      refreshToken: string;
+    }>
+  > {
     logger.debug("Token refresh attempt");
 
     const decoded = this.verifyToken(
@@ -345,6 +352,8 @@ export class AuthService {
       return wrapResponse({
         userId: existingToken.user.id,
         email: existingToken.user.email,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
       });
     } catch (error) {
       // If database operations fail, clear cookies

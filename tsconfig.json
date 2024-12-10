@@ -19,7 +19,8 @@
     "allowJs": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["node_modules/@irubey/chores-app-shared/dist/*"]
+      "@shared/*": ["node_modules/@irubey/chores-app-shared/dist/*"],
+      "@backendTypes/*": ["src/types/*"]
     }
   },
   "include": ["src/**/*.ts"],
