@@ -1,12 +1,12 @@
-import { Router } from "express";
-import { MessageController } from "../controllers/MessageController";
-import { authMiddleware } from "../middlewares/authMiddleware";
-import { validate } from "../middlewares/validationMiddleware";
+import { Router } from 'express';
+import { MessageController } from '../controllers/MessageController';
+import { authMiddleware } from '../middlewares/authMiddleware';
+import { validate } from '../middlewares/validationMiddleware';
 import {
   createMessageSchema,
   updateMessageSchema,
-} from "../utils/validationSchemas";
-import { asyncHandler } from "../utils/asyncHandler";
+} from '../utils/validationSchemas';
+import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router({ mergeParams: true });
 
@@ -15,7 +15,7 @@ const router = Router({ mergeParams: true });
  * @desc    Retrieve all messages within a specific thread
  * @access  Protected
  */
-router.get("/", authMiddleware, asyncHandler(MessageController.getMessages));
+router.get('/', authMiddleware, asyncHandler(MessageController.getMessages));
 
 /**
  * @route   POST /api/households/:householdId/threads/:threadId/messages
@@ -23,7 +23,7 @@ router.get("/", authMiddleware, asyncHandler(MessageController.getMessages));
  * @access  Protected
  */
 router.post(
-  "/",
+  '/',
   authMiddleware,
   validate(createMessageSchema),
   asyncHandler(MessageController.createMessage)
@@ -35,7 +35,7 @@ router.post(
  * @access  Protected, Message Owner
  */
 router.patch(
-  "/:messageId",
+  '/:messageId',
   authMiddleware,
   validate(updateMessageSchema),
   asyncHandler(MessageController.updateMessage)
@@ -47,7 +47,7 @@ router.patch(
  * @access  Protected, Admin or Message Owner
  */
 router.delete(
-  "/:messageId",
+  '/:messageId',
   authMiddleware,
   asyncHandler(MessageController.deleteMessage)
 );
@@ -58,7 +58,7 @@ router.delete(
  * @access  Protected
  */
 router.patch(
-  "/:messageId/read",
+  '/:messageId/read',
   authMiddleware,
   asyncHandler(MessageController.markMessageAsRead)
 );
@@ -69,7 +69,7 @@ router.patch(
  * @access  Protected
  */
 router.get(
-  "/:messageId/read-status",
+  '/:messageId/read-status',
   authMiddleware,
   asyncHandler(MessageController.getMessageReadStatus)
 );
@@ -81,7 +81,7 @@ router.get(
  * @access  Protected
  */
 router.get(
-  "/:messageId/attachments",
+  '/:messageId/attachments',
   authMiddleware,
   asyncHandler(MessageController.getMessageAttachments)
 );
@@ -92,7 +92,7 @@ router.get(
  * @access  Protected
  */
 router.post(
-  "/:messageId/attachments",
+  '/:messageId/attachments',
   authMiddleware,
   asyncHandler(MessageController.addAttachment)
 );
@@ -103,7 +103,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  "/:messageId/attachments/:attachmentId",
+  '/:messageId/attachments/:attachmentId',
   authMiddleware,
   asyncHandler(MessageController.getAttachment)
 );
@@ -114,7 +114,7 @@ router.get(
  * @access  Protected, Admin or Attachment Owner
  */
 router.delete(
-  "/:messageId/attachments/:attachmentId",
+  '/:messageId/attachments/:attachmentId',
   authMiddleware,
   asyncHandler(MessageController.deleteAttachment)
 );
@@ -126,7 +126,7 @@ router.delete(
  * @access  Protected
  */
 router.post(
-  "/:messageId/mentions",
+  '/:messageId/mentions',
   authMiddleware,
   asyncHandler(MessageController.createMention)
 );
@@ -137,7 +137,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  "/mentions",
+  '/mentions',
   authMiddleware,
   asyncHandler(MessageController.getUserMentions)
 );
@@ -148,7 +148,7 @@ router.get(
  * @access  Protected
  */
 router.get(
-  "/:messageId/mentions",
+  '/:messageId/mentions',
   authMiddleware,
   asyncHandler(MessageController.getMessageMentions)
 );
@@ -159,7 +159,7 @@ router.get(
  * @access  Protected
  */
 router.delete(
-  "/:messageId/mentions/:mentionId",
+  '/:messageId/mentions/:mentionId',
   authMiddleware,
   asyncHandler(MessageController.deleteMention)
 );
@@ -170,7 +170,7 @@ router.delete(
  * @access  Protected
  */
 router.get(
-  "/unread-mentions-count",
+  '/unread-mentions-count',
   authMiddleware,
   asyncHandler(MessageController.getUnreadMentionsCount)
 );
@@ -182,7 +182,7 @@ router.get(
  * @access  Protected
  */
 router.post(
-  "/:messageId/reactions",
+  '/:messageId/reactions',
   authMiddleware,
   asyncHandler(MessageController.addReaction)
 );
@@ -193,7 +193,7 @@ router.post(
  * @access  Protected
  */
 router.delete(
-  "/:messageId/reactions/:reactionId",
+  '/:messageId/reactions/:reactionId',
   authMiddleware,
   asyncHandler(MessageController.removeReaction)
 );
@@ -204,7 +204,7 @@ router.delete(
  * @access  Protected
  */
 router.get(
-  "/:messageId/reactions",
+  '/:messageId/reactions',
   authMiddleware,
   asyncHandler(MessageController.getMessageReactions)
 );
@@ -215,7 +215,7 @@ router.get(
  * @access  Protected
  */
 router.get(
-  "/reaction-analytics",
+  '/reaction-analytics',
   authMiddleware,
   asyncHandler(MessageController.getReactionAnalytics)
 );
@@ -226,7 +226,7 @@ router.get(
  * @access  Protected
  */
 router.get(
-  "/reactions-by-type",
+  '/reactions-by-type',
   authMiddleware,
   asyncHandler(MessageController.getReactionsByType)
 );
@@ -238,7 +238,7 @@ router.get(
  * @access  Protected
  */
 router.get(
-  "/:messageId/polls",
+  '/:messageId/polls',
   authMiddleware,
   asyncHandler(MessageController.getPollsInThread)
 );
@@ -249,7 +249,7 @@ router.get(
  * @access  Protected
  */
 router.get(
-  "/:messageId/polls/:pollId",
+  '/:messageId/polls/:pollId',
   authMiddleware,
   asyncHandler(MessageController.getPoll)
 );
@@ -260,7 +260,7 @@ router.get(
  * @access  Protected
  */
 router.post(
-  "/:messageId/polls",
+  '/:messageId/polls',
   authMiddleware,
   asyncHandler(MessageController.createPoll)
 );
@@ -271,7 +271,7 @@ router.post(
  * @access  Protected
  */
 router.patch(
-  "/:messageId/polls/:pollId",
+  '/:messageId/polls/:pollId',
   authMiddleware,
   asyncHandler(MessageController.updatePoll)
 );
@@ -282,7 +282,7 @@ router.patch(
  * @access  Protected
  */
 router.delete(
-  "/:messageId/polls/:pollId",
+  '/:messageId/polls/:pollId',
   authMiddleware,
   asyncHandler(MessageController.deletePoll)
 );
@@ -293,7 +293,7 @@ router.delete(
  * @access  Protected
  */
 router.post(
-  "/:messageId/polls/:pollId/vote",
+  '/:messageId/polls/:pollId/vote',
   authMiddleware,
   asyncHandler(MessageController.votePoll)
 );
@@ -304,7 +304,7 @@ router.post(
  * @access  Protected
  */
 router.delete(
-  "/:messageId/polls/:pollId/vote",
+  '/:messageId/polls/:pollId/vote',
   authMiddleware,
   asyncHandler(MessageController.removePollVote)
 );
@@ -315,7 +315,7 @@ router.delete(
  * @access  Protected
  */
 router.get(
-  "/:messageId/polls/:pollId/analytics",
+  '/:messageId/polls/:pollId/analytics',
   authMiddleware,
   asyncHandler(MessageController.getPollAnalytics)
 );

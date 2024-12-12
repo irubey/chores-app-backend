@@ -1,6 +1,6 @@
-import { ApiResponse, PaginationMeta } from "@shared/interfaces";
-import logger from "./logger";
-import { getIO } from "../sockets";
+import { ApiResponse, PaginationMeta } from '@shared/interfaces';
+import logger from './logger';
+import { getIO } from '../sockets';
 
 /**
  * Wraps data in an ApiResponse object with optional pagination metadata.
@@ -30,7 +30,7 @@ export function handleServiceError(
   metadata?: Record<string, unknown>
 ): never {
   logger.error(`Failed to ${context}`, {
-    error: error instanceof Error ? error.message : "Unknown error",
+    error: error instanceof Error ? error.message : 'Unknown error',
     ...metadata,
   });
   throw error;
@@ -84,7 +84,7 @@ export function validateRequiredFields<T extends object>(
   );
 
   if (missingFields.length > 0) {
-    throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+    throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
   }
 }
 
@@ -136,7 +136,7 @@ export function safeJsonStringify(obj: unknown): string {
   try {
     return JSON.stringify(obj);
   } catch {
-    return "";
+    return '';
   }
 }
 

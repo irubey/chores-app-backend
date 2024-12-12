@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from "express";
-import logger from "../utils/logger";
+import { Request, Response, NextFunction } from 'express';
+import logger from '../utils/logger';
 
 // Define the AppError class
 export class AppError extends Error {
@@ -17,7 +17,7 @@ export class AppError extends Error {
 
 // Define a type for AuthError
 export type AuthError = AppError & {
-  name: "AuthError";
+  name: 'AuthError';
 };
 
 export const errorHandler = (
@@ -37,7 +37,7 @@ export const errorHandler = (
   }
 
   // Log error
-  logger.error("Request failed", {
+  logger.error('Request failed', {
     message: err.message,
     stack: err.stack,
     statusCode,
@@ -60,7 +60,7 @@ export const errorHandler = (
     res.status(500).json({
       error: {
         code: 500,
-        message: "Internal Server Error",
+        message: 'Internal Server Error',
       },
     });
   }
@@ -72,34 +72,34 @@ export function createAuthError(
   statusCode: number = 401
 ): AuthError {
   const error = new AppError(message, statusCode) as AuthError;
-  error.name = "AuthError";
+  error.name = 'AuthError';
   return error;
 }
 
 export class BadRequestError extends AppError {
   constructor(message: string) {
     super(message, 400);
-    this.name = "BadRequestError";
+    this.name = 'BadRequestError';
   }
 }
 
 export class NotFoundError extends AppError {
   constructor(message: string) {
     super(message, 404);
-    this.name = "NotFoundError";
+    this.name = 'NotFoundError';
   }
 }
 
 export class UnauthorizedError extends AppError {
   constructor(message: string) {
     super(message, 401);
-    this.name = "UnauthorizedError";
+    this.name = 'UnauthorizedError';
   }
 }
 
 export class ValidationError extends AppError {
   constructor(message: string) {
     super(message, 400);
-    this.name = "ValidationError";
+    this.name = 'ValidationError';
   }
 }

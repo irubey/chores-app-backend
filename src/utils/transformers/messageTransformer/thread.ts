@@ -3,19 +3,19 @@ import {
   ThreadWithDetails,
   ThreadWithMessages,
   ThreadWithParticipants,
-} from "@shared/types";
+} from '@shared/types';
 import {
   PrismaThreadBase,
   PrismaThreadWithFullRelations,
   PrismaThreadWithMessagesAndParticipants,
   PrismaThreadWithParticipantsOnly,
-} from "../transformerPrismaTypes";
-import { transformUser } from "../userTransformer";
+} from '../transformerPrismaTypes';
+import { transformUser } from '../userTransformer';
 import {
   transformHousehold,
   transformHouseholdMember,
-} from "../householdTransformer";
-import { transformMessage, transformMessageWithDetails } from "./message";
+} from '../householdTransformer';
+import { transformMessage, transformMessageWithDetails } from './message';
 
 export function transformThread(thread: PrismaThreadBase): Thread {
   return {
@@ -33,11 +33,11 @@ export function transformThreadWithDetails(
   thread: PrismaThreadWithFullRelations
 ): ThreadWithDetails {
   if (!thread.author) {
-    throw new Error("Thread must have an author");
+    throw new Error('Thread must have an author');
   }
 
   if (!thread.household) {
-    throw new Error("Thread must have a household");
+    throw new Error('Thread must have a household');
   }
 
   const threadForMessage = {

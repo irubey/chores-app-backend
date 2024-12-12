@@ -15,10 +15,9 @@
    if [ "$NODE_ENV" = "development" ]; then
      echo "Development environment detected..."
      
-     # Reset the database (this is safe in development)
-     # The --skip-seed flag prevents double seeding
-     echo "Resetting database..."
-     npx prisma migrate reset --force --skip-seed
+     # Create and apply migrations
+     echo "Creating and applying migrations..."
+     npx prisma migrate dev --name init
      
      # Generate Prisma client
      echo "Generating Prisma client..."

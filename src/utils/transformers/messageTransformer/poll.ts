@@ -5,17 +5,17 @@ import {
   PollWithDetails,
   PollOptionWithVotes,
   PollVoteWithUser,
-} from "@shared/types";
+} from '@shared/types';
 import {
   PrismaPollWithFullRelations,
   PrismaPollOptionWithFullRelations,
   PrismaPollVoteWithFullRelations,
   PrismaPollBase,
   PrismaEventWithFullRelations,
-} from "../transformerPrismaTypes";
-import { transformUser } from "../userTransformer";
-import { transformEvent } from "../eventTransformer";
-import { PollStatus, PollType } from "@shared/enums";
+} from '../transformerPrismaTypes';
+import { transformUser } from '../userTransformer';
+import { transformEvent } from '../eventTransformer';
+import { PollStatus, PollType } from '@shared/enums';
 
 function isValidPollType(type: string): type is PollType {
   return Object.values(PollType).includes(type as PollType);
@@ -26,11 +26,11 @@ function isValidPollStatus(status: string): status is PollStatus {
 }
 
 function validatePollData(poll: PrismaPollWithFullRelations): void {
-  if (!poll.id) throw new Error("Poll must have an id");
-  if (!poll.messageId) throw new Error("Poll must have a messageId");
-  if (!poll.question) throw new Error("Poll must have a question");
-  if (!poll.pollType) throw new Error("Poll must have a pollType");
-  if (!poll.status) throw new Error("Poll must have a status");
+  if (!poll.id) throw new Error('Poll must have an id');
+  if (!poll.messageId) throw new Error('Poll must have a messageId');
+  if (!poll.question) throw new Error('Poll must have a question');
+  if (!poll.pollType) throw new Error('Poll must have a pollType');
+  if (!poll.status) throw new Error('Poll must have a status');
 }
 
 export function transformPoll(poll: PrismaPollWithFullRelations): Poll {
@@ -66,7 +66,7 @@ export function transformPollWithDetails(
   validatePollData(poll);
 
   if (!poll.options) {
-    throw new Error("Poll must have options array");
+    throw new Error('Poll must have options array');
   }
 
   const pollData = {
@@ -87,7 +87,7 @@ export function transformPollWithDetails(
   const transformedPoll = transformPoll(poll);
   const transformedOptions = poll.options.map((option) => {
     if (!option.votes) {
-      throw new Error("Poll option must have votes array");
+      throw new Error('Poll option must have votes array');
     }
     return transformPollOptionWithVotes({
       ...option,
@@ -100,9 +100,9 @@ export function transformPollWithDetails(
     options: transformedOptions,
     selectedOption: poll.selectedOption
       ? transformPollOptionWithVotes({
-          ...poll.selectedOption,
-          poll: pollData,
-        })
+        ...poll.selectedOption,
+        poll: pollData,
+      })
       : undefined,
     event: poll.event
       ? transformEvent(poll.event as PrismaEventWithFullRelations)
@@ -128,12 +128,12 @@ export function transformPollOption(
 function validatePollOptionData(
   option: PrismaPollOptionWithFullRelations
 ): void {
-  if (!option.id) throw new Error("Poll option must have an id");
-  if (!option.pollId) throw new Error("Poll option must have a pollId");
-  if (!option.text) throw new Error("Poll option must have text");
-  if (typeof option.order !== "number")
-    throw new Error("Poll option must have an order");
-  if (!option.votes) throw new Error("Poll option must have votes array");
+  if (!option.id) throw new Error('Poll option must have an id');
+  if (!option.pollId) throw new Error('Poll option must have a pollId');
+  if (!option.text) throw new Error('Poll option must have text');
+  if (typeof option.order !== 'number')
+    throw new Error('Poll option must have an order');
+  if (!option.votes) throw new Error('Poll option must have votes array');
 }
 
 function transformPollMinimal(poll: PrismaPollBase): Poll {
@@ -202,7 +202,7 @@ export function transformPollVoteWithUser(
   vote: PrismaPollVoteWithFullRelations
 ): PollVoteWithUser {
   if (!vote.user) {
-    throw new Error("PollVote must have a user");
+    throw new Error('PollVote must have a user');
   }
 
   return {

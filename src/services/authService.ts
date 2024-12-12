@@ -1,23 +1,24 @@
-import prisma from "../config/database";
-import { TokenPayload } from "@backendTypes/index";
-import { RegisterUserDTO, LoginCredentials } from "@shared/types/user";
-import { hash, compare } from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { UnauthorizedError } from "../middlewares/errorHandler";
-import authConfig from "../config/auth";
-import { Response } from "express";
-import { HouseholdRole } from "@shared/enums";
-import { HouseholdMember } from "@shared/types/household";
-import { transformUser } from "../utils/transformers/userTransformer";
-import { User } from "@shared/types";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
-import ms from "ms";
-import logger from "../utils/logger";
-import { ExtendedPrismaClient } from "../config/database";
+import prisma from '../config/database';
+import { TokenPayload } from '@backendTypes/index';
+import { RegisterUserDTO, LoginCredentials } from '@shared/types/user';
+import { hash, compare } from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { UnauthorizedError } from '../middlewares/errorHandler';
+import authConfig from '../config/auth';
+import { Response } from 'express';
+import { HouseholdRole } from '@shared/enums';
+import { HouseholdMember } from '@shared/types/household';
+import { transformUser } from '../utils/transformers/userTransformer';
+import { User } from '@shared/types';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
+import ms from 'ms';
+import logger from '../utils/logger';
+import { ExtendedPrismaClient } from '../config/database';
+import { transformMembership } from '../utils/transformers/householdTransformer';
 
 type TransactionClient = Omit<
   ExtendedPrismaClient,
-  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
 
 /**
@@ -26,8 +27,8 @@ type TransactionClient = Omit<
 export class AuthService {
   public static generateAccessToken(payload: TokenPayload): string {
     if (!payload.userId || !payload.email) {
-      logger.error("Invalid token payload", { payload });
-      throw new UnauthorizedError("Invalid token payload");
+      logger.error('Invalid token payload', { payload });
+      throw new UnauthorizedError('Invalid token payload');
     }
     return jwt.sign(payload, authConfig.jwt.accessSecret, {
       expiresIn: authConfig.jwt.accessTokenExpiration,
@@ -36,8 +37,8 @@ export class AuthService {
 
   public static generateRefreshToken(payload: TokenPayload): string {
     if (!payload.userId || !payload.email) {
-      logger.error("Invalid token payload", { payload });
-      throw new UnauthorizedError("Invalid token payload");
+      logger.error('Invalid token payload', { payload });
+      throw new UnauthorizedError('Invalid token payload');
     }
     const nonce = Math.random().toString(36).substring(2);
     const tokenPayload = { ...payload, nonce };
@@ -52,20 +53,20 @@ export class AuthService {
       return decoded;
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
-        logger.error("Token verification failed", { error: error.message });
-        throw new UnauthorizedError("Invalid token");
+        logger.error('Token verification failed', { error: error.message });
+        throw new UnauthorizedError('Invalid token');
       }
       if (error instanceof jwt.TokenExpiredError) {
-        logger.error("Token expired", { error: error.message });
-        throw new UnauthorizedError("Token expired");
+        logger.error('Token expired', { error: error.message });
+        throw new UnauthorizedError('Token expired');
       }
       if (error instanceof jwt.NotBeforeError) {
-        logger.error("Token not yet valid", { error: error.message });
-        throw new UnauthorizedError("Token not yet valid");
+        logger.error('Token not yet valid', { error: error.message });
+        throw new UnauthorizedError('Token not yet valid');
       }
       // For any other unexpected errors
-      logger.error("Unexpected token verification error", { error });
-      throw new UnauthorizedError("Token verification failed");
+      logger.error('Unexpected token verification error', { error });
+      throw new UnauthorizedError('Token verification failed');
     }
   }
 
@@ -75,11 +76,11 @@ export class AuthService {
     refreshToken: string
   ): void {
     const cookieOptions = {
-      httpOnly: process.env.COOKIE_HTTP_ONLY !== "false",
-      secure: process.env.COOKIE_SECURE === "true",
+      httpOnly: process.env.COOKIE_HTTP_ONLY !== 'false',
+      secure: process.env.COOKIE_SECURE === 'true',
       sameSite:
-        (process.env.COOKIE_SAME_SITE as "lax" | "strict" | "none") || "lax",
-      path: "/",
+        (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+      path: '/',
       domain: process.env.COOKIE_DOMAIN || undefined,
     };
 
@@ -87,7 +88,7 @@ export class AuthService {
     const accessExpMs = ms(authConfig.jwt.accessTokenExpiration);
     const refreshExpMs = ms(authConfig.jwt.refreshTokenExpiration);
 
-    logger.debug("Setting auth cookies", {
+    logger.debug('Setting auth cookies', {
       accessExpMs,
       refreshExpMs,
       cookieOptions,
@@ -100,12 +101,12 @@ export class AuthService {
       },
     });
 
-    res.cookie("accessToken", accessToken, {
+    res.cookie('accessToken', accessToken, {
       ...cookieOptions,
       maxAge: accessExpMs,
     });
 
-    res.cookie("refreshToken", refreshToken, {
+    res.cookie('refreshToken', refreshToken, {
       ...cookieOptions,
       maxAge: refreshExpMs,
     });
@@ -113,15 +114,15 @@ export class AuthService {
 
   public static clearAuthCookies(res: Response): void {
     const cookieOptions = {
-      httpOnly: process.env.COOKIE_HTTP_ONLY !== "false",
-      secure: process.env.COOKIE_SECURE === "true",
+      httpOnly: process.env.COOKIE_HTTP_ONLY !== 'false',
+      secure: process.env.COOKIE_SECURE === 'true',
       sameSite:
-        (process.env.COOKIE_SAME_SITE as "lax" | "strict" | "none") || "lax",
-      path: "/",
+        (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+      path: '/',
       domain: process.env.COOKIE_DOMAIN || undefined,
     };
 
-    logger.debug("Clearing auth cookies", {
+    logger.debug('Clearing auth cookies', {
       cookieOptions,
       env: {
         NODE_ENV: process.env.NODE_ENV,
@@ -132,25 +133,25 @@ export class AuthService {
       },
     });
 
-    res.clearCookie("accessToken", cookieOptions);
-    res.clearCookie("refreshToken", cookieOptions);
+    res.clearCookie('accessToken', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
   }
 
   static async register(
     userData: RegisterUserDTO,
     res: Response
   ): Promise<ApiResponse<User>> {
-    logger.debug("Registering new user", { email: userData.email });
+    logger.debug('Registering new user', { email: userData.email });
 
     const existingUser = await prisma.user.findUnique({
       where: { email: userData.email },
     });
 
     if (existingUser) {
-      logger.warn("Registration failed - email in use", {
+      logger.warn('Registration failed - email in use', {
         email: userData.email,
       });
-      throw new UnauthorizedError("Email already in use.");
+      throw new UnauthorizedError('Email already in use.');
     }
 
     const hashedPassword = await hash(userData.password, 10);
@@ -160,6 +161,7 @@ export class AuthService {
         email: userData.email,
         passwordHash: hashedPassword,
         name: userData.name,
+        activeHouseholdId: null,
       },
       select: {
         id: true,
@@ -169,6 +171,7 @@ export class AuthService {
         createdAt: true,
         updatedAt: true,
         deletedAt: true,
+        activeHouseholdId: true,
       },
     });
 
@@ -191,7 +194,7 @@ export class AuthService {
     // Set auth cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
-    logger.info("User registered successfully", { userId: user.id });
+    logger.info('User registered successfully', { userId: user.id });
     return wrapResponse(transformUser(user));
   }
 
@@ -199,7 +202,7 @@ export class AuthService {
     credentials: LoginCredentials,
     res: Response
   ): Promise<ApiResponse<User>> {
-    logger.debug("Login attempt", { email: credentials.email });
+    logger.debug('Login attempt', { email: credentials.email });
 
     const user = await prisma.user.findUnique({
       where: { email: credentials.email },
@@ -212,14 +215,15 @@ export class AuthService {
         updatedAt: true,
         deletedAt: true,
         passwordHash: true,
+        activeHouseholdId: true,
       },
     });
 
     if (!user || !user.passwordHash) {
-      logger.warn("Login failed - user not found", {
+      logger.warn('Login failed - user not found', {
         email: credentials.email,
       });
-      throw new UnauthorizedError("Invalid credentials.");
+      throw new UnauthorizedError('Invalid credentials.');
     }
 
     const isPasswordValid = await compare(
@@ -228,8 +232,8 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      logger.warn("Login failed - invalid password", { userId: user.id });
-      throw new UnauthorizedError("Invalid credentials.");
+      logger.warn('Login failed - invalid password', { userId: user.id });
+      throw new UnauthorizedError('Invalid credentials.');
     }
 
     const payload: TokenPayload = { userId: user.id, email: user.email };
@@ -248,7 +252,7 @@ export class AuthService {
 
     this.setAuthCookies(res, accessToken, refreshToken);
 
-    logger.info("User logged in successfully", { userId: user.id });
+    logger.info('User logged in successfully', { userId: user.id });
 
     const { passwordHash: _, ...userWithoutPassword } = user;
     return wrapResponse(transformUser(userWithoutPassword));
@@ -270,7 +274,7 @@ export class AuthService {
       refreshToken: string;
     }>
   > {
-    logger.debug("Token refresh attempt");
+    logger.debug('Token refresh attempt');
 
     const decoded = this.verifyToken(
       refreshToken,
@@ -291,25 +295,25 @@ export class AuthService {
     });
 
     if (!existingToken || existingToken.revoked) {
-      logger.warn("Token refresh failed - invalid token", {
+      logger.warn('Token refresh failed - invalid token', {
         userId: decoded.userId,
       });
-      throw new UnauthorizedError("Invalid refresh token");
+      throw new UnauthorizedError('Invalid refresh token');
     }
 
     if (!existingToken.user) {
-      logger.warn("Token refresh failed - user not found", {
+      logger.warn('Token refresh failed - user not found', {
         userId: decoded.userId,
       });
-      throw new UnauthorizedError("Invalid refresh token");
+      throw new UnauthorizedError('Invalid refresh token');
     }
 
     if (existingToken.user.deletedAt) {
-      logger.warn("Token refresh failed - deleted user", {
+      logger.warn('Token refresh failed - deleted user', {
         userId: existingToken.user.id,
         deletedAt: existingToken.user.deletedAt,
       });
-      throw new UnauthorizedError("Account has been deleted");
+      throw new UnauthorizedError('Account has been deleted');
     }
 
     // Create new tokens
@@ -345,7 +349,7 @@ export class AuthService {
         this.setAuthCookies(res, newAccessToken, newRefreshToken);
       });
 
-      logger.info("Token refresh successful", {
+      logger.info('Token refresh successful', {
         userId: existingToken.user.id,
       });
 
@@ -358,7 +362,7 @@ export class AuthService {
     } catch (error) {
       // If database operations fail, clear cookies
       this.clearAuthCookies(res);
-      logger.error("Token refresh database operation failed", { error });
+      logger.error('Token refresh database operation failed', { error });
       throw error;
     }
   }
@@ -389,27 +393,16 @@ export async function verifyMembership(
     membership.isRejected ||
     membership.leftAt !== null
   ) {
-    throw new UnauthorizedError("Access denied.");
+    throw new UnauthorizedError('Access denied.');
   }
 
-  const sharedMembership: HouseholdMember = {
-    id: membership.id,
-    userId: membership.userId,
-    householdId: membership.householdId,
-    role: membership.role as HouseholdRole,
-    joinedAt: membership.joinedAt,
-    leftAt: membership.leftAt ?? undefined,
-    isInvited: membership.isInvited,
-    isAccepted: membership.isAccepted,
-    isRejected: membership.isRejected,
-    isSelected: membership.isSelected,
-    lastAssignedChoreAt: membership.lastAssignedChoreAt ?? undefined,
-  };
-
-  return sharedMembership;
+  return transformMembership(membership);
 }
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
-  return { data };
+  return {
+    data,
+    status: 200,
+  };
 }

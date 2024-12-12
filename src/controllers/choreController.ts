@@ -1,8 +1,8 @@
-import { Response, NextFunction } from "express";
-import * as choreService from "../services/choreService";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import { CreateChoreDTO, UpdateChoreDTO } from "@shared/types";
-import { AuthenticatedRequest } from "../types";
+import { Response, NextFunction } from 'express';
+import * as choreService from '../services/choreService';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { CreateChoreDTO, UpdateChoreDTO } from '@shared/types';
+import { AuthenticatedRequest } from '../types';
 
 /**
  * ChoreController handles all CRUD operations related to chores.
@@ -21,7 +21,7 @@ export class ChoreController {
       const userId = req.user?.id;
 
       if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const response = await choreService.getChores(householdId, userId);
@@ -45,7 +45,7 @@ export class ChoreController {
       const userId = req.user?.id;
 
       if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const response = await choreService.createChore(
@@ -72,7 +72,7 @@ export class ChoreController {
       const userId = req.user?.id;
 
       if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const response = await choreService.getChoreById(
@@ -100,7 +100,7 @@ export class ChoreController {
       const userId = req.user?.id;
 
       if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const response = await choreService.updateChore(
@@ -128,7 +128,7 @@ export class ChoreController {
       const userId = req.user?.id;
 
       if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       await choreService.deleteChore(householdId, choreId, userId);
@@ -152,7 +152,7 @@ export class ChoreController {
       const requestingUserId = req.user?.id;
 
       if (!requestingUserId) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const response = await choreService.createChoreSwapRequest(
@@ -180,7 +180,7 @@ export class ChoreController {
       const approvingUserId = req.user?.id;
 
       if (!approvingUserId) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const response = await choreService.approveOrRejectChoreSwap(

@@ -1,10 +1,10 @@
-import { Router } from "express";
-import { ThreadController } from "../controllers/ThreadController";
-import { authMiddleware } from "../middlewares/authMiddleware";
-import { rbacMiddleware } from "../middlewares/rbacMiddleware";
-import { validate } from "../middlewares/validationMiddleware";
-import { createThreadSchema } from "../utils/validationSchemas";
-import { asyncHandler } from "../utils/asyncHandler";
+import { Router } from 'express';
+import { ThreadController } from '../controllers/ThreadController';
+import { authMiddleware } from '../middlewares/authMiddleware';
+import { rbacMiddleware } from '../middlewares/rbacMiddleware';
+import { validate } from '../middlewares/validationMiddleware';
+import { createThreadSchema } from '../utils/validationSchemas';
+import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router({ mergeParams: true });
 
@@ -13,7 +13,7 @@ const router = Router({ mergeParams: true });
  * @desc    Get threads for a household
  * @access  Protected
  */
-router.get("/", authMiddleware, asyncHandler(ThreadController.getThreads));
+router.get('/', authMiddleware, asyncHandler(ThreadController.getThreads));
 
 /**
  * @route   POST /api/households/:householdId/threads
@@ -21,7 +21,7 @@ router.get("/", authMiddleware, asyncHandler(ThreadController.getThreads));
  * @access  Protected
  */
 router.post(
-  "/",
+  '/',
   authMiddleware,
   validate(createThreadSchema),
   asyncHandler(ThreadController.createThread)
@@ -33,7 +33,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  "/:threadId",
+  '/:threadId',
   authMiddleware,
   asyncHandler(ThreadController.getThreadById)
 );
@@ -44,9 +44,9 @@ router.get(
  * @access  Protected, Admin or Thread Owner
  */
 router.patch(
-  "/:threadId",
+  '/:threadId',
   authMiddleware,
-  rbacMiddleware("WRITE"),
+  rbacMiddleware('WRITE'),
   asyncHandler(ThreadController.updateThread)
 );
 
@@ -56,9 +56,9 @@ router.patch(
  * @access  Protected, Admin only
  */
 router.delete(
-  "/:threadId",
+  '/:threadId',
   authMiddleware,
-  rbacMiddleware("ADMIN"),
+  rbacMiddleware('ADMIN'),
   asyncHandler(ThreadController.deleteThread)
 );
 
@@ -68,7 +68,7 @@ router.delete(
  * @access  Protected, Admin or Thread Owner
  */
 router.post(
-  "/:threadId/invite",
+  '/:threadId/invite',
   authMiddleware,
   asyncHandler(ThreadController.inviteUsersToThread)
 );

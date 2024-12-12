@@ -1,6 +1,6 @@
-import { RecurrenceRule } from "@shared/types";
-import { PrismaRecurrenceRuleWithFullRelations } from "./transformerPrismaTypes";
-import { RecurrenceFrequency, DaysOfWeek } from "@shared/enums";
+import { RecurrenceRule } from '@shared/types';
+import { PrismaRecurrenceRuleWithFullRelations } from './transformerPrismaTypes';
+import { RecurrenceFrequency, DaysOfWeek } from '@shared/enums';
 
 function isValidRecurrenceFrequency(
   frequency: string

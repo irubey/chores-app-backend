@@ -1,16 +1,16 @@
-import { Message, MessageWithDetails } from "@shared/types";
+import { Message, MessageWithDetails } from '@shared/types';
 import {
   PrismaMessageBase,
   PrismaMessageWithFullRelations,
   PrismaPollWithFullRelations,
-} from "../transformerPrismaTypes";
-import { transformThread } from "./thread";
-import { transformUser } from "../userTransformer";
-import { transformAttachment } from "./attachment";
-import { transformReactionWithUser } from "./reaction";
-import { transformMentionWithUser } from "./mention";
-import { transformMessageReadWithUser } from "./read";
-import { transformPollWithDetails } from "./poll";
+} from '../transformerPrismaTypes';
+import { transformThread } from './thread';
+import { transformUser } from '../userTransformer';
+import { transformAttachment } from './attachment';
+import { transformReactionWithUser } from './reaction';
+import { transformMentionWithUser } from './mention';
+import { transformMessageReadWithUser } from './read';
+import { transformPollWithDetails } from './poll';
 
 export function transformMessage(message: PrismaMessageBase): Message {
   return {
@@ -28,11 +28,11 @@ export function transformMessageWithDetails(
   message: PrismaMessageWithFullRelations
 ): MessageWithDetails {
   if (!message.author) {
-    throw new Error("Message must have an author");
+    throw new Error('Message must have an author');
   }
 
   if (!message.thread) {
-    throw new Error("Message must have a thread");
+    throw new Error('Message must have a thread');
   }
 
   const baseMessage = {

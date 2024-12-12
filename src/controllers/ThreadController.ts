@@ -1,9 +1,9 @@
-import { Response, NextFunction } from "express";
-import * as threadService from "../services/threadService";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import { CreateThreadDTO, UpdateThreadDTO } from "@shared/types";
-import { PaginationOptions } from "@shared/interfaces";
-import { AuthenticatedRequest } from "../types";
+import { Response, NextFunction } from 'express';
+import * as threadService from '../services/threadService';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { CreateThreadDTO, UpdateThreadDTO } from '@shared/types';
+import { PaginationOptions } from '@shared/interfaces';
+import { AuthenticatedRequest } from '../types';
 
 /**
  * ThreadController handles all CRUD operations related to threads.
@@ -19,13 +19,13 @@ export class ThreadController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
       const { householdId } = req.params;
       const { limit, cursor, direction, sortBy } = req.query as {
         limit?: string;
         cursor?: string;
-        direction?: "asc" | "desc";
+        direction?: 'asc' | 'desc';
         sortBy?: string;
       };
 
@@ -33,10 +33,10 @@ export class ThreadController {
       const paginationOptions: PaginationOptions = {
         limit: limit ? Math.min(Math.max(parseInt(limit), 1), 100) : 20, // Limit between 1 and 100
         cursor: cursor,
-        direction: direction === "asc" ? "asc" : "desc", // Default to desc if invalid
-        sortBy: ["updatedAt", "createdAt"].includes(sortBy || "")
+        direction: direction === 'asc' ? 'asc' : 'desc', // Default to desc if invalid
+        sortBy: ['updatedAt', 'createdAt'].includes(sortBy || '')
           ? sortBy
-          : "updatedAt", // Validate sortBy field
+          : 'updatedAt', // Validate sortBy field
       };
 
       const response = await threadService.getThreads(
@@ -60,7 +60,7 @@ export class ThreadController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
       const { householdId } = req.params;
       const threadData: CreateThreadDTO = {
@@ -88,7 +88,7 @@ export class ThreadController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
       const { householdId, threadId } = req.params;
       const response = await threadService.getThreadById(
@@ -112,7 +112,7 @@ export class ThreadController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
       const { householdId, threadId } = req.params;
       const updateData: UpdateThreadDTO = req.body;
@@ -138,7 +138,7 @@ export class ThreadController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
       const { householdId, threadId } = req.params;
       await threadService.deleteThread(householdId, threadId, req.user.id);
@@ -158,7 +158,7 @@ export class ThreadController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
       const { householdId, threadId } = req.params;
       const { userIds } = req.body;

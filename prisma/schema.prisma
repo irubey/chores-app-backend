@@ -179,7 +179,9 @@ model User {
   updatedAt                    DateTime            @updatedAt
   deviceTokens                 String[]            @default([])
   deletedAt                    DateTime?
-
+  activeHouseholdId            String?
+  
+  activeHousehold              Household?          @relation("ActiveHousehold", fields: [activeHouseholdId], references: [id])
   households                   HouseholdMember[]
   messages                     Message[]
   threads                      Thread[]
@@ -202,6 +204,8 @@ model User {
   messageReads                 MessageRead[]
   refreshTokens                RefreshToken[]
   pollVotes                    PollVote[]
+
+  @@index([activeHouseholdId])
 }
 
 model Household {
@@ -215,6 +219,7 @@ model Household {
   language    String            @default("en")
   deletedAt   DateTime?
 
+  activeUsers      User[]     @relation("ActiveHousehold")
   members     HouseholdMember[]
   threads     Thread[]
   chores      Chore[]
@@ -224,18 +229,19 @@ model Household {
   notificationSettings NotificationSettings[]
 }
 
+
+
 model HouseholdMember {
   id                   String        @id @default(uuid())
   userId               String
   householdId          String
   role                 HouseholdRole @default(MEMBER)
   joinedAt             DateTime      @default(now())
-  leftAt            DateTime?
+  leftAt               DateTime?
   isInvited            Boolean       @default(false)
   isAccepted           Boolean       @default(false)
   isRejected           Boolean       @default(false)
-  isSelected           Boolean       @default(true)
-  lastAssignedChoreAt  DateTime?
+  nickname             String?
 
   user         User          @relation(fields: [userId], references: [id])
   household    Household     @relation(fields: [householdId], references: [id])
@@ -425,7 +431,7 @@ model Chore {
 
   household         Household         @relation(fields: [householdId], references: [id])
   subtasks          Subtask[]
-  assignments     ChoreAssignment[]
+  assignments       ChoreAssignment[]
   event             Event?            @relation("ChoreEvent", fields: [eventId], references: [id])
   choreSwapRequests ChoreSwapRequest[]
   recurrenceRule    RecurrenceRule?   @relation("ChoreRecurrence", fields: [recurrenceRuleId], references: [id], onDelete: Cascade)
@@ -686,5 +692,3 @@ model OAuthIntegration {
 
   @@unique([userId, provider])
 }
-
-

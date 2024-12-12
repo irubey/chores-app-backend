@@ -18,7 +18,7 @@ export default [
           jsx: true,
         },
         project: "./tsconfig.json",
-        tsconfigRootDir: "..",
+        tsconfigRootDir: ".",
       },
       globals: {
         ...globals.node,
@@ -38,6 +38,14 @@ export default [
       quotes: ["error", "single"],
       semi: ["error", "always"],
       "@typescript-eslint/no-unused-vars": ["warn"],
+      "@typescript-eslint/no-unused-expressions": [
+        "error",
+        {
+          allowShortCircuit: true,
+          allowTernary: true,
+          allowTaggedTemplates: true,
+        },
+      ],
       "jest/consistent-test-it": [
         "error",
         { fn: "test", withinDescribe: "it" },

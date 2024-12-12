@@ -1,9 +1,9 @@
-import { User, UpdateUserDTO } from "@shared/types";
+import { User, UpdateUserDTO } from '@shared/types';
 import {
   PrismaUserBase,
   PrismaUserWithFullRelations,
   PrismaUserMinimal,
-} from "./transformerPrismaTypes";
+} from './transformerPrismaTypes';
 
 /**
  * Transforms a Prisma User (base, minimal, or full) into a User type, omitting sensitive fields
@@ -11,8 +11,16 @@ import {
 export function transformUser(
   prismaUser: PrismaUserBase | PrismaUserMinimal | PrismaUserWithFullRelations
 ): User {
-  const { id, email, name, createdAt, updatedAt, deletedAt, profileImageURL } =
-    prismaUser;
+  const {
+    id,
+    email,
+    name,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    profileImageURL,
+    activeHouseholdId,
+  } = prismaUser;
 
   const user: User = {
     id,
@@ -21,7 +29,8 @@ export function transformUser(
     createdAt,
     updatedAt,
     deletedAt: deletedAt ?? undefined,
-    profileImageURL: profileImageURL ?? undefined, // Change from "" to undefined
+    profileImageURL: profileImageURL ?? undefined,
+    activeHouseholdId: activeHouseholdId ?? undefined,
   };
 
   return user;
@@ -33,11 +42,15 @@ export function transformUser(
 export function transformUserUpdateInput(updateData: UpdateUserDTO): {
   name?: string;
   profileImageURL?: string | null;
+  activeHouseholdId?: string | null;
 } {
   return {
     ...(updateData.name && { name: updateData.name }),
     ...(updateData.profileImageURL !== undefined && {
       profileImageURL: updateData.profileImageURL || null,
+    }),
+    ...(updateData.activeHouseholdId !== undefined && {
+      activeHouseholdId: updateData.activeHouseholdId || null,
     }),
   };
 }

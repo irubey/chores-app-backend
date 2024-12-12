@@ -1,23 +1,23 @@
-import { TransactionStatus, HouseholdRole } from "@shared/enums";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import prisma from "../config/database";
-import { getIO } from "../sockets";
-import { verifyMembership } from "./authService";
+import { TransactionStatus, HouseholdRole } from '@shared/enums';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import prisma from '../config/database';
+import { getIO } from '../sockets';
+import { verifyMembership } from './authService';
 import {
   transformTransaction,
   transformTransactionWithDetails,
-} from "../utils/transformers/expenseTransformer";
+} from '../utils/transformers/expenseTransformer';
 import {
   PrismaTransactionWithFullRelations,
   PrismaTransactionBase,
-} from "../utils/transformers/transformerPrismaTypes";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
+} from '../utils/transformers/transformerPrismaTypes';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
 import {
   Transaction,
   TransactionWithDetails,
   CreateTransactionDTO,
   UpdateTransactionDTO,
-} from "@shared/types";
+} from '@shared/types';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -48,7 +48,7 @@ export async function getTransactions(
       expense: true,
     },
     orderBy: {
-      createdAt: "desc",
+      createdAt: 'desc',
     },
   });
 
@@ -85,7 +85,7 @@ export async function createTransaction(
     });
 
     if (!expense || expense.householdId !== householdId) {
-      throw new NotFoundError("Related expense not found.");
+      throw new NotFoundError('Related expense not found.');
     }
 
     return tx.transaction.create({
@@ -119,7 +119,7 @@ export async function createTransaction(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("transaction_created", { transaction: transformedTransaction });
+    .emit('transaction_created', { transaction: transformedTransaction });
 
   return wrapResponse(transformedTransaction);
 }
@@ -155,7 +155,7 @@ export async function updateTransactionStatus(
       !existingTransaction ||
       existingTransaction.expense.householdId !== householdId
     ) {
-      throw new NotFoundError("Transaction not found.");
+      throw new NotFoundError('Transaction not found.');
     }
 
     if (
@@ -164,7 +164,7 @@ export async function updateTransactionStatus(
       existingTransaction.toUserId !== userId
     ) {
       throw new UnauthorizedError(
-        "You do not have permission to update this transaction."
+        'You do not have permission to update this transaction.'
       );
     }
 
@@ -194,7 +194,7 @@ export async function updateTransactionStatus(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("transaction_updated", { transaction: transformedTransaction });
+    .emit('transaction_updated', { transaction: transformedTransaction });
 
   return wrapResponse(transformedTransaction);
 }
@@ -221,7 +221,7 @@ export async function deleteTransaction(
     });
 
     if (!transaction || transaction.expense.householdId !== householdId) {
-      throw new NotFoundError("Transaction not found.");
+      throw new NotFoundError('Transaction not found.');
     }
 
     await tx.transaction.delete({
@@ -231,7 +231,7 @@ export async function deleteTransaction(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("transaction_deleted", { transactionId });
+    .emit('transaction_deleted', { transactionId });
 
   return wrapResponse(undefined);
 }

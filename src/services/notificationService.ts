@@ -1,23 +1,23 @@
-import prisma from "../config/database";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import prisma from '../config/database';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
 import {
   CreateNotificationDTO,
   UpdateNotificationDTO,
   Notification,
   NotificationSettings,
-} from "@shared/types";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
-import { NotificationType } from "@shared/enums";
-import { getIO } from "../sockets";
+} from '@shared/types';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
+import { NotificationType } from '@shared/enums';
+import { getIO } from '../sockets';
 import {
   transformNotification,
   transformNotificationSettings,
-} from "../utils/transformers/notificationTransformer";
+} from '../utils/transformers/notificationTransformer';
 import {
   PrismaNotificationBase,
   PrismaNotificationWithFullRelations,
   PrismaNotificationSettingsWithFullRelations,
-} from "../utils/transformers/transformerPrismaTypes";
+} from '../utils/transformers/transformerPrismaTypes';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -34,7 +34,7 @@ export async function getNotifications(
   userId: string
 ): Promise<ApiResponse<Notification[]>> {
   if (!userId) {
-    throw new UnauthorizedError("Unauthorized");
+    throw new UnauthorizedError('Unauthorized');
   }
 
   const notifications = await prisma.notification.findMany({
@@ -42,7 +42,7 @@ export async function getNotifications(
     include: {
       user: true,
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
   });
 
   const transformedNotifications = notifications.map((notification) =>
@@ -62,7 +62,7 @@ export async function createNotification(
   data: CreateNotificationDTO
 ): Promise<ApiResponse<Notification>> {
   if (!data.userId || !data.type || !data.message) {
-    throw new Error("Invalid notification data");
+    throw new Error('Invalid notification data');
   }
 
   const notification = await prisma.$transaction(async (tx) => {
@@ -71,7 +71,7 @@ export async function createNotification(
     });
 
     if (!user) {
-      throw new NotFoundError("User not found.");
+      throw new NotFoundError('User not found.');
     }
 
     return tx.notification.create({
@@ -91,7 +91,7 @@ export async function createNotification(
     notification as PrismaNotificationWithFullRelations
   );
 
-  getIO().to(`user_${data.userId}`).emit("notification_update", {
+  getIO().to(`user_${data.userId}`).emit('notification_update', {
     notification: transformedNotification,
   });
 
@@ -118,7 +118,7 @@ export async function markAsRead(
     });
 
     if (!notification || notification.userId !== userId) {
-      throw new NotFoundError("Notification not found.");
+      throw new NotFoundError('Notification not found.');
     }
 
     return tx.notification.update({
@@ -134,7 +134,7 @@ export async function markAsRead(
     updatedNotification as PrismaNotificationWithFullRelations
   );
 
-  getIO().to(`user_${userId}`).emit("notification_update", {
+  getIO().to(`user_${userId}`).emit('notification_update', {
     notification: transformedNotification,
   });
 
@@ -157,7 +157,7 @@ export async function deleteNotification(
     });
 
     if (!notification || notification.userId !== userId) {
-      throw new NotFoundError("Notification not found.");
+      throw new NotFoundError('Notification not found.');
     }
 
     await tx.notification.delete({
@@ -165,7 +165,7 @@ export async function deleteNotification(
     });
   });
 
-  getIO().to(`user_${userId}`).emit("notification_update", { notificationId });
+  getIO().to(`user_${userId}`).emit('notification_update', { notificationId });
 
   return wrapResponse(undefined);
 }
@@ -192,7 +192,7 @@ export async function getNotificationSettings(
   });
 
   if (!settings) {
-    throw new NotFoundError("Notification settings not found.");
+    throw new NotFoundError('Notification settings not found.');
   }
 
   const transformedSettings = transformNotificationSettings(
@@ -226,13 +226,13 @@ export async function updateNotificationSettings(
   );
 
   if (settings.userId) {
-    getIO().to(`user_${settings.userId}`).emit("settings_update", {
+    getIO().to(`user_${settings.userId}`).emit('settings_update', {
       settings: transformedSettings,
     });
   }
 
   if (settings.householdId) {
-    getIO().to(`household_${settings.householdId}`).emit("settings_update", {
+    getIO().to(`household_${settings.householdId}`).emit('settings_update', {
       settings: transformedSettings,
     });
   }

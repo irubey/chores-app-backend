@@ -1,498 +1,437 @@
-import { Request, Response, NextFunction } from "express";
-import * as householdService from "../services/householdService";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import { Response, NextFunction } from 'express';
+import logger from '../utils/logger';
+import * as householdService from '../services/householdService';
+import { HouseholdRole } from '@shared/enums';
 import {
   CreateHouseholdDTO,
   UpdateHouseholdDTO,
   AddMemberDTO,
-} from "@shared/types";
-import { AuthenticatedRequest } from "../types";
-import logger from "../utils/logger";
-import {
-  sendEmail,
-  generateInvitationEmailTemplate,
-} from "../utils/emailUtils";
-import { BadRequestError } from "../middlewares/errorHandler";
+} from '@shared/types';
+import { BadRequestError } from '../middlewares/errorHandler';
+import { AuthenticatedRequest } from '../types';
 
-/**
- * HouseholdController handles all CRUD operations related to households.
- */
-export class HouseholdController {
-  /**
-   * Creates a new household.
-   */
-  static async createHousehold(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdData: CreateHouseholdDTO = req.body;
-      const userId = req.user?.id;
+const ERROR_MESSAGES = {
+  USER_ID_REQUIRED: 'User ID is required',
+  INVALID_EMAIL: 'Invalid email format',
+  INVALID_HOUSEHOLD_DATA: 'Invalid household data',
+  HOUSEHOLD_ID_REQUIRED: 'Household ID is required',
+  MEMBER_ID_REQUIRED: 'Member ID is required',
+} as const;
 
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.createHousehold(
-        householdData,
-        userId
-      );
-      res.status(201).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Retrieves details of a specific household.
-   */
-  static async getHousehold(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdId = req.params.householdId;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const includeMembersParam = req.query.includeMembers;
-      const includeMembers =
-        includeMembersParam === "true" ||
-        (Array.isArray(includeMembersParam) &&
-          includeMembersParam[0] === "true");
-
-      const response = await householdService.getHouseholdById(
-        householdId,
-        userId,
-        includeMembers
-      );
-
-      if (!response) {
-        throw new NotFoundError("Household not found");
-      }
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Updates an existing household.
-   */
-  static async updateHousehold(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdId = req.params.householdId;
-      const updateData: UpdateHouseholdDTO = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.updateHousehold(
-        householdId,
-        updateData,
-        userId
-      );
-
-      if (!response) {
-        throw new NotFoundError(
-          "Household not found or you do not have permission to update it"
-        );
-      }
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Deletes a household.
-   */
-  static async deleteHousehold(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdId = req.params.householdId;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      await householdService.deleteHousehold(householdId, userId);
-      res.status(204).send();
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Adds a new member to the household.
-   */
-  static async addMember(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdId = req.params.householdId;
-      const memberData: AddMemberDTO = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.addMember(
-        householdId,
-        memberData,
-        userId
-      );
-
-      res.status(201).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Retrieves all members of a specific household.
-   */
-  static async getMembers(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdId = req.params.householdId;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.getMembers(householdId, userId);
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Removes a member from the household.
-   */
-  static async removeMember(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdId = req.params.householdId;
-      const memberId = req.params.memberId;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      await householdService.removeMember(householdId, memberId, userId);
-      res.status(204).send();
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Retrieves all households selected by the authenticated user.
-   */
-  static async getSelectedHouseholds(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      logger.info("Getting selected households", { userId });
-
-      const response = await householdService.getSelectedHouseholds(userId);
-
-      logger.info("Selected households retrieved", {
-        userId,
-        count: response.data?.length,
-      });
-
-      res.status(200).json(response);
-    } catch (error) {
-      logger.error("Failed to get selected households", {
-        userId: req.user?.id,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-      next(error);
-    }
-  }
-
-  /**
-   * Updates the selection of a household member.
-   */
-  static async updateSelectedHousehold(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId } = req.params;
-      const { isSelected } = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      if (req.params.memberId !== userId) {
-        throw new UnauthorizedError(
-          "You can only update your own household selection"
-        );
-      }
-
-      const response = await householdService.updateHouseholdMemberSelection(
-        householdId,
-        userId,
-        isSelected
-      );
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Updates the status of a household member.
-   */
-  static async acceptOrRejectInvitation(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId, memberId } = req.params;
-      const { accept } = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      if (memberId !== userId) {
-        throw new UnauthorizedError("You can only update your own status");
-      }
-
-      const response = await householdService.acceptOrRejectInvitation(
-        householdId,
-        memberId,
-        accept
-      );
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Updates the role of a household member.
-   */
-  static async updateMemberRole(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId, memberId } = req.params;
-      const { role } = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.updateHouseholdMemberRole(
-        householdId,
-        memberId,
-        role,
-        userId
-      );
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Retrieves all households for the authenticated user.
-   */
-  static async getUserHouseholds(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      logger.info("Getting user households", { userId });
-
-      const response = await householdService.getUserHouseholds(userId);
-
-      logger.info("User households retrieved", {
-        userId,
-        count: response.data.length,
-      });
-
-      res.status(200).json(response);
-    } catch (error) {
-      logger.error("Failed to get user households", {
-        userId: req.user?.id,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-      next(error);
-    }
-  }
-
-  /**
-   * Sends an invitation to a user to join a household.
-   */
-  static async sendInvitation(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const { householdId } = req.params;
-      const { email } = req.body;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.sendInvitation(
-        householdId,
-        { email },
-        userId
-      );
-
-      // If it's a pending invitation (user needs to register)
-      if ("pending" in response.data) {
-        res.status(202).json(response);
-      } else {
-        res.status(201).json(response);
-      }
-    } catch (error) {
-      next(error);
-    }
-  }
-  /**
-   * Get all pending invitations for the current user
-   */
-  static async getInvitations(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.getInvitations(userId);
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Test email functionality
-   */
-  public static async testEmail(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    const testEmail = req.query.email as string;
-    if (!testEmail) {
-      throw new BadRequestError("Email parameter required");
+export async function createHousehold(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
     }
 
-    const emailHtml = generateInvitationEmailTemplate(
-      "Test User",
-      "Test Household",
-      "http://localhost:3000/test-invite"
-    );
+    const data = req.body as CreateHouseholdDTO;
+    if (!data.name) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_HOUSEHOLD_DATA);
+    }
 
-    const success = await sendEmail({
-      to: testEmail,
-      subject: "Test Invitation Email",
-      html: emailHtml,
+    logger.info('Creating household', { userId, data });
+
+    const response = await householdService.createHousehold(data, userId);
+    res.status(201).json(response);
+  } catch (error) {
+    logger.error('Failed to create household', {
+      userId: req.user?.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
-
-    if (!success) {
-      throw new Error("Failed to send test email");
-    }
-
-    res.json({ success: true });
-  }
-
-  /**
-   * Handles a member leaving a household
-   */
-  static async leaveHousehold(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const householdId = req.params.householdId;
-      const memberId = req.params.memberId;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        throw new UnauthorizedError("Unauthorized");
-      }
-
-      const response = await householdService.leaveHousehold(
-        householdId,
-        memberId,
-        userId
-      );
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
+    next(error);
   }
 }
+
+export async function getHouseholdById(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+
+    logger.info('Getting household by ID', { householdId, userId });
+
+    const response = await householdService.getHouseholdById(
+      householdId,
+      userId
+    );
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to get household by ID', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function updateHousehold(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+
+    const data = req.body as UpdateHouseholdDTO;
+    logger.info('Updating household', { householdId, userId, data });
+
+    const response = await householdService.updateHousehold(
+      householdId,
+      data,
+      userId
+    );
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to update household', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function deleteHousehold(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+
+    logger.info('Deleting household', { householdId, userId });
+
+    const response = await householdService.deleteHousehold(
+      householdId,
+      userId
+    );
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to delete household', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function getMembers(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+
+    logger.info('Getting household members', { householdId, userId });
+
+    const response = await householdService.getMembers(householdId, userId);
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to get household members', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function addMember(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const { email } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_EMAIL);
+    }
+
+    logger.info('Adding member to household', {
+      householdId,
+      email,
+      userId,
+    });
+
+    const response = await householdService.addMember(
+      householdId,
+      { email } as AddMemberDTO,
+      userId
+    );
+    res.status(201).json(response);
+  } catch (error) {
+    logger.error('Failed to add member', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function removeMember(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId, memberId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+    if (!memberId) {
+      throw new BadRequestError(ERROR_MESSAGES.MEMBER_ID_REQUIRED);
+    }
+
+    logger.info('Removing member from household', {
+      householdId,
+      memberId,
+      userId,
+    });
+
+    const response = await householdService.removeMember(
+      householdId,
+      memberId,
+      userId
+    );
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to remove member', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      memberId: req.params.memberId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function acceptInvitation(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+
+    logger.info('Accepting household invitation', { householdId, userId });
+
+    const response = await householdService.acceptOrRejectInvitation(
+      householdId,
+      userId,
+      true
+    );
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to accept invitation', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function rejectInvitation(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+
+    logger.info('Rejecting household invitation', { householdId, userId });
+
+    const response = await householdService.acceptOrRejectInvitation(
+      householdId,
+      userId,
+      false
+    );
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to reject invitation', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function getUserHouseholds(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+
+    logger.info('Getting user households', { userId });
+
+    const response = await householdService.getHouseholdsByUserId(userId);
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to get user households', {
+      userId: req.user?.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function getPendingInvitations(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+
+    logger.info('Getting pending invitations', { userId });
+
+    const response = await householdService.getPendingInvitations(userId);
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to get pending invitations', {
+      userId: req.user?.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export async function sendInvitationEmail(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { householdId } = req.params;
+    const { email } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_ID_REQUIRED);
+    }
+    if (!householdId) {
+      throw new BadRequestError(ERROR_MESSAGES.HOUSEHOLD_ID_REQUIRED);
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_EMAIL);
+    }
+
+    logger.info('Sending invitation email', {
+      householdId,
+      email,
+      userId,
+    });
+
+    const response = await householdService.sendInvitationEmail(
+      householdId,
+      email,
+      userId
+    );
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Failed to send invitation email', {
+      userId: req.user?.id,
+      householdId: req.params.householdId,
+      email: req.body.email,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
+}
+
+export default {
+  createHousehold,
+  getHouseholdById,
+  updateHousehold,
+  deleteHousehold,
+  getMembers,
+  addMember,
+  removeMember,
+  acceptInvitation,
+  rejectInvitation,
+  getUserHouseholds,
+  getPendingInvitations,
+  sendInvitationEmail,
+};

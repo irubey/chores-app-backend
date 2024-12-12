@@ -2,656 +2,359 @@ import {
   PrismaClient,
   HouseholdRole,
   ChoreStatus,
-  SubtaskStatus,
-  TransactionStatus,
-  NotificationType,
-  Provider,
-  EventStatus,
   EventCategory,
-  ChoreSwapRequestStatus,
-  ExpenseCategory,
-  ReactionType,
   RecurrenceFrequency,
-  EventReminderType,
-  ChoreAction,
-  PollStatus,
+  DaysOfWeek,
+  SubtaskStatus,
+  ChoreSwapRequestStatus,
   PollType,
-  Chore,
-  Expense,
+  PollStatus,
+  ReactionType,
 } from "@prisma/client";
-import bcrypt from "bcrypt";
+import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Check if the database is already seeded
-  const existingUsers = await prisma.user.findMany();
-  if (existingUsers.length > 0) {
-    console.log("Clearing existing data...");
-    // Delete data in the correct order to avoid foreign key constraint issues
-    await prisma.oAuthIntegration.deleteMany();
-    await prisma.notification.deleteMany();
-    await prisma.thread.deleteMany();
-    await prisma.attachment.deleteMany();
-    await prisma.message.deleteMany();
-    await prisma.subtask.deleteMany();
-    await prisma.receipt.deleteMany();
-    await prisma.choreSwapRequest.deleteMany(); // Add this line
-    await prisma.chore.deleteMany();
-    await prisma.transaction.deleteMany();
-    await prisma.expenseSplit.deleteMany();
-    await prisma.expense.deleteMany();
-    await prisma.event.deleteMany();
-    await prisma.householdMember.deleteMany();
-    await prisma.household.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.pollVote.deleteMany();
-    await prisma.pollOption.deleteMany();
-    await prisma.poll.deleteMany();
-    await prisma.choreHistory.deleteMany();
-    console.log("Existing data cleared.");
-  }
+  // Clear existing data
+  await prisma.notification.deleteMany();
+  await prisma.messageRead.deleteMany();
+  await prisma.reaction.deleteMany();
+  await prisma.mention.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.thread.deleteMany();
+  await prisma.pollVote.deleteMany();
+  await prisma.pollOption.deleteMany();
+  await prisma.poll.deleteMany();
+  await prisma.eventReminder.deleteMany();
+  await prisma.subtask.deleteMany();
+  await prisma.choreAssignment.deleteMany();
+  await prisma.choreSwapRequest.deleteMany();
+  await prisma.chore.deleteMany();
+  await prisma.event.deleteMany();
+  await prisma.householdMember.deleteMany();
+  await prisma.household.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.recurrenceRule.deleteMany();
 
-  // Create users
-  const users = await createUsers();
+  // Create test users
+  const password = await hash("password123", 10);
 
-  // Create household
-  const household = await createHousehold(users);
+  const mainUser = await prisma.user.create({
+    data: {
+      email: "test@example.com",
+      passwordHash: password,
+      name: "John Doe",
+      profileImageURL: "https://ui-avatars.com/api/?name=John+Doe",
+    },
+  });
 
-  // Create chores
-  const chores = await createChores(household.id, users);
+  const familyMembers = await Promise.all([
+    prisma.user.create({
+      data: {
+        email: "jane@example.com",
+        passwordHash: password,
+        name: "Jane Doe",
+        profileImageURL: "https://ui-avatars.com/api/?name=Jane+Doe",
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: "kid@example.com",
+        passwordHash: password,
+        name: "Jimmy Doe",
+        profileImageURL: "https://ui-avatars.com/api/?name=Jimmy+Doe",
+      },
+    }),
+  ]);
 
-  // Create expenses
-  const expenses = await createExpenses(household.id, users);
+  const roommateUser = await prisma.user.create({
+    data: {
+      email: "roommate@example.com",
+      passwordHash: password,
+      name: "Bob Smith",
+      profileImageURL: "https://ui-avatars.com/api/?name=Bob+Smith",
+    },
+  });
 
-  // Create messages and threads
-  const messages = await createMessagesAndThreads(household.id, users);
+  // Create Family Household
+  const familyHousehold = await prisma.household.create({
+    data: {
+      name: "Doe Family Home",
+      currency: "USD",
+      timezone: "America/New_York",
+      language: "en",
+      icon: "🏠",
+    },
+  });
 
-  // Create events
-  await createEvents(household.id, users);
+  // Create Roommate Household
+  const roommateHousehold = await prisma.household.create({
+    data: {
+      name: "Downtown Apartment",
+      currency: "USD",
+      timezone: "America/New_York",
+      language: "en",
+      icon: "🏢",
+    },
+  });
 
-  // Create notifications
-  await createNotifications(users);
-
-  // Create OAuth integrations
-  await createOAuthIntegrations(users[0].id);
-
-  // New additions
-  await createChoreSwapRequests(chores, users);
-
-  await createReceipts(expenses);
-
-  await createNotificationSettings(users, household.id);
-
-  await createPollsAndVotes(users, messages);
-
-  console.log("Database has been seeded. 🌱");
-}
-
-async function createUsers(): Promise<any[]> {
-  const hashedPassword = await bcrypt.hash("Password123!", 12);
-
-  const userData = [
-    { email: "alice@example.com", name: "Alice Johnson" },
-    { email: "bob@example.com", name: "Bob Smith" },
-    { email: "charlie@example.com", name: "Charlie Brown" },
-    { email: "diana@example.com", name: "Diana Prince" },
-    { email: "edward@example.com", name: "Edward Blake" },
-    { email: "fiona@example.com", name: "Fiona Apple" },
-  ];
-
-  const users = await Promise.all(
-    userData.map((data) =>
-      prisma.user.create({
+  // Add members to Family Household
+  await Promise.all([
+    prisma.householdMember.create({
+      data: {
+        userId: mainUser.id,
+        householdId: familyHousehold.id,
+        role: HouseholdRole.ADMIN,
+        isAccepted: true,
+        nickname: "Dad",
+      },
+    }),
+    ...familyMembers.map((member) =>
+      prisma.householdMember.create({
         data: {
-          email: data.email,
-          passwordHash: hashedPassword,
-          name: data.name,
-          profileImageURL: `https://example.com/profiles/${data.name
-            .toLowerCase()
-            .replace(" ", "_")}.jpg`,
-          deviceTokens: ["sample_device_token"],
+          userId: member.id,
+          householdId: familyHousehold.id,
+          role: HouseholdRole.MEMBER,
+          isAccepted: true,
         },
       })
-    )
-  );
+    ),
+  ]);
 
-  return users;
-}
+  // Add members to Roommate Household
+  await Promise.all([
+    prisma.householdMember.create({
+      data: {
+        userId: mainUser.id,
+        householdId: roommateHousehold.id,
+        role: HouseholdRole.MEMBER,
+        isAccepted: true,
+      },
+    }),
+    prisma.householdMember.create({
+      data: {
+        userId: roommateUser.id,
+        householdId: roommateHousehold.id,
+        role: HouseholdRole.ADMIN,
+        isAccepted: true,
+      },
+    }),
+  ]);
 
-async function createHousehold(users: any[]) {
-  // Create multiple households
-  const households = await Promise.all([
-    prisma.household.create({
+  // Set active household for main user
+  await prisma.user.update({
+    where: { id: mainUser.id },
+    data: { activeHouseholdId: familyHousehold.id },
+  });
+
+  // Create recurrence rules
+  const weeklyRule = await prisma.recurrenceRule.create({
+    data: {
+      frequency: RecurrenceFrequency.WEEKLY,
+      interval: 1,
+      byWeekDay: [DaysOfWeek.MONDAY, DaysOfWeek.THURSDAY],
+    },
+  });
+
+  const monthlyRule = await prisma.recurrenceRule.create({
+    data: {
+      frequency: RecurrenceFrequency.MONTHLY,
+      interval: 1,
+      byMonthDay: [1, 15],
+    },
+  });
+
+  // Create chores for Family Household
+  const familyChores = await Promise.all([
+    prisma.chore.create({
       data: {
-        name: "Awesome Apartment",
-        members: {
-          create: [
-            {
-              userId: users[0].id, // Alice is admin
-              role: HouseholdRole.ADMIN,
-              isAccepted: true,
-            },
-            {
-              userId: users[1].id,
-              role: HouseholdRole.MEMBER,
-              isAccepted: true,
-            },
-            {
-              userId: users[2].id,
-              role: HouseholdRole.MEMBER,
-              isAccepted: true,
-            },
-          ],
+        householdId: familyHousehold.id,
+        title: "Clean Kitchen",
+        description: "Wipe counters, clean dishes, sweep floor",
+        status: ChoreStatus.PENDING,
+        priority: 1,
+        recurrenceRuleId: weeklyRule.id,
+        assignments: {
+          create: {
+            userId: mainUser.id,
+          },
+        },
+        subtasks: {
+          createMany: {
+            data: [
+              { title: "Wipe counters", status: SubtaskStatus.PENDING },
+              { title: "Load dishwasher", status: SubtaskStatus.PENDING },
+              { title: "Sweep floor", status: SubtaskStatus.PENDING },
+            ],
+          },
         },
       },
     }),
-    prisma.household.create({
+    prisma.chore.create({
       data: {
-        name: "Beach House",
-        members: {
-          create: [
-            {
-              userId: users[3].id,
-              role: HouseholdRole.ADMIN,
-              isAccepted: true,
-            },
-            {
-              userId: users[0].id, // Alice is member
-              role: HouseholdRole.MEMBER,
-              isAccepted: true,
-            },
-            {
-              userId: users[4].id,
-              role: HouseholdRole.MEMBER,
-              isAccepted: true,
-            },
-          ],
+        householdId: familyHousehold.id,
+        title: "Vacuum Living Room",
+        description: "Vacuum carpet and clean furniture",
+        status: ChoreStatus.PENDING,
+        priority: 2,
+        recurrenceRuleId: monthlyRule.id,
+        assignments: {
+          create: {
+            userId: familyMembers[0].id,
+          },
         },
-      },
-    }),
-    prisma.household.create({
-      data: {
-        name: "Mountain Cabin",
-        members: {
-          create: [
-            {
-              userId: users[5].id,
-              role: HouseholdRole.ADMIN,
-              isAccepted: true,
-            },
-            {
-              userId: users[0].id, // Alice is member
-              role: HouseholdRole.MEMBER,
-              isAccepted: true,
-            },
-            {
-              userId: users[1].id,
-              role: HouseholdRole.MEMBER,
-              isAccepted: true,
-            },
-          ],
-        },
-      },
-    }),
-    prisma.household.create({
-      data: {
-        name: "Downtown Loft",
-        members: {
-          create: [
-            {
-              userId: users[0].id, // Alice is admin
-              role: HouseholdRole.ADMIN,
-              isAccepted: true,
-            },
-            {
-              userId: users[2].id,
-              role: HouseholdRole.MEMBER,
-              isAccepted: true,
-            },
-            {
-              userId: users[4].id,
-              role: HouseholdRole.MEMBER,
-              isInvited: true,
-            },
-          ],
+        subtasks: {
+          createMany: {
+            data: [
+              { title: "Move furniture", status: SubtaskStatus.PENDING },
+              { title: "Vacuum thoroughly", status: SubtaskStatus.PENDING },
+              { title: "Clean under cushions", status: SubtaskStatus.PENDING },
+            ],
+          },
         },
       },
     }),
   ]);
 
-  return households[0]; // Return first household for backward compatibility
-}
-
-async function createChores(
-  householdId: string,
-  users: any[]
-): Promise<Chore[]> {
-  const chores = [
-    {
-      title: "Clean the kitchen",
-      description: "Wipe counters, clean sink, and mop floor",
-      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-      status: ChoreStatus.PENDING,
-      priority: 2,
-      assignedUserIds: [users[0].id, users[1].id],
+  // Create chore swap request
+  await prisma.choreSwapRequest.create({
+    data: {
+      choreId: familyChores[0].id,
+      requestingUserId: mainUser.id,
+      targetUserId: familyMembers[0].id,
+      status: ChoreSwapRequestStatus.PENDING,
     },
-    {
-      title: "Take out trash",
-      description: "Empty all trash bins and take to dumpster",
-      dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-      status: ChoreStatus.PENDING,
-      priority: 1,
-      assignedUserIds: [users[2].id],
-    },
-  ];
+  });
 
-  const createdChores: Chore[] = [];
-
-  for (const chore of chores) {
-    const { assignedUserIds, ...choreData } = chore;
-    // Create the chore first without assignments
-    const createdChore = await prisma.chore.create({
+  // Create events for Family Household
+  const familyEvents = await Promise.all([
+    prisma.event.create({
       data: {
-        householdId,
-        ...choreData,
-        subtasks: {
+        householdId: familyHousehold.id,
+        title: "Family Dinner",
+        description: "Weekly family dinner",
+        startTime: new Date("2024-01-01T18:00:00"),
+        endTime: new Date("2024-01-01T19:30:00"),
+        createdById: mainUser.id,
+        category: EventCategory.SOCIAL,
+        recurrenceRuleId: weeklyRule.id,
+        reminders: {
           create: [
             {
-              title: "Gather cleaning supplies",
-              status: SubtaskStatus.PENDING,
+              time: new Date("2024-01-01T17:30:00"),
+              type: "PUSH_NOTIFICATION",
             },
             {
-              title: "Clean surfaces",
-              status: SubtaskStatus.PENDING,
-            },
-            {
-              title: "Put away cleaning supplies",
-              status: SubtaskStatus.PENDING,
+              time: new Date("2024-01-01T17:00:00"),
+              type: "EMAIL",
             },
           ],
         },
       },
-    });
-
-    // Create assignments separately
-    await Promise.all(
-      assignedUserIds.map((userId) =>
-        prisma.choreAssignment.create({
-          data: {
-            choreId: createdChore.id,
-            userId: userId,
-          },
-        })
-      )
-    );
-
-    createdChores.push(createdChore);
-  }
-
-  // Add chore history
-  await prisma.choreHistory.create({
-    data: {
-      choreId: createdChores[0].id,
-      action: ChoreAction.CREATED,
-      changedById: users[0].id,
-    },
-  });
-
-  return createdChores;
-}
-
-async function createExpenses(
-  householdId: string,
-  users: any[]
-): Promise<Expense[]> {
-  const expenses = [
-    {
-      amount: 50.0,
-      description: "Groceries",
-      paidById: users[0].id,
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      category: ExpenseCategory.FOOD,
-    },
-    {
-      amount: 30.0,
-      description: "Cleaning supplies",
-      paidById: users[1].id,
-      dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      category: ExpenseCategory.OTHER,
-    },
-  ];
-
-  const createdExpenses: Expense[] = [];
-
-  for (const expense of expenses) {
-    const createdExpense = await prisma.expense.create({
+    }),
+    prisma.event.create({
       data: {
-        householdId,
-        ...expense,
-        splits: {
-          create: users.map((user) => ({
-            userId: user.id,
-            amount: expense.amount / users.length,
-          })),
-        },
-        transactions: {
-          create: users
-            .filter((user) => user.id !== expense.paidById)
-            .map((user) => ({
-              fromUserId: user.id,
-              toUserId: expense.paidById,
-              amount: expense.amount / users.length,
-              status: TransactionStatus.PENDING,
-            })),
-        },
+        householdId: familyHousehold.id,
+        title: "House Cleaning Day",
+        description: "Monthly deep cleaning",
+        startTime: new Date("2024-01-15T09:00:00"),
+        endTime: new Date("2024-01-15T12:00:00"),
+        createdById: mainUser.id,
+        category: EventCategory.CHORE,
+        recurrenceRuleId: monthlyRule.id,
       },
-    });
-    createdExpenses.push(createdExpense);
-  }
+    }),
+  ]);
 
-  return createdExpenses;
-}
-
-async function createMessagesAndThreads(householdId: string, users: any[]) {
-  type Message = {
-    id: string;
-    createdAt: Date;
-    updatedAt: Date;
-    deletedAt: Date | null;
-    authorId: string;
-    threadId: string;
-    content: string;
-  };
-
-  const messages: Message[] = [];
-
-  // Get all households
-  const households = await prisma.household.findMany({
-    include: {
-      members: true,
-    },
-  });
-
-  for (const household of households) {
-    // Create threads for each household
-    const threads = await Promise.all([
-      prisma.thread.create({
-        data: {
-          householdId: household.id,
-          authorId: household.members[0].userId,
-          title: "General Discussion",
-          participants: {
-            connect: household.members.map((member) => ({
-              userId_householdId: {
-                userId: member.userId,
-                householdId: household.id,
-              },
-            })),
-          },
-        },
-      }),
-      prisma.thread.create({
-        data: {
-          householdId: household.id,
-          authorId: household.members[0].userId,
-          title: `${household.name} Updates`,
-          participants: {
-            connect: household.members.map((member) => ({
-              userId_householdId: {
-                userId: member.userId,
-                householdId: household.id,
-              },
-            })),
-          },
-        },
-      }),
-    ]);
-
-    // Create messages for each thread
-    for (const thread of threads) {
-      // Welcome message
-      const welcomeMsg = await prisma.message.create({
-        data: {
-          threadId: thread.id,
-          authorId: household.members[0].userId,
-          content: `Welcome to the ${thread.title} thread for ${household.name}!`,
-        },
-      });
-      messages.push(welcomeMsg);
-
-      // Add context-specific messages
-      if (household.name === "Beach House") {
-        await prisma.message.create({
-          data: {
-            threadId: thread.id,
-            authorId: users[3].id,
-            content: "Planning beach cleanup this weekend. Who's in?",
-          },
-        });
-      } else if (household.name === "Mountain Cabin") {
-        await prisma.message.create({
-          data: {
-            threadId: thread.id,
-            authorId: users[5].id,
-            content: "Need to check heating before winter. Any volunteers?",
-          },
-        });
-      } else if (household.name === "Downtown Loft") {
-        await prisma.message.create({
-          data: {
-            threadId: thread.id,
-            authorId: users[0].id,
-            content: "New house rules posted on the fridge!",
-          },
-        });
-      }
-
-      // Add Alice's responses where she's a member
-      if (
-        household.members.some(
-          (m) => m.userId === users[0].id && m.role === HouseholdRole.MEMBER
-        )
-      ) {
-        await prisma.message.create({
-          data: {
-            threadId: thread.id,
-            authorId: users[0].id,
-            content: "Count me in! Let me know how I can help.",
-          },
-        });
-      }
-
-      // Add some unread messages
-      await prisma.message.create({
-        data: {
-          threadId: thread.id,
-          authorId: household.members[household.members.length - 1].userId,
-          content: "Just updated the shared calendar!",
-          reads: {
-            create: [
-              {
-                userId: household.members[household.members.length - 1].userId,
-              },
-            ],
-          },
-        },
-      });
-    }
-  }
-
-  return messages;
-}
-
-async function createEvents(householdId: string, users: any[]) {
-  const monthlyRule = await prisma.recurrenceRule.create({
+  // Create threads and messages
+  const generalThread = await prisma.thread.create({
     data: {
-      frequency: RecurrenceFrequency.MONTHLY,
-      interval: 1,
-      byWeekDay: [],
-      byMonthDay: [],
+      householdId: familyHousehold.id,
+      authorId: mainUser.id,
+      title: "General Discussion",
     },
   });
 
-  await prisma.event.create({
+  // Create messages with poll
+  const pollMessage = await prisma.message.create({
     data: {
-      householdId,
-      title: "House Meeting",
-      description: "Monthly catch-up and planning session",
-      startTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-      endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000),
-      createdById: users[0].id,
-      category: EventCategory.MEETING,
-      status: EventStatus.SCHEDULED,
-      recurrenceRuleId: monthlyRule.id,
-      isAllDay: false,
-      isPrivate: false,
-      reminders: {
-        create: {
-          time: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
-          type: EventReminderType.PUSH_NOTIFICATION,
-        },
-      },
+      threadId: generalThread.id,
+      authorId: mainUser.id,
+      content: "When should we schedule our next family game night?",
     },
   });
-}
 
-async function createNotifications(users: any[]) {
-  await prisma.notification.createMany({
-    data: [
-      {
-        userId: users[0].id,
-        type: NotificationType.NEW_MESSAGE,
-        message: "You have new messages in your threads",
-      },
-      {
-        userId: users[0].id,
-        type: NotificationType.CHORE_ASSIGNED,
-        message: "You have been assigned new chores",
-      },
-      {
-        userId: users[0].id,
-        type: NotificationType.EXPENSE_UPDATED,
-        message: "New expense has been added to your household",
-      },
-    ],
-  });
-}
-
-async function createOAuthIntegrations(userId: string) {
-  await prisma.oAuthIntegration.create({
+  // Create poll
+  const poll = await prisma.poll.create({
     data: {
-      userId,
-      provider: Provider.GOOGLE,
-      accessToken: "sample_access_token",
-      refreshToken: "sample_refresh_token",
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      messageId: pollMessage.id,
+      question: "Choose the best time for family game night",
+      pollType: PollType.SINGLE_CHOICE,
+      status: PollStatus.OPEN,
+      endDate: new Date("2024-01-10"),
+      options: {
+        create: [
+          { text: "Saturday 7 PM", order: 1 },
+          { text: "Sunday 3 PM", order: 2 },
+          { text: "Friday 8 PM", order: 3 },
+        ],
+      },
     },
   });
-}
 
-async function createChoreSwapRequests(chores: any[], users: any[]) {
-  for (const chore of chores) {
-    const assignments = await prisma.choreAssignment.findMany({
-      where: { choreId: chore.id },
-    });
+  // Add poll votes
+  const pollOptions = await prisma.pollOption.findMany({
+    where: { pollId: poll.id },
+  });
 
-    if (assignments.length >= 2) {
-      await prisma.choreSwapRequest.create({
-        data: {
-          choreId: chore.id,
-          requestingUserId: assignments[0].userId,
-          targetUserId: assignments[1].userId,
-          status: ChoreSwapRequestStatus.PENDING,
-        },
-      });
-    }
-  }
-}
-
-async function createReceipts(expenses: any[]) {
-  for (const expense of expenses) {
-    await prisma.receipt.create({
+  await Promise.all([
+    prisma.pollVote.create({
       data: {
-        expenseId: expense.id,
-        url: "https://example.com/receipts/sample.jpg",
-        fileType: "image/jpeg",
+        optionId: pollOptions[0].id,
+        pollId: poll.id,
+        userId: mainUser.id,
       },
-    });
-  }
-}
-
-async function createNotificationSettings(users: any[], householdId: string) {
-  for (const user of users) {
-    await prisma.notificationSettings.create({
+    }),
+    prisma.pollVote.create({
       data: {
-        userId: user.id,
-        householdId,
-        messageNotif: true,
-        mentionsNotif: true,
-        reactionsNotif: true,
-        choreNotif: true,
-        financeNotif: true,
-        calendarNotif: true,
-        remindersNotif: true,
+        optionId: pollOptions[0].id,
+        pollId: poll.id,
+        userId: familyMembers[0].id,
       },
-    });
-  }
-}
+    }),
+  ]);
 
-async function createPollsAndVotes(users: any[], messages: any[]) {
-  for (const message of messages) {
-    // Create a poll for every third message
-    if (messages.indexOf(message) % 3 === 0) {
-      const poll = await prisma.poll.create({
-        data: {
-          messageId: message.id,
-          question: "When should we meet?",
-          pollType: PollType.EVENT_DATE,
-          maxChoices: 1,
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          status: PollStatus.OPEN,
-          options: {
-            create: [
-              {
-                text: "Next Saturday 8PM",
-                order: 1,
-                startTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                endTime: new Date(
-                  Date.now() + 7 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000
-                ),
-              },
-              {
-                text: "Next Sunday 7PM",
-                order: 2,
-                startTime: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
-                endTime: new Date(
-                  Date.now() + 8 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000
-                ),
-              },
-            ],
-          },
-        },
-        include: {
-          options: true,
-        },
-      });
+  // Create regular message with reactions
+  const regularMessage = await prisma.message.create({
+    data: {
+      threadId: generalThread.id,
+      authorId: familyMembers[0].id,
+      content: "I finished cleaning the living room! 🎉",
+    },
+  });
 
-      // Add some votes
-      await Promise.all(
-        poll.options.map((option, index) =>
-          prisma.pollVote.create({
-            data: {
-              optionId: option.id,
-              pollId: poll.id,
-              userId: users[index].id,
-              availability: true,
-            },
-          })
-        )
-      );
-    }
-  }
+  // Add reactions to the message
+  await Promise.all([
+    prisma.reaction.create({
+      data: {
+        messageId: regularMessage.id,
+        userId: mainUser.id,
+        emoji: "👍",
+        type: ReactionType.LIKE,
+      },
+    }),
+    prisma.reaction.create({
+      data: {
+        messageId: regularMessage.id,
+        userId: familyMembers[1].id,
+        emoji: "🎉",
+        type: ReactionType.LOVE,
+      },
+    }),
+  ]);
+
+  console.log("Seed data created successfully");
 }
 
 main()

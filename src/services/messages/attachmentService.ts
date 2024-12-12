@@ -2,16 +2,16 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
-} from "../../middlewares/errorHandler";
-import prisma from "../../config/database";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
-import { HouseholdRole, MessageAction } from "@shared/enums";
-import { getIO } from "../../sockets";
-import { verifyMembership } from "../authService";
-import { Attachment, CreateAttachmentDTO } from "@shared/types";
-import { transformAttachment } from "../../utils/transformers/messageTransformer";
-import { PrismaAttachmentWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
-import logger from "../../utils/logger";
+} from '../../middlewares/errorHandler';
+import prisma from '../../config/database';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
+import { HouseholdRole, MessageAction } from '@shared/enums';
+import { getIO } from '../../sockets';
+import { verifyMembership } from '../authService';
+import { Attachment, CreateAttachmentDTO } from '@shared/types';
+import { transformAttachment } from '../../utils/transformers/messageTransformer';
+import { PrismaAttachmentWithFullRelations } from '../../utils/transformers/transformerPrismaTypes';
+import logger from '../../utils/logger';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -21,13 +21,13 @@ function wrapResponse<T>(data: T): ApiResponse<T> {
 // Constants for file validation
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export const MIME_TYPE_MAP = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/gif": "gif",
-  "application/pdf": "pdf",
-  "application/msword": "doc",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-    "docx",
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    'docx',
 } as const;
 
 /**
@@ -81,7 +81,7 @@ export async function addAttachment(
 
       if (!message) {
         throw new NotFoundError(
-          "Message not found or does not belong to thread"
+          'Message not found or does not belong to thread'
         );
       }
 
@@ -96,7 +96,7 @@ export async function addAttachment(
         });
         if (!isAdmin) {
           throw new UnauthorizedError(
-            "Not authorized to add attachments to this message"
+            'Not authorized to add attachments to this message'
           );
         }
       }
@@ -125,7 +125,7 @@ export async function addAttachment(
     const transformedAttachment = transformAttachment(attachment);
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit("attachment_update", {
+    getIO().to(`household_${householdId}`).emit('attachment_update', {
       action: MessageAction.ATTACHMENT_ADDED,
       messageId,
       attachment: transformedAttachment,
@@ -172,7 +172,7 @@ export async function getAttachment(
     });
 
     if (!attachment) {
-      throw new NotFoundError("Attachment not found");
+      throw new NotFoundError('Attachment not found');
     }
 
     const transformedAttachment = transformAttachment(
@@ -218,7 +218,7 @@ export async function deleteAttachment(
       });
 
       if (!attachment) {
-        throw new NotFoundError("Attachment not found");
+        throw new NotFoundError('Attachment not found');
       }
 
       // Verify user owns message or is admin
@@ -232,7 +232,7 @@ export async function deleteAttachment(
         });
         if (!isAdmin) {
           throw new UnauthorizedError(
-            "Not authorized to delete this attachment"
+            'Not authorized to delete this attachment'
           );
         }
       }
@@ -249,7 +249,7 @@ export async function deleteAttachment(
     });
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit("attachment_update", {
+    getIO().to(`household_${householdId}`).emit('attachment_update', {
       action: MessageAction.ATTACHMENT_REMOVED,
       messageId,
       attachmentId,
@@ -290,7 +290,7 @@ export async function getMessageAttachments(
         message: true,
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: 'desc',
       },
     });
 

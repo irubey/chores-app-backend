@@ -4,11 +4,16 @@ import { promisify } from 'util';
 import { Readable } from 'stream';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import path from 'path';
 import logger from './logger';
 import { BadRequestError } from '../middlewares/errorHandler';
+import type { Request } from 'express';
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION!,
@@ -28,7 +33,10 @@ export interface UploadedFile {
   checksum: string;
 }
 
-export async function generatePresignedUrl(filename: string, contentType: string): Promise<string> {
+export async function generatePresignedUrl(
+  filename: string,
+  contentType: string
+): Promise<string> {
   const key = `uploads/${Date.now()}-${filename}`;
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME,
@@ -40,7 +48,9 @@ export async function generatePresignedUrl(filename: string, contentType: string
   return signedUrl;
 }
 
-export async function uploadFile(file: Express.Multer.File): Promise<UploadedFile> {
+export async function uploadFile(
+  file: Express.Multer.File
+): Promise<UploadedFile> {
   try {
     const { originalname, buffer, mimetype, size } = file;
     const key = `uploads/${Date.now()}-${originalname}`;
@@ -66,21 +76,31 @@ export async function uploadFile(file: Express.Multer.File): Promise<UploadedFil
       size,
       checksum,
     };
-  } catch (error) {
-    logger.error('Error uploading file:', error);
+  } catch (error: unknown) {
+    logger.error('Error uploading file:', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new BadRequestError('File upload failed');
   }
 }
 
-export function validateFileType(file: Express.Multer.File, allowedTypes: string[]): boolean {
+export function validateFileType(
+  file: Express.Multer.File,
+  allowedTypes: string[]
+): boolean {
   return allowedTypes.includes(file.mimetype);
 }
 
-export function validateFileSize(file: Express.Multer.File, maxSizeInBytes: number): boolean {
+export function validateFileSize(
+  file: Express.Multer.File,
+  maxSizeInBytes: number
+): boolean {
   return file.size <= maxSizeInBytes;
 }
 
-export async function generateUniqueFilename(originalFilename: string): Promise<string> {
+export async function generateUniqueFilename(
+  originalFilename: string
+): Promise<string> {
   const bytes = await randomBytes(16);
   const hash = bytes.toString('hex');
   const extension = originalFilename.split('.').pop();
@@ -118,7 +138,9 @@ const storage = multerS3({
 
 // File filter to validate uploaded files
 const fileFilter: multer.Options['fileFilter'] = (req, file, cb) => {
-  const extname = allowedFileTypes.test(path.extname(file.originalname).toLowerCase());
+  const extname = allowedFileTypes.test(
+    path.extname(file.originalname).toLowerCase()
+  );
   const mimetype = allowedFileTypes.test(file.mimetype);
 
   if (extname && mimetype) {
@@ -138,14 +160,18 @@ const upload = multer({
 export default upload;
 
 // Add a new function for handling multiple file uploads
-export async function uploadMultipleFiles(files: Express.Multer.File[]): Promise<UploadedFile[]> {
+export async function uploadMultipleFiles(
+  files: Express.Multer.File[]
+): Promise<UploadedFile[]> {
   try {
-    const uploadPromises = files.map(file => uploadFile(file));
+    const uploadPromises = files.map((file) => uploadFile(file));
     const uploadedFiles = await Promise.all(uploadPromises);
     logger.info(`${files.length} files uploaded successfully`);
     return uploadedFiles;
-  } catch (error) {
-    logger.error('Error uploading multiple files:', error);
+  } catch (error: unknown) {
+    logger.error('Error uploading multiple files:', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new BadRequestError('Multiple file upload failed');
   }
 }
@@ -160,8 +186,10 @@ export async function deleteFile(key: string): Promise<void> {
 
     await s3.send(new DeleteObjectCommand(params));
     logger.info(`File deleted successfully: ${key}`);
-  } catch (error) {
-    logger.error('Error deleting file:', error);
+  } catch (error: unknown) {
+    logger.error('Error deleting file:', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new BadRequestError('File deletion failed');
   }
 }

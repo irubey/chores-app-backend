@@ -1,16 +1,16 @@
-import { Router } from "express";
-import { UserController } from "../controllers/UserController";
-import { authMiddleware } from "../middlewares/authMiddleware";
-import { rbacMiddleware } from "../middlewares/rbacMiddleware";
-import { validate } from "../middlewares/validationMiddleware";
+import { Router } from 'express';
+import { UserController } from '../controllers/UserController';
+import { authMiddleware } from '../middlewares/authMiddleware';
+import { rbacMiddleware } from '../middlewares/rbacMiddleware';
+import { validate } from '../middlewares/validationMiddleware';
 import {
   registerUserSchema,
   loginUserSchema,
   createHouseholdSchema,
   addMemberSchema,
   updateHouseholdSchema,
-} from "../utils/validationSchemas";
-import { asyncHandler } from "../utils/asyncHandler";
+} from '../utils/validationSchemas';
+import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
 
@@ -19,7 +19,7 @@ const router = Router();
  * @desc    Get the authenticated user's profile
  * @access  Protected
  */
-router.get("/profile", authMiddleware, asyncHandler(UserController.getProfile));
+router.get('/profile', authMiddleware, asyncHandler(UserController.getProfile));
 
 /**
  * @route   POST /api/users/profile
@@ -27,7 +27,7 @@ router.get("/profile", authMiddleware, asyncHandler(UserController.getProfile));
  * @access  Protected
  */
 router.post(
-  "/profile",
+  '/profile',
   authMiddleware,
   asyncHandler(UserController.updateProfile)
 );

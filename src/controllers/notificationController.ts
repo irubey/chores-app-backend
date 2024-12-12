@@ -1,12 +1,12 @@
-import { Response, NextFunction } from "express";
-import * as notificationService from "../services/notificationService";
-import { AuthenticatedRequest } from "../types";
+import { Response, NextFunction } from 'express';
+import * as notificationService from '../services/notificationService';
+import { AuthenticatedRequest } from '../types';
 import {
   CreateNotificationDTO,
   UpdateNotificationDTO,
   Notification,
-} from "@shared/types";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+} from '@shared/types';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
 
 /**
  * NotificationController handles all CRUD operations related to notifications.
@@ -22,7 +22,7 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError("User not authenticated");
+        throw new UnauthorizedError('User not authenticated');
       }
 
       const response = await notificationService.getNotifications(req.user.id);
@@ -42,7 +42,7 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError("User not authenticated");
+        throw new UnauthorizedError('User not authenticated');
       }
 
       const notificationData = {
@@ -69,7 +69,7 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError("User not authenticated");
+        throw new UnauthorizedError('User not authenticated');
       }
 
       const { notificationId } = req.params;
@@ -93,7 +93,7 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError("User not authenticated");
+        throw new UnauthorizedError('User not authenticated');
       }
 
       const { notificationId } = req.params;
@@ -114,7 +114,7 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError("User not authenticated");
+        throw new UnauthorizedError('User not authenticated');
       }
 
       const { householdId } = req.params;
@@ -138,7 +138,7 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError("User not authenticated");
+        throw new UnauthorizedError('User not authenticated');
       }
 
       const { settingsId } = req.params;

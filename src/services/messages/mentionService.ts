@@ -1,17 +1,17 @@
 import {
   NotFoundError,
   UnauthorizedError,
-} from "../../middlewares/errorHandler";
-import prisma from "../../config/database";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
-import { HouseholdRole, MessageAction, NotificationType } from "@shared/enums";
-import { MentionWithUser, CreateMentionDTO } from "@shared/types";
-import { getIO } from "../../sockets";
-import { verifyMembership } from "../authService";
-import { transformMentionWithUser } from "../../utils/transformers/messageTransformer";
-import { PrismaMentionWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
-import { createNotification } from "../notificationService";
-import logger from "../../utils/logger";
+} from '../../middlewares/errorHandler';
+import prisma from '../../config/database';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
+import { HouseholdRole, MessageAction, NotificationType } from '@shared/enums';
+import { MentionWithUser, CreateMentionDTO } from '@shared/types';
+import { getIO } from '../../sockets';
+import { verifyMembership } from '../authService';
+import { transformMentionWithUser } from '../../utils/transformers/messageTransformer';
+import { PrismaMentionWithFullRelations } from '../../utils/transformers/transformerPrismaTypes';
+import { createNotification } from '../notificationService';
+import logger from '../../utils/logger';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -59,7 +59,7 @@ export async function createMention(
       });
 
       if (!message) {
-        throw new NotFoundError("Message not found");
+        throw new NotFoundError('Message not found');
       }
 
       // Create the mention
@@ -94,7 +94,7 @@ export async function createMention(
         userId: data.userId,
         type: NotificationType.NEW_MESSAGE,
         message: `${message.author.name} mentioned you in ${
-          message.thread.title || "a message"
+          message.thread.title || 'a message'
         }`,
       });
 
@@ -104,7 +104,7 @@ export async function createMention(
     const transformedMention = transformMentionWithUser(mention);
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit("mention_update", {
+    getIO().to(`household_${householdId}`).emit('mention_update', {
       action: MessageAction.MENTIONED,
       messageId,
       mention: transformedMention,
@@ -163,7 +163,7 @@ export async function getUserMentions(
         },
       },
       orderBy: {
-        mentionedAt: "desc",
+        mentionedAt: 'desc',
       },
     });
 
@@ -222,7 +222,7 @@ export async function getMessageMentions(
         },
       },
       orderBy: {
-        mentionedAt: "desc",
+        mentionedAt: 'desc',
       },
     });
 
@@ -262,7 +262,7 @@ export async function deleteMention(
     });
 
     if (!mention) {
-      throw new NotFoundError("Mention not found");
+      throw new NotFoundError('Mention not found');
     }
 
     // Only message author or admin can delete mentions
@@ -275,7 +275,7 @@ export async function deleteMention(
     });
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit("mention_update", {
+    getIO().to(`household_${householdId}`).emit('mention_update', {
       action: MessageAction.MENTIONED,
       messageId,
       mentionId,

@@ -1,7 +1,7 @@
-import { Response, NextFunction } from "express";
-import * as choreEventService from "../services/choreEventService";
-import { AuthenticatedRequest } from "../types";
-import { CreateEventDTO, UpdateEventDTO } from "@shared/types";
+import { Response, NextFunction } from 'express';
+import * as choreEventService from '../services/choreEventService';
+import { AuthenticatedRequest } from '../types';
+import { CreateEventDTO, UpdateEventDTO } from '@shared/types';
 
 /**
  * ChoreEventController handles all CRUD operations related to chore events.

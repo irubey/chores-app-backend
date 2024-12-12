@@ -1,195 +1,94 @@
-import { Router } from "express";
-import { HouseholdController } from "../controllers/HouseholdController";
-import { authMiddleware } from "../middlewares/authMiddleware";
-import { rbacMiddleware } from "../middlewares/rbacMiddleware";
-import { validate } from "../middlewares/validationMiddleware";
+import { Router } from 'express';
+import * as householdController from '../controllers/HouseholdController';
+import { authMiddleware } from '../middlewares/authMiddleware';
+import { rbacMiddleware } from '../middlewares/rbacMiddleware';
+import { validate } from '../middlewares/validationMiddleware';
 import {
   createHouseholdSchema,
   updateHouseholdSchema,
   addMemberSchema,
-} from "../utils/validationSchemas";
-import { asyncHandler } from "../utils/asyncHandler";
+  emailSchema,
+} from '../utils/validationSchemas';
+import { HouseholdRole } from '@shared/enums';
+import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
 
-/**
- * @route   GET /api/households/test-email
- * @desc    Test email functionality (remove in production)
- * @access  Public
- */
-router.get("/test-email", asyncHandler(HouseholdController.testEmail));
+// Apply auth middleware to all routes
+router.use(authMiddleware);
 
-/**
- * @route   GET /api/households/selected
- * @desc    Retrieve households selected by the user
- * @access  Protected
- */
+// User-specific routes (must be before parameterized routes)
 router.get(
-  "/selected",
-  authMiddleware,
-  asyncHandler(HouseholdController.getSelectedHouseholds)
+  '/user/households',
+  asyncHandler(householdController.getUserHouseholds)
+);
+router.get(
+  '/user/invitations',
+  asyncHandler(householdController.getPendingInvitations)
 );
 
-/**
- * @route   GET /api/households/invitations
- * @desc    Get all pending invitations for the current user
- * @access  Protected
- */
-router.get(
-  "/invitations",
-  authMiddleware,
-  asyncHandler(HouseholdController.getInvitations)
-);
-
-/**
- * @route   GET /api/households
- * @desc    Retrieve all households for the authenticated user
- * @access  Protected
- */
-router.get(
-  "/",
-  authMiddleware,
-  asyncHandler(HouseholdController.getUserHouseholds)
-);
-
-/**
- * @route   POST /api/households
- * @desc    Create a new household
- * @access  Protected
- */
+// Household management
 router.post(
-  "/",
-  authMiddleware,
+  '/',
   validate(createHouseholdSchema),
-  asyncHandler(HouseholdController.createHousehold)
+  asyncHandler(householdController.createHousehold)
 );
 
-/**
- * @route   GET /api/households/:householdId
- * @desc    Retrieve details of a specific household
- * @access  Protected
- */
 router.get(
-  "/:householdId",
-  authMiddleware,
-  asyncHandler(HouseholdController.getHousehold)
+  '/:householdId',
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
+  asyncHandler(householdController.getHouseholdById)
 );
 
-/**
- * @route   PATCH /api/households/:householdId
- * @desc    Update an existing household
- * @access  Protected, Admin access required
- */
 router.patch(
-  "/:householdId",
-  authMiddleware,
-  rbacMiddleware("ADMIN"),
+  '/:householdId',
+  rbacMiddleware([HouseholdRole.ADMIN]),
   validate(updateHouseholdSchema),
-  asyncHandler(HouseholdController.updateHousehold)
+  asyncHandler(householdController.updateHousehold)
 );
 
-/**
- * @route   DELETE /api/households/:householdId
- * @desc    Delete a household
- * @access  Protected, Admin access required
- */
 router.delete(
-  "/:householdId",
-  authMiddleware,
-  rbacMiddleware("ADMIN"),
-  asyncHandler(HouseholdController.deleteHousehold)
+  '/:householdId',
+  rbacMiddleware([HouseholdRole.ADMIN]),
+  asyncHandler(householdController.deleteHousehold)
 );
 
-/**
- * @route   POST /api/households/:householdId/members
- * @desc    Add a new member to the household
- * @access  Protected, Admin access required
- */
-router.post(
-  "/:householdId/members",
-  authMiddleware,
-  rbacMiddleware("ADMIN"),
-  validate(addMemberSchema),
-  asyncHandler(HouseholdController.addMember)
-);
-
-/**
- * @route   GET /api/households/:householdId/members
- * @desc    Retrieve all members of a specific household
- * @access  Protected
- */
+// Member management
 router.get(
-  "/:householdId/members",
-  authMiddleware,
-  asyncHandler(HouseholdController.getMembers)
+  '/:householdId/members',
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
+  asyncHandler(householdController.getMembers)
 );
 
-/**
- * @route   DELETE /api/households/:householdId/members/:memberId
- * @desc    Remove a member from the household
- * @access  Protected, Admin access required
- */
+router.post(
+  '/:householdId/members',
+  rbacMiddleware([HouseholdRole.ADMIN]),
+  validate(addMemberSchema),
+  asyncHandler(householdController.addMember)
+);
+
 router.delete(
-  "/:householdId/members/:memberId",
-  authMiddleware,
-  rbacMiddleware("ADMIN"),
-  asyncHandler(HouseholdController.removeMember)
+  '/:householdId/members/:memberId',
+  rbacMiddleware([HouseholdRole.ADMIN]),
+  asyncHandler(householdController.removeMember)
 );
 
-/**
- * @route   PATCH /api/households/:householdId/members/:memberId/status
- * @desc    Update the status of a household member (e.g., accept invitation)
- * @access  Protected
- */
-router.patch(
-  "/:householdId/members/:memberId/status",
-  authMiddleware,
-  asyncHandler(HouseholdController.acceptOrRejectInvitation)
-);
-
-/**
- * @route   PATCH /api/households/:householdId/members/:memberId/role
- * @desc    Update a household member role
- * @access  Protected
- */
-router.patch(
-  "/:householdId/members/:memberId/role",
-  authMiddleware,
-  asyncHandler(HouseholdController.updateMemberRole)
-);
-
-/**
- * @route   PATCH /api/households/:householdId/members/:memberId/selection
- * @desc    Update the selection of a household member
- * @access  Protected
- */
-router.patch(
-  "/:householdId/members/:memberId/selection",
-  authMiddleware,
-  asyncHandler(HouseholdController.updateSelectedHousehold)
-);
-
-/**
- * @route POST /api/households/:householdId/invitations
- * @desc Send a household invitation to a user
- * @access Protected, Admin access required
- */
+// Invitation management
 router.post(
-  "/:householdId/invitations",
-  authMiddleware,
-  rbacMiddleware("ADMIN"),
-  asyncHandler(HouseholdController.sendInvitation)
+  '/:householdId/invitations/send',
+  rbacMiddleware([HouseholdRole.ADMIN]),
+  validate(emailSchema),
+  asyncHandler(householdController.sendInvitationEmail)
 );
 
-/**
- * @route   POST /api/households/:householdId/members/:memberId/leave
- * @desc    Leave a household (can be used by the member themselves or an admin)
- * @access  Protected
- */
 router.post(
-  "/:householdId/members/:memberId/leave",
-  authMiddleware,
-  asyncHandler(HouseholdController.leaveHousehold)
+  '/:householdId/invitations/accept',
+  asyncHandler(householdController.acceptInvitation)
+);
+
+router.post(
+  '/:householdId/invitations/reject',
+  asyncHandler(householdController.rejectInvitation)
 );
 
 export default router;

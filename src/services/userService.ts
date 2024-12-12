@@ -1,13 +1,13 @@
-import prisma from "../config/database";
-import { NotFoundError } from "../middlewares/errorHandler";
-import { User, UpdateUserDTO } from "@shared/types";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
+import prisma from '../config/database';
+import { NotFoundError } from '../middlewares/errorHandler';
+import { User, UpdateUserDTO } from '@shared/types';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
 import {
   transformUser,
   transformUserUpdateInput,
-} from "../utils/transformers/userTransformer";
-import { PrismaUserMinimal } from "../utils/transformers/transformerPrismaTypes";
-import { getIO } from "../sockets";
+} from '../utils/transformers/userTransformer';
+import { PrismaUserMinimal } from '../utils/transformers/transformerPrismaTypes';
+import { getIO } from '../sockets';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -15,7 +15,7 @@ function wrapResponse<T>(data: T): ApiResponse<T> {
 }
 
 // Reusable select object that matches the User interface
-const userSelect: Record<keyof User, boolean> = {
+const userSelect = {
   id: true,
   email: true,
   name: true,
@@ -23,7 +23,8 @@ const userSelect: Record<keyof User, boolean> = {
   updatedAt: true,
   deletedAt: true,
   profileImageURL: true,
-};
+  activeHouseholdId: true,
+} as const;
 
 /**
  * Retrieves the profile of a user by ID.
@@ -40,7 +41,7 @@ export async function getUserProfile(
   });
 
   if (!user) {
-    throw new NotFoundError("User not found.");
+    throw new NotFoundError('User not found.');
   }
 
   const transformedUser = transformUser(user as PrismaUserMinimal);
@@ -67,7 +68,7 @@ export async function updateUserProfile(
   const transformedUser = transformUser(user as PrismaUserMinimal);
 
   // Notify connected clients about the user update
-  getIO().emit("user_updated", { user: transformedUser });
+  getIO().emit('user_updated', { user: transformedUser });
 
   return wrapResponse(transformedUser);
 }

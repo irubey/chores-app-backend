@@ -1,13 +1,18 @@
-import { Request } from "express";
-import { User } from "@shared/types";
-import { Provider } from "@shared/enums";
-import { HouseholdMemberWithUser } from "@shared/types";
+import { Request } from 'express';
+import { User } from '@shared/types';
+import { Provider } from '@shared/enums';
+import { RegisterUserDTO, LoginCredentials } from '@shared/types';
 
 /**
  * Extends the Express Request interface to include authenticated user information.
  */
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<T = any> extends Request {
   user?: User;
+  params: {
+    householdId?: string;
+    memberId?: string;
+  };
+  body: T;
   cookies: {
     refreshToken?: string;
     accessToken?: string;

@@ -1,8 +1,8 @@
-import { Response, NextFunction } from "express";
-import * as subtaskService from "../services/subtaskService";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import { AuthenticatedRequest } from "../types";
-import { CreateSubtaskDTO, UpdateSubtaskDTO } from "@shared/types";
+import { Response, NextFunction } from 'express';
+import * as subtaskService from '../services/subtaskService';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { AuthenticatedRequest } from '../types';
+import { CreateSubtaskDTO, UpdateSubtaskDTO } from '@shared/types';
 
 /**
  * SubtaskController handles all CRUD operations related to subtasks.
@@ -21,7 +21,7 @@ export class SubtaskController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const { householdId, choreId } = req.params;
@@ -49,7 +49,7 @@ export class SubtaskController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const { householdId, choreId, subtaskId } = req.params;
@@ -78,7 +78,7 @@ export class SubtaskController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const { householdId, choreId } = req.params;
@@ -107,7 +107,7 @@ export class SubtaskController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError("Unauthorized");
+        throw new UnauthorizedError('Unauthorized');
       }
 
       const { householdId, choreId, subtaskId } = req.params;

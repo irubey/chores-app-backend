@@ -1,15 +1,15 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from '@prisma/client';
 
 const modelsWithSoftDelete = new Set([
-  "User",
-  "Household",
-  "Thread",
-  "Message",
-  "Attachment",
-  "Chore",
-  "Expense",
-  "Transaction",
-  "Event",
+  'User',
+  'Household',
+  'Thread',
+  'Message',
+  'Attachment',
+  'Chore',
+  'Expense',
+  'Transaction',
+  'Event',
 ]);
 
 export const prismaExtensions = Prisma.defineExtension((client) => {
