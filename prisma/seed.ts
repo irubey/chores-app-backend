@@ -16,25 +16,52 @@ import { hash } from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clear existing data
+  // Clear existing data in correct order
   await prisma.notification.deleteMany();
+  await prisma.notificationSettings.deleteMany();
+
+  // 2. Delete message related
   await prisma.messageRead.deleteMany();
   await prisma.reaction.deleteMany();
   await prisma.mention.deleteMany();
-  await prisma.message.deleteMany();
-  await prisma.thread.deleteMany();
+  await prisma.attachment.deleteMany();
   await prisma.pollVote.deleteMany();
   await prisma.pollOption.deleteMany();
   await prisma.poll.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.thread.deleteMany();
+
+  // 3. Delete calendar related
   await prisma.eventReminder.deleteMany();
+  await prisma.calendarEventHistory.deleteMany();
+
+  // 4. Delete chore related
   await prisma.subtask.deleteMany();
   await prisma.choreAssignment.deleteMany();
   await prisma.choreSwapRequest.deleteMany();
+  await prisma.choreHistory.deleteMany();
   await prisma.chore.deleteMany();
+  await prisma.choreTemplate.deleteMany();
+  await prisma.subtaskTemplate.deleteMany();
+
+  // 5. Delete event related
   await prisma.event.deleteMany();
+
+  // 6. Delete finance related
+  await prisma.receipt.deleteMany();
+  await prisma.expenseHistory.deleteMany();
+  await prisma.transaction.deleteMany();
+  await prisma.expenseSplit.deleteMany();
+  await prisma.expense.deleteMany();
+
+  // 7. Delete user related
+  await prisma.oAuthIntegration.deleteMany();
+  await prisma.refreshToken.deleteMany();
   await prisma.householdMember.deleteMany();
   await prisma.household.deleteMany();
   await prisma.user.deleteMany();
+
+  // 8. Delete other
   await prisma.recurrenceRule.deleteMany();
 
   // Create test users

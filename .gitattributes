@@ -1,0 +1,9 @@
+# Prevent auto CRLF conversion
+* text=auto eol=lf
+*.{cmd,[cC][mM][dD]} text eol=crlf
+*.{bat,[bB][aA][tT]} text eol=crlf
+
+# Prevent auto-formatting certain files
+*.min.js -diff
+package-lock.json -diff
+yarn.lock -diff 

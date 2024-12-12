@@ -54,6 +54,15 @@ export default [
       "jest/no-focused-tests": "error",
       "jest/prefer-to-have-length": "warn",
       "jest/valid-expect": "error",
+      "prettier/prettier": [
+        "error",
+        {
+          endOfLine: "auto",
+          semi: true,
+          singleQuote: true,
+          trailingComma: "es5",
+        },
+      ],
     },
     settings: {
       "import/resolver": {
