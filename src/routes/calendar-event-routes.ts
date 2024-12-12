@@ -1,9 +1,9 @@
-import { Router } from 'express';
-import { CalendarEventController } from '../controllers/CalendarEventController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
-import { asyncHandler } from '../utils/asyncHandler';
+import { Router } from "express";
+import { CalendarEventController } from "../controllers/CalendarEventController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
+import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router({ mergeParams: true });
 
@@ -13,7 +13,7 @@ const router = Router({ mergeParams: true });
  * @access  Protected
  */
 router.get(
-  '/',
+  "/",
   authMiddleware,
   asyncHandler(CalendarEventController.getCalendarEvents)
 );
@@ -24,9 +24,9 @@ router.get(
  * @access  Protected, Write access required
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware("WRITE"),
   asyncHandler(CalendarEventController.createCalendarEvent)
 );
 
@@ -36,7 +36,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  '/:eventId',
+  "/:eventId",
   authMiddleware,
   asyncHandler(CalendarEventController.getEventById)
 );
@@ -47,9 +47,9 @@ router.get(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:eventId',
+  "/:eventId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware("WRITE"),
   asyncHandler(CalendarEventController.updateEvent)
 );
 
@@ -59,9 +59,9 @@ router.patch(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:eventId',
+  "/:eventId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware("ADMIN"),
   asyncHandler(CalendarEventController.deleteEvent)
 );
 
@@ -71,9 +71,9 @@ router.delete(
  * @access  Protected, Write access required
  */
 router.post(
-  '/:eventId/reminders',
+  "/:eventId/reminders",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware("WRITE"),
   asyncHandler(CalendarEventController.addReminder)
 );
 
@@ -83,9 +83,9 @@ router.post(
  * @access  Protected, Write access required
  */
 router.delete(
-  '/:eventId/reminders/:reminderId',
+  "/:eventId/reminders/:reminderId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware("WRITE"),
   asyncHandler(CalendarEventController.removeReminder)
 );
 
@@ -95,7 +95,7 @@ router.delete(
  * @access  Protected
  */
 router.get(
-  '/date/:date',
+  "/date/:date",
   authMiddleware,
   asyncHandler(CalendarEventController.getEventsByDate)
 );
