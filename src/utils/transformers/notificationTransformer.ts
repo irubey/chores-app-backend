@@ -4,17 +4,17 @@ import {
   NotificationWithUser,
   NotificationSettingsWithUserAndHousehold,
   CreateNotificationDTO,
-} from "@shared/types";
-import { NotificationType } from "@shared/enums";
+} from '@shared/types';
+import { NotificationType } from '@shared/enums';
 import {
   PrismaNotificationBase,
   PrismaNotificationWithFullRelations,
   PrismaNotificationSettingsWithFullRelations,
   PrismaUserMinimal,
   PrismaHouseholdBase,
-} from "./transformerPrismaTypes";
-import { transformUser } from "./userTransformer";
-import { transformHousehold } from "./householdTransformer";
+} from './transformerPrismaTypes';
+import { transformUser } from './userTransformer';
+import { transformHousehold } from './householdTransformer';
 
 function isValidNotificationType(type: string): type is NotificationType {
   return Object.values(NotificationType).includes(type as NotificationType);
@@ -24,7 +24,7 @@ export function transformNotification(
   notification: PrismaNotificationBase
 ): Notification {
   if (!notification) {
-    throw new Error("Invalid notification data");
+    throw new Error('Invalid notification data');
   }
 
   return {
@@ -53,7 +53,7 @@ export function transformNotificationSettings(
   settings: PrismaNotificationSettingsWithFullRelations
 ): NotificationSettingsWithUserAndHousehold {
   if (!settings.user || !settings.household) {
-    throw new Error("Notification settings must have both user and household");
+    throw new Error('Notification settings must have both user and household');
   }
 
   return {
@@ -74,7 +74,7 @@ export function transformNotificationSettings(
 
 export function transformCreateNotificationDTO(
   dto: CreateNotificationDTO
-): Omit<PrismaNotificationBase, "id" | "createdAt" | "updatedAt"> {
+): Omit<PrismaNotificationBase, 'id' | 'createdAt' | 'updatedAt'> {
   return {
     userId: dto.userId,
     type: isValidNotificationType(dto.type) ? dto.type : NotificationType.OTHER,

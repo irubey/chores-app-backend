@@ -1,13 +1,13 @@
-import nodemailer from "nodemailer";
-import { EmailOptions } from "../types/index";
-import crypto from "crypto";
-import logger from "../utils/logger";
+import nodemailer from 'nodemailer';
+import { EmailOptions } from '../types/index';
+import crypto from 'crypto';
+import logger from '../utils/logger';
 
 // Configure the email transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587", 10),
-  secure: process.env.SMTP_SECURE === "true",
+  port: parseInt(process.env.SMTP_PORT || '587', 10),
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -21,7 +21,7 @@ const transporter = nodemailer.createTransport({
  */
 export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
   try {
-    logger.info("Attempting to send email", {
+    logger.info('Attempting to send email', {
       to: options.to,
       subject: options.subject,
       smtpHost: process.env.SMTP_HOST,
@@ -37,10 +37,10 @@ export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
       html: options.html,
     });
 
-    logger.info("Email sent successfully", { to: options.to });
+    logger.info('Email sent successfully', { to: options.to });
     return true;
   } catch (error) {
-    logger.error("Failed to send email", {
+    logger.error('Failed to send email', {
       error: error instanceof Error ? error.message : String(error),
       to: options.to,
       smtpHost: process.env.SMTP_HOST,
@@ -118,6 +118,6 @@ export const isValidEmail = (email: string): boolean => {
  * @returns string A random token for invitation links
  */
 export const generateInviteToken = (): string => {
-  const token = crypto.randomBytes(32).toString("hex");
+  const token = crypto.randomBytes(32).toString('hex');
   return `invite_${token}`;
 };

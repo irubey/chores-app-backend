@@ -1,22 +1,22 @@
-import { Subtask } from "@shared/types";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import prisma from "../config/database";
-import { CreateSubtaskDTO, UpdateSubtaskDTO } from "@shared/types";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { Subtask } from '@shared/types';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import prisma from '../config/database';
+import { CreateSubtaskDTO, UpdateSubtaskDTO } from '@shared/types';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
 import {
   HouseholdRole,
   SubtaskStatus,
   ChoreAction,
   ChoreStatus,
-} from "@shared/enums";
-import { getIO } from "../sockets";
-import { verifyMembership } from "./authService";
+} from '@shared/enums';
+import { getIO } from '../sockets';
+import { verifyMembership } from './authService';
 import {
   transformSubtask,
   transformSubtaskInput,
   transformSubtaskUpdateInput,
-} from "../utils/transformers/choreTransformer";
-import { PrismaSubtaskWithFullRelations } from "../utils/transformers/transformerPrismaTypes";
+} from '../utils/transformers/choreTransformer';
+import { PrismaSubtaskWithFullRelations } from '../utils/transformers/transformerPrismaTypes';
 
 function wrapResponse<T>(data: T): ApiResponse<T> {
   return { data };
@@ -55,7 +55,7 @@ export async function addSubtask(
     });
 
     if (!chore || chore.householdId !== householdId) {
-      throw new NotFoundError("Chore not found in this household");
+      throw new NotFoundError('Chore not found in this household');
     }
 
     const createdSubtask = await tx.subtask.create({
@@ -74,7 +74,7 @@ export async function addSubtask(
   });
 
   const transformedSubtask = transformSubtask(subtask);
-  getIO().to(`household_${householdId}`).emit("subtask_created", {
+  getIO().to(`household_${householdId}`).emit('subtask_created', {
     choreId,
     subtask: transformedSubtask,
   });
@@ -101,7 +101,7 @@ export async function updateSubtask(
     });
 
     if (!chore || chore.householdId !== householdId) {
-      throw new NotFoundError("Chore not found in this household");
+      throw new NotFoundError('Chore not found in this household');
     }
 
     const updatedSubtask = await tx.subtask.update({
@@ -136,7 +136,7 @@ export async function updateSubtask(
   });
 
   const transformedSubtask = transformSubtask(subtask);
-  getIO().to(`household_${householdId}`).emit("subtask_updated", {
+  getIO().to(`household_${householdId}`).emit('subtask_updated', {
     choreId,
     subtask: transformedSubtask,
   });
@@ -159,7 +159,7 @@ export async function deleteSubtask(
     });
 
     if (!chore || chore.householdId !== householdId) {
-      throw new NotFoundError("Chore not found in this household");
+      throw new NotFoundError('Chore not found in this household');
     }
 
     await tx.subtask.delete({
@@ -169,7 +169,7 @@ export async function deleteSubtask(
     await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
   });
 
-  getIO().to(`household_${householdId}`).emit("subtask_deleted", {
+  getIO().to(`household_${householdId}`).emit('subtask_deleted', {
     choreId,
     subtaskId,
   });
@@ -196,7 +196,7 @@ export async function getSubtasks(
   });
 
   if (!chore) {
-    throw new NotFoundError("Chore not found in this household");
+    throw new NotFoundError('Chore not found in this household');
   }
 
   const transformedSubtasks = chore.subtasks.map((subtask) =>

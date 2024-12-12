@@ -1,5 +1,5 @@
-import { Attachment } from "@shared/types";
-import { PrismaAttachmentWithFullRelations } from "../transformerPrismaTypes";
+import { Attachment } from '@shared/types';
+import { PrismaAttachmentWithFullRelations } from '../transformerPrismaTypes';
 
 export function transformAttachment(
   attachment: PrismaAttachmentWithFullRelations

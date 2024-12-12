@@ -32,23 +32,23 @@ export async function scheduleRotatingChores() {
       for (const chore of household.chores) {
         const recurrence = chore.recurrence as EventRecurrence;
         switch (recurrence) {
-          case EventRecurrence.DAILY:
-            await createChoreInstance(household.id, chore, 1);
-            break;
-          case EventRecurrence.WEEKLY:
-            await createChoreInstance(household.id, chore, 7);
-            break;
-          case EventRecurrence.MONTHLY:
-            await createChoreInstance(household.id, chore, 30);
-            break;
-          case EventRecurrence.YEARLY:
-            await createChoreInstance(household.id, chore, 365);
-            break;
-          case EventRecurrence.CUSTOM:
-            // Implement custom scheduling logic
-            break;
-          default:
-            break;
+        case EventRecurrence.DAILY:
+          await createChoreInstance(household.id, chore, 1);
+          break;
+        case EventRecurrence.WEEKLY:
+          await createChoreInstance(household.id, chore, 7);
+          break;
+        case EventRecurrence.MONTHLY:
+          await createChoreInstance(household.id, chore, 30);
+          break;
+        case EventRecurrence.YEARLY:
+          await createChoreInstance(household.id, chore, 365);
+          break;
+        case EventRecurrence.CUSTOM:
+          // Implement custom scheduling logic
+          break;
+        default:
+          break;
         }
       }
     }

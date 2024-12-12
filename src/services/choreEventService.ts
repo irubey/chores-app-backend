@@ -1,4 +1,4 @@
-import prisma from "../config/database";
+import prisma from '../config/database';
 import {
   CreateEventDTO,
   EventWithDetails,
@@ -8,30 +8,30 @@ import {
   EventUpdateEvent,
   UpdateEventStatusDTO,
   CalendarEventHistory,
-} from "@shared/types";
-import { ApiResponse } from "@shared/interfaces";
+} from '@shared/types';
+import { ApiResponse } from '@shared/interfaces';
 import {
   HouseholdRole,
   EventCategory,
   EventStatus,
   CalendarEventAction,
-} from "@shared/enums";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import { getIO } from "../sockets";
-import { verifyMembership } from "./authService";
+} from '@shared/enums';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { getIO } from '../sockets';
+import { verifyMembership } from './authService';
 import {
   transformEventWithDetails,
   transformCreateEventDTO,
   transformEvent,
   transformEventReminder,
   transformUpdateEventDTO,
-} from "../utils/transformers/eventTransformer";
+} from '../utils/transformers/eventTransformer';
 import {
   PrismaEventBase,
   PrismaEventWithFullRelations,
   PrismaEventMinimal,
   PrismaEventReminderWithRelations,
-} from "../utils/transformers/transformerPrismaTypes";
+} from '../utils/transformers/transformerPrismaTypes';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -115,7 +115,7 @@ export async function createChoreEvent(
     });
 
     if (!chore) {
-      throw new NotFoundError("Chore not found.");
+      throw new NotFoundError('Chore not found.');
     }
 
     const newEvent = (await tx.event.create({
@@ -129,8 +129,8 @@ export async function createChoreEvent(
         }),
         reminders: data.reminders
           ? {
-              create: data.reminders,
-            }
+            create: data.reminders,
+          }
           : undefined,
       },
       include: {
@@ -163,7 +163,7 @@ export async function createChoreEvent(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("event_update", {
+  getIO().to(`household_${householdId}`).emit('event_update', {
     action: CalendarEventAction.CREATED,
     event: transformedEvent,
   });
@@ -211,7 +211,7 @@ export async function getChoreEventById(
   })) as PrismaEventWithFullRelations;
 
   if (!event) {
-    throw new NotFoundError("Chore event not found.");
+    throw new NotFoundError('Chore event not found.');
   }
 
   const transformedEvent = transformEventWithDetails(event);
@@ -243,7 +243,7 @@ export async function updateChoreEvent(
     })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.choreId !== choreId) {
-      throw new NotFoundError("Chore event not found.");
+      throw new NotFoundError('Chore event not found.');
     }
 
     const isRecurrenceChanged =
@@ -292,7 +292,7 @@ export async function updateChoreEvent(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("event_update", {
+  getIO().to(`household_${householdId}`).emit('event_update', {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -324,7 +324,7 @@ export async function deleteChoreEvent(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("chore_event_deleted", { eventId });
+    .emit('chore_event_deleted', { eventId });
 
   return wrapResponse(undefined);
 }
@@ -367,7 +367,7 @@ export async function updateChoreEventStatus(
     })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.choreId !== choreId) {
-      throw new NotFoundError("Chore event not found.");
+      throw new NotFoundError('Chore event not found.');
     }
 
     const updatedEvent = (await tx.event.update({
@@ -404,7 +404,7 @@ export async function updateChoreEventStatus(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("event_update", {
+  getIO().to(`household_${householdId}`).emit('event_update', {
     action: CalendarEventAction.STATUS_CHANGED,
     event: transformedEvent,
   });
@@ -470,7 +470,7 @@ export async function rescheduleChoreEvent(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("event_update", {
+  getIO().to(`household_${householdId}`).emit('event_update', {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -517,7 +517,7 @@ export async function getUpcomingChoreEvents(
       recurrenceRule: true,
     },
     orderBy: {
-      startTime: "asc",
+      startTime: 'asc',
     },
     take: limit,
   })) as PrismaEventWithFullRelations[];

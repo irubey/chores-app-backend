@@ -1,7 +1,7 @@
-import { Response, NextFunction } from "express";
-import * as calendarEventService from "../services/calendarEventService";
-import { AuthenticatedRequest } from "../types";
-import { CreateCalendarEventDTO, UpdateCalendarEventDTO } from "@shared/types";
+import { Response, NextFunction } from 'express';
+import * as calendarEventService from '../services/calendarEventService';
+import { AuthenticatedRequest } from '../types';
+import { CreateCalendarEventDTO, UpdateCalendarEventDTO } from '@shared/types';
 
 /**
  * CalendarEventController handles all CRUD operations related to general calendar events.

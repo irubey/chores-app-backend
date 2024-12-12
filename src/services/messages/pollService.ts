@@ -2,34 +2,34 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
-} from "../../middlewares/errorHandler";
-import prisma from "../../config/database";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
+} from '../../middlewares/errorHandler';
+import prisma from '../../config/database';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
 import {
   HouseholdRole,
   MessageAction,
   PollStatus,
   PollType,
-} from "@shared/enums";
-import { getIO } from "../../sockets";
-import { verifyMembership } from "../authService";
+} from '@shared/enums';
+import { getIO } from '../../sockets';
+import { verifyMembership } from '../authService';
 import {
   PollWithDetails,
   CreatePollDTO,
   UpdatePollDTO,
   PollVoteWithUser,
   CreatePollVoteDTO,
-} from "@shared/types";
+} from '@shared/types';
 import {
   transformPollWithDetails,
   transformPollVoteWithUser,
   transformPollAnalytics,
-} from "../../utils/transformers/messageTransformer";
+} from '../../utils/transformers/messageTransformer';
 import {
   PrismaPollWithFullRelations,
   PrismaPollVoteWithFullRelations,
-} from "../../utils/transformers/transformerPrismaTypes";
-import logger from "../../utils/logger";
+} from '../../utils/transformers/transformerPrismaTypes';
+import logger from '../../utils/logger';
 
 function wrapResponse<T>(data: T): ApiResponse<T> {
   return { data };
@@ -82,7 +82,7 @@ export async function getPollsInThread(
         event: true,
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: 'desc',
       },
     });
 
@@ -143,7 +143,7 @@ export async function getPoll(
     });
 
     if (!poll) {
-      throw new NotFoundError("Poll not found");
+      throw new NotFoundError('Poll not found');
     }
 
     return wrapResponse(
@@ -178,11 +178,11 @@ export async function createPoll(
       });
 
       if (!message) {
-        throw new NotFoundError("Message not found");
+        throw new NotFoundError('Message not found');
       }
 
       if (message.authorId !== userId) {
-        throw new UnauthorizedError("Only message author can create polls");
+        throw new UnauthorizedError('Only message author can create polls');
       }
 
       const newPoll = await tx.poll.create({
@@ -194,7 +194,7 @@ export async function createPoll(
           maxRank: data.maxRank,
           endDate: data.endDate,
           eventId: data.eventId,
-          status: "OPEN",
+          status: 'OPEN',
           options: {
             create: data.options.map((opt, index) => ({
               text: opt.text,
@@ -234,7 +234,7 @@ export async function createPoll(
 
     const transformedPoll = transformPollWithDetails(poll);
 
-    getIO().to(`household_${householdId}`).emit("poll_update", {
+    getIO().to(`household_${householdId}`).emit('poll_update', {
       action: MessageAction.POLL_CREATED,
       messageId,
       poll: transformedPoll,
@@ -274,11 +274,11 @@ export async function updatePoll(
       });
 
       if (!existingPoll) {
-        throw new NotFoundError("Poll not found");
+        throw new NotFoundError('Poll not found');
       }
 
       if (existingPoll.message.authorId !== userId) {
-        throw new UnauthorizedError("Only poll creator can update poll");
+        throw new UnauthorizedError('Only poll creator can update poll');
       }
 
       const updatedPoll = await tx.poll.update({
@@ -288,7 +288,7 @@ export async function updatePoll(
           status: data.status
             ? isValidPollStatus(data.status)
               ? data.status
-              : "OPEN"
+              : 'OPEN'
             : undefined,
           endDate: data.endDate,
           selectedOptionId: data.selectedOptionId,
@@ -323,7 +323,7 @@ export async function updatePoll(
 
     const transformedPoll = transformPollWithDetails(poll);
 
-    getIO().to(`household_${householdId}`).emit("poll_update", {
+    getIO().to(`household_${householdId}`).emit('poll_update', {
       action: MessageAction.POLL_UPDATED,
       messageId,
       poll: transformedPoll,
@@ -362,11 +362,11 @@ export async function deletePoll(
       });
 
       if (!existingPoll) {
-        throw new NotFoundError("Poll not found");
+        throw new NotFoundError('Poll not found');
       }
 
       if (existingPoll.message.authorId !== userId) {
-        throw new UnauthorizedError("Only poll creator can delete poll");
+        throw new UnauthorizedError('Only poll creator can delete poll');
       }
 
       await tx.pollVote.deleteMany({
@@ -382,7 +382,7 @@ export async function deletePoll(
       });
     });
 
-    getIO().to(`household_${householdId}`).emit("poll_update", {
+    getIO().to(`household_${householdId}`).emit('poll_update', {
       action: MessageAction.POLL_DELETED,
       messageId,
       pollId,
@@ -421,11 +421,11 @@ export async function votePoll(
       });
 
       if (!poll) {
-        throw new NotFoundError("Poll not found");
+        throw new NotFoundError('Poll not found');
       }
 
-      if (poll.status !== "OPEN") {
-        throw new ValidationError("Poll is not active");
+      if (poll.status !== 'OPEN') {
+        throw new ValidationError('Poll is not active');
       }
 
       // Delete existing votes if not multiple choice
@@ -487,7 +487,7 @@ export async function votePoll(
 
     const transformedVote = transformPollVoteWithUser(vote);
 
-    getIO().to(`household_${householdId}`).emit("poll_vote_update", {
+    getIO().to(`household_${householdId}`).emit('poll_vote_update', {
       action: MessageAction.POLL_VOTED,
       messageId,
       pollId,
@@ -531,14 +531,14 @@ export async function removePollVote(
     });
 
     if (!vote) {
-      throw new NotFoundError("Vote not found");
+      throw new NotFoundError('Vote not found');
     }
 
     await prisma.pollVote.delete({
       where: { id: voteId },
     });
 
-    getIO().to(`household_${householdId}`).emit("poll_vote_update", {
+    getIO().to(`household_${householdId}`).emit('poll_vote_update', {
       action: MessageAction.POLL_VOTE_REMOVED,
       messageId,
       pollId,
@@ -583,7 +583,7 @@ export async function getPollAnalytics(
     });
 
     if (!poll) {
-      throw new NotFoundError("Poll not found");
+      throw new NotFoundError('Poll not found');
     }
 
     const analytics = transformPollAnalytics(

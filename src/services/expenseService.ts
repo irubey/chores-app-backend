@@ -1,4 +1,4 @@
-import prisma from "../config/database";
+import prisma from '../config/database';
 import {
   CreateExpenseDTO,
   UpdateExpenseDTO,
@@ -6,20 +6,20 @@ import {
   CreateReceiptDTO,
   Receipt,
   ExpenseWithSplitsAndPaidBy,
-} from "@shared/types";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
-import { NotFoundError, BadRequestError } from "../middlewares/errorHandler";
-import { HouseholdRole, ExpenseAction } from "@shared/enums";
-import { verifyMembership } from "./authService";
+} from '@shared/types';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
+import { NotFoundError, BadRequestError } from '../middlewares/errorHandler';
+import { HouseholdRole, ExpenseAction } from '@shared/enums';
+import { verifyMembership } from './authService';
 import {
   transformExpenseWithSplits,
   transformReceipt,
-} from "../utils/transformers/expenseTransformer";
+} from '../utils/transformers/expenseTransformer';
 import {
   PrismaExpenseWithFullRelations,
   PrismaReceiptWithFullRelations,
-} from "../utils/transformers/transformerPrismaTypes";
-import { getIO } from "../sockets";
+} from '../utils/transformers/transformerPrismaTypes';
+import { getIO } from '../sockets';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -73,7 +73,7 @@ export async function getExpenses(
       household: true,
     },
     orderBy: {
-      createdAt: "desc",
+      createdAt: 'desc',
     },
   });
 
@@ -161,7 +161,7 @@ export async function createExpense(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("expense_created", { expense: transformedExpense });
+    .emit('expense_created', { expense: transformedExpense });
 
   return wrapResponse(transformedExpense);
 }
@@ -221,7 +221,7 @@ export async function getExpenseById(
   })) as PrismaExpenseWithFullRelations;
 
   if (!expense || expense.householdId !== householdId) {
-    throw new NotFoundError("Expense not found in this household");
+    throw new NotFoundError('Expense not found in this household');
   }
 
   return wrapResponse(transformExpenseWithSplits(expense));
@@ -275,7 +275,7 @@ export async function updateExpense(
     })) as PrismaExpenseWithFullRelations;
 
     if (!existingExpense || existingExpense.householdId !== householdId) {
-      throw new NotFoundError("Expense not found in this household");
+      throw new NotFoundError('Expense not found in this household');
     }
 
     const updatedExpense = await tx.expense.update({
@@ -328,7 +328,7 @@ export async function updateExpense(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("expense_updated", { expense: transformedExpense });
+    .emit('expense_updated', { expense: transformedExpense });
 
   return wrapResponse(transformedExpense);
 }
@@ -355,7 +355,7 @@ export async function deleteExpense(
     });
 
     if (!expense || expense.householdId !== householdId) {
-      throw new NotFoundError("Expense not found in this household.");
+      throw new NotFoundError('Expense not found in this household.');
     }
 
     // Delete related records first
@@ -387,7 +387,7 @@ export async function deleteExpense(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("expense_update", { expenseId, deleted: true });
+    .emit('expense_update', { expenseId, deleted: true });
 
   return wrapResponse(undefined);
 }
@@ -418,7 +418,7 @@ export async function uploadReceipt(
     });
 
     if (!expense || expense.householdId !== householdId) {
-      throw new NotFoundError("Expense not found in this household.");
+      throw new NotFoundError('Expense not found in this household.');
     }
 
     const createdReceipt = await prismaClient.receipt.create({
@@ -445,7 +445,7 @@ export async function uploadReceipt(
   );
   getIO()
     .to(`household_${householdId}`)
-    .emit("receipt_uploaded", { receipt: transformedReceipt });
+    .emit('receipt_uploaded', { receipt: transformedReceipt });
 
   return wrapResponse(transformedReceipt);
 }
@@ -499,7 +499,7 @@ export async function deleteReceipt(
     });
 
     if (!expense || expense.householdId !== householdId) {
-      throw new NotFoundError("Expense not found in this household.");
+      throw new NotFoundError('Expense not found in this household.');
     }
 
     // Verify receipt exists and belongs to expense
@@ -508,7 +508,7 @@ export async function deleteReceipt(
     });
 
     if (!receipt || receipt.expenseId !== expenseId) {
-      throw new NotFoundError("Receipt not found.");
+      throw new NotFoundError('Receipt not found.');
     }
 
     await prismaClient.receipt.delete({
@@ -516,7 +516,7 @@ export async function deleteReceipt(
     });
   });
 
-  getIO().to(`household_${householdId}`).emit("receipt_deleted", { receiptId });
+  getIO().to(`household_${householdId}`).emit('receipt_deleted', { receiptId });
 
   return wrapResponse(undefined);
 }
@@ -545,7 +545,7 @@ export async function getReceiptById(
   });
 
   if (!receipt || receipt.expenseId !== expenseId) {
-    throw new NotFoundError("Receipt not found.");
+    throw new NotFoundError('Receipt not found.');
   }
 
   const transformedReceipt = transformReceipt(
@@ -574,7 +574,7 @@ export async function updateExpenseSplits(
     });
 
     if (!existingExpense || existingExpense.householdId !== householdId) {
-      throw new NotFoundError("Expense not found in this household");
+      throw new NotFoundError('Expense not found in this household');
     }
 
     // Delete existing splits
@@ -633,7 +633,7 @@ export async function updateExpenseSplits(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("expense_splits_updated", { expense: transformedExpense });
+    .emit('expense_splits_updated', { expense: transformedExpense });
 
   return wrapResponse(transformedExpense);
 }

@@ -1,6 +1,6 @@
-import { Response, NextFunction } from "express";
-import * as calendarIntegrationService from "../services/calendarIntegrationService";
-import { AuthenticatedRequest } from "../types";
+import { Response, NextFunction } from 'express';
+import * as calendarIntegrationService from '../services/calendarIntegrationService';
+import { AuthenticatedRequest } from '../types';
 
 /**
  * CalendarIntegrationController handles all operations related to calendar synchronization.
@@ -19,7 +19,7 @@ export class CalendarIntegrationController {
       const { accessToken } = req.body; // Assuming accessToken is provided in the request body
 
       if (!accessToken) {
-        throw new Error("Access token is required for synchronization.");
+        throw new Error('Access token is required for synchronization.');
       }
 
       const syncResult =

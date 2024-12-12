@@ -1,5 +1,5 @@
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import prisma from "../config/database";
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import prisma from '../config/database';
 import {
   CreateChoreDTO,
   UpdateChoreDTO,
@@ -19,16 +19,16 @@ import {
   CreateChoreHistoryDTO,
   PartialUpdateChoreDTO,
   Chore,
-} from "@shared/types";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
+} from '@shared/types';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
 import {
   HouseholdRole,
   ChoreStatus,
   ChoreSwapRequestStatus,
   SubtaskStatus,
   ChoreAction,
-} from "@shared/enums";
-import { getIO } from "../sockets";
+} from '@shared/enums';
+import { getIO } from '../sockets';
 import {
   transformChoreToChoreWithAssignees,
   transformChoresToChoresWithAssignees,
@@ -37,7 +37,7 @@ import {
   transformChoreAssignment,
   transformSubtaskInput,
   transformSubtaskUpdateInput,
-} from "../utils/transformers/choreTransformer";
+} from '../utils/transformers/choreTransformer';
 import {
   PrismaChoreWithFullRelations,
   PrismaSubtaskBase,
@@ -47,9 +47,9 @@ import {
   PrismaChoreBase,
   PrismaChoreHistoryWithFullRelations,
   PrismaChoreAssignmentWithRelations,
-} from "../utils/transformers/transformerPrismaTypes";
-import { verifyMembership } from "./authService";
-import { addSubtask } from "./subtaskService";
+} from '../utils/transformers/transformerPrismaTypes';
+import { verifyMembership } from './authService';
+import { addSubtask } from './subtaskService';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -158,7 +158,7 @@ export async function createChore(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("chore_created", { chore: transformedChore });
+    .emit('chore_created', { chore: transformedChore });
 
   return wrapResponse(transformedChore);
 }
@@ -200,7 +200,7 @@ export async function getChoreById(
   })) as PrismaChoreWithFullRelations;
 
   if (!chore) {
-    throw new NotFoundError("Chore not found.");
+    throw new NotFoundError('Chore not found.');
   }
 
   const transformedChore = transformChoreToChoreWithAssignees(chore);
@@ -248,11 +248,11 @@ export async function updateChore(
         },
         subtasks: data.subtasks
           ? {
-              deleteMany: {},
-              create: data.subtasks.map((subtask) =>
-                transformSubtaskUpdateInput(subtask, choreId)
-              ),
-            }
+            deleteMany: {},
+            create: data.subtasks.map((subtask) =>
+              transformSubtaskUpdateInput(subtask, choreId)
+            ),
+          }
           : undefined,
       },
       include: {
@@ -271,7 +271,7 @@ export async function updateChore(
   const transformedChore = transformChoreToChoreWithAssignees(chore);
   getIO()
     .to(`household_${householdId}`)
-    .emit("chore_update", { chore: transformedChore });
+    .emit('chore_update', { chore: transformedChore });
 
   return wrapResponse(transformedChore);
 }
@@ -301,7 +301,7 @@ export async function deleteChore(
   })) as PrismaChoreWithFullRelations;
 
   if (!chore) {
-    throw new NotFoundError("Chore not found");
+    throw new NotFoundError('Chore not found');
   }
 
   await prisma.$transaction(async (tx) => {
@@ -336,7 +336,7 @@ export async function deleteChore(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("chore_update", { choreId, deleted: true });
+    .emit('chore_update', { choreId, deleted: true });
 }
 
 /**
@@ -361,14 +361,14 @@ export async function createChoreSwapRequest(
     });
 
     if (!chore || chore.householdId !== householdId) {
-      throw new NotFoundError("Chore not found in this household");
+      throw new NotFoundError('Chore not found in this household');
     }
 
     const existingAssignment = chore.assignments.find(
       (a) => a.userId === requestingUserId
     );
     if (!existingAssignment) {
-      throw new UnauthorizedError("You are not assigned to this chore");
+      throw new UnauthorizedError('You are not assigned to this chore');
     }
 
     const createdSwapRequest = await tx.choreSwapRequest.create({
@@ -399,7 +399,7 @@ export async function createChoreSwapRequest(
 
   getIO()
     .to(`household_${householdId}`)
-    .emit("chore_swap_request", { swapRequest: transformedSwapRequest });
+    .emit('chore_swap_request', { swapRequest: transformedSwapRequest });
 
   return wrapResponse(transformedSwapRequest);
 }
@@ -431,13 +431,13 @@ export async function approveOrRejectChoreSwap(
 
     if (!swapRequest || swapRequest.choreId !== choreId) {
       throw new NotFoundError(
-        "Swap request not found or does not match the chore."
+        'Swap request not found or does not match the chore.'
       );
     }
 
     if (swapRequest.targetUserId !== approvingUserId) {
       throw new UnauthorizedError(
-        "You are not authorized to approve this swap request."
+        'You are not authorized to approve this swap request.'
       );
     }
 
@@ -499,13 +499,13 @@ export async function approveOrRejectChoreSwap(
   const transformedChore = transformChoreToChoreWithAssignees(result);
 
   if (approved) {
-    getIO().to(`household_${householdId}`).emit("chore_swap_approved", {
+    getIO().to(`household_${householdId}`).emit('chore_swap_approved', {
       choreId,
       chore: transformedChore,
       swapRequestId,
     });
   } else {
-    getIO().to(`household_${householdId}`).emit("chore_swap_rejected", {
+    getIO().to(`household_${householdId}`).emit('chore_swap_rejected', {
       choreId,
       swapRequestId,
     });

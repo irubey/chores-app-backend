@@ -7,24 +7,24 @@ import {
   CreateReminderDTO,
   UpdateReminderDTO,
   CalendarEventHistory,
-} from "@shared/types";
+} from '@shared/types';
 import {
   EventCategory,
   EventStatus,
   EventReminderType,
   CalendarEventAction,
-} from "@shared/enums";
+} from '@shared/enums';
 import {
   PrismaEventWithFullRelations,
   PrismaEventReminderWithRelations,
   PrismaEventBase,
   PrismaEventUpdateInput,
-} from "./transformerPrismaTypes";
-import { transformChoreToChoreWithAssignees } from "./choreTransformer";
-import { transformUser } from "./userTransformer";
-import { transformHousehold } from "./householdTransformer";
-import { transformPollWithDetails } from "./messageTransformer/poll";
-import { transformRecurrenceRule } from "./recurrenceRuleTransformer";
+} from './transformerPrismaTypes';
+import { transformChoreToChoreWithAssignees } from './choreTransformer';
+import { transformUser } from './userTransformer';
+import { transformHousehold } from './householdTransformer';
+import { transformPollWithDetails } from './messageTransformer/poll';
+import { transformRecurrenceRule } from './recurrenceRuleTransformer';
 
 function isValidEventCategory(category: string): category is EventCategory {
   return Object.values(EventCategory).includes(category as EventCategory);
@@ -52,7 +52,7 @@ export function transformEventReminder(
 }
 
 export function transformCalendarEventHistory(
-  history: PrismaEventWithFullRelations["history"][0]
+  history: PrismaEventWithFullRelations['history'][0]
 ): CalendarEventHistory {
   return {
     id: history.id,
@@ -110,7 +110,7 @@ export function transformEventWithDetails(
 
 export function transformCreateEventDTO(
   dto: CreateEventDTO
-): Omit<PrismaEventBase, "id" | "createdAt" | "updatedAt" | "deletedAt"> {
+): Omit<PrismaEventBase, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'> {
   return {
     householdId: dto.householdId,
     title: dto.title,

@@ -1,18 +1,18 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { PrismaClient, HouseholdRole } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
+import { HouseholdRole } from '@shared/enums';
+import logger from '../utils/logger';
 
 const prisma = new PrismaClient();
 
-type PermissionLevel = 'READ' | 'WRITE' | 'ADMIN';
-
 /**
- * Role-Based Access Control Middleware with finer-grained permission controls
- * 
- * @param requiredPermission - The minimum permission level required for the action
+ * Role-Based Access Control Middleware
+ *
+ * @param allowedRoles - Array of roles that are allowed to access the route
  * @returns Middleware function
  */
-export function rbacMiddleware(requiredPermission: PermissionLevel): RequestHandler {
+export function rbacMiddleware(allowedRoles: HouseholdRole[]): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
     const authReq = req as AuthenticatedRequest;
     const user = authReq.user;
@@ -37,35 +37,32 @@ export function rbacMiddleware(requiredPermission: PermissionLevel): RequestHand
       });
 
       if (!householdMember) {
-        return res.status(403).json({ message: 'You are not a member of this household.' });
+        return res
+          .status(403)
+          .json({ message: 'You are not a member of this household.' });
       }
 
-      const permissionLevel = getPermissionLevel(householdMember.role);
-
-      if (hasRequiredPermission(permissionLevel, requiredPermission)) {
+      if (allowedRoles.includes(householdMember.role as HouseholdRole)) {
         return next();
       }
 
-      return res.status(403).json({ message: 'Access denied.' });
+      logger.warn('Access denied', {
+        userId: user.id,
+        householdId,
+        userRole: householdMember.role,
+        requiredRoles: allowedRoles,
+      });
+
+      return res.status(403).json({
+        message: `Access denied. Required roles: ${allowedRoles.join(', ')}`,
+      });
     } catch (error) {
-      console.error('RBAC Middleware Error:', error);
+      logger.error('RBAC Middleware Error:', {
+        userId: user.id,
+        householdId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       return res.status(500).json({ message: 'Internal server error.' });
     }
   };
-}
-
-function getPermissionLevel(role: HouseholdRole): PermissionLevel {
-  switch (role) {
-    case HouseholdRole.ADMIN:
-      return 'ADMIN';
-    case HouseholdRole.MEMBER:
-      return 'WRITE';
-    default:
-      return 'READ';
-  }
-}
-
-function hasRequiredPermission(userPermission: PermissionLevel, requiredPermission: PermissionLevel): boolean {
-  const permissionHierarchy: PermissionLevel[] = ['READ', 'WRITE', 'ADMIN'];
-  return permissionHierarchy.indexOf(userPermission) >= permissionHierarchy.indexOf(requiredPermission);
 }

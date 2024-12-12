@@ -1,10 +1,31 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from '@prisma/client';
+import { HouseholdRole } from '@shared/enums';
 
 // Base types without relations
-export type PrismaUserBase = Prisma.UserGetPayload<{}>;
+export type PrismaUserBase = {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  profileImageURL: string | null;
+  activeHouseholdId: string | null;
+};
+
 export type PrismaMessageBase = Prisma.MessageGetPayload<{}>;
 export type PrismaThreadBase = Prisma.ThreadGetPayload<{}>;
-export type PrismaHouseholdBase = Prisma.HouseholdGetPayload<{}>;
+export type PrismaHouseholdBase = {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  currency: string;
+  icon: string | null;
+  timezone: string;
+  language: string;
+};
 export type PrismaChoreBase = Prisma.ChoreGetPayload<{}>;
 export type PrismaExpenseBase = Prisma.ExpenseGetPayload<{}>;
 export type PrismaEventBase = Prisma.EventGetPayload<{}>;
@@ -16,35 +37,30 @@ export type PrismaPollOptionBase = Prisma.PollOptionGetPayload<{}>;
 export type PrismaPollVoteBase = Prisma.PollVoteGetPayload<{}>;
 
 // User related types
-export type PrismaUserWithFullRelations = Prisma.UserGetPayload<{
-  include: {
-    households: {
-      include: {
-        household: true;
-      };
-    };
-    messages: true;
-    threads: true;
-    assignedChores: true;
-    expensesPaid: true;
-    expenseSplits: true;
-    transactionsFrom: true;
-    transactionsTo: true;
-    notifications: true;
-    oauthIntegrations: true;
-    eventsCreated: true;
-    choreSwapRequestsInitiated: true;
-    choreSwapRequestsReceived: true;
-    reactions: true;
-    mentions: true;
-    choreHistory: true;
-    notificationSettings: true;
-    calendarEventHistory: true;
-    expenseHistory: true;
-    messageReads: true;
-    refreshTokens: true;
-  };
-}>;
+export type PrismaUserWithFullRelations = PrismaUserBase & {
+  activeHousehold?: Prisma.HouseholdGetPayload<{}> | null;
+  households?: Prisma.HouseholdMemberGetPayload<{}>[];
+  messages: Prisma.MessageGetPayload<{}>[];
+  threads: Prisma.ThreadGetPayload<{}>[];
+  assignedChores: Prisma.ChoreGetPayload<{}>[];
+  expensesPaid: Prisma.ExpenseGetPayload<{}>[];
+  expenseSplits: Prisma.ExpenseSplitGetPayload<{}>[];
+  transactionsFrom: Prisma.TransactionGetPayload<{}>[];
+  transactionsTo: Prisma.TransactionGetPayload<{}>[];
+  notifications: Prisma.NotificationGetPayload<{}>[];
+  oauthIntegrations: Prisma.OAuthIntegrationGetPayload<{}>[];
+  eventsCreated: Prisma.EventGetPayload<{}>[];
+  choreSwapRequestsInitiated: Prisma.ChoreSwapRequestGetPayload<{}>[];
+  choreSwapRequestsReceived: Prisma.ChoreSwapRequestGetPayload<{}>[];
+  reactions: Prisma.ReactionGetPayload<{}>[];
+  mentions: Prisma.MentionGetPayload<{}>[];
+  choreHistory: Prisma.ChoreHistoryGetPayload<{}>[];
+  notificationSettings: Prisma.NotificationSettingsGetPayload<{}>[];
+  calendarEventHistory: Prisma.EventGetPayload<{}>[];
+  expenseHistory: Prisma.ExpenseHistoryGetPayload<{}>[];
+  messageReads: Prisma.MessageReadGetPayload<{}>[];
+  refreshTokens: Prisma.RefreshTokenGetPayload<{}>[];
+};
 
 // Define the select type for minimal user
 export const userMinimalSelect = {
@@ -55,31 +71,22 @@ export const userMinimalSelect = {
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
+  activeHouseholdId: true,
 } as const;
 
 // Define the type using the select
-export type PrismaUserMinimal = Prisma.UserGetPayload<{
-  select: typeof userMinimalSelect;
-}>;
+export type PrismaUserMinimal = PrismaUserBase;
 
 // Household related types
-export type PrismaHouseholdWithFullRelations = Prisma.HouseholdGetPayload<{
-  include: {
-    members: {
-      include: {
-        user: {
-          select: typeof userMinimalSelect;
-        };
-      };
-    };
-    threads: true;
-    chores: true;
-    expenses: true;
-    events: true;
-    choreTemplates: true;
-    notificationSettings: true;
-  };
-}>;
+export type PrismaHouseholdWithFullRelations = PrismaHouseholdBase & {
+  members: PrismaMemberInput[];
+  threads: Prisma.ThreadGetPayload<{}>[];
+  chores: Prisma.ChoreGetPayload<{}>[];
+  expenses: Prisma.ExpenseGetPayload<{}>[];
+  events: Prisma.EventGetPayload<{}>[];
+  choreTemplates: Prisma.ChoreTemplateGetPayload<{}>[];
+  notificationSettings: Prisma.NotificationSettingsGetPayload<{}>[];
+};
 
 export type PrismaHouseholdMinimal = Prisma.HouseholdGetPayload<{
   select: {
@@ -276,21 +283,21 @@ export type PrismaNotificationSettingsWithFullRelations =
   }>;
 
 // Utility types for flexible composition
-export type WithCustomUser<T, U = PrismaUserMinimal> = Omit<T, "user"> & {
+export type WithCustomUser<T, U = PrismaUserMinimal> = Omit<T, 'user'> & {
   user: U;
 };
 
-export type WithCustomUsers<T, U = PrismaUserMinimal> = Omit<T, "users"> & {
+export type WithCustomUsers<T, U = PrismaUserMinimal> = Omit<T, 'users'> & {
   users: U[];
 };
 
-export type WithCustomEvent<T, U = PrismaEventMinimal> = Omit<T, "event"> & {
+export type WithCustomEvent<T, U = PrismaEventMinimal> = Omit<T, 'event'> & {
   event: U;
 };
 
 export type WithCustomParticipants<T, U = PrismaUserMinimal> = Omit<
   T,
-  "participants"
+  'participants'
 > & {
   participants: {
     user: U;
@@ -529,14 +536,14 @@ export type PrismaMessageMinimal = Prisma.MessageGetPayload<{
 
 export type WithCustomHousehold<T, U = PrismaHouseholdMinimal> = Omit<
   T,
-  "household"
+  'household'
 > & {
   household: U;
 };
 
 export type WithCustomMessage<T, U = PrismaMessageMinimal> = Omit<
   T,
-  "message"
+  'message'
 > & {
   message: U;
 };
@@ -895,3 +902,27 @@ export type PrismaPollWithFullRelations = Prisma.PollGetPayload<{
     };
   };
 }>;
+
+// Member related types
+export type PrismaMemberInput = {
+  id: string;
+  userId: string;
+  householdId: string;
+  role: string;
+  joinedAt: Date;
+  leftAt: Date | null;
+  isInvited: boolean;
+  isAccepted: boolean;
+  isRejected: boolean;
+  nickname: string | null;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    profileImageURL: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt: Date | null;
+    activeHouseholdId: string | null;
+  };
+};

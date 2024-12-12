@@ -1,6 +1,6 @@
-import axios from "axios";
-import prisma from "../config/database";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import axios from 'axios';
+import prisma from '../config/database';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
 
 /**
  * Syncs the household calendar with a user's personal calendar (e.g., Google Calendar).
@@ -22,7 +22,7 @@ export async function syncWithPersonalCalendar(
   });
 
   if (!membership) {
-    throw new UnauthorizedError("You do not have access to this household.");
+    throw new UnauthorizedError('You do not have access to this household.');
   }
 
   // Fetch household events
@@ -36,11 +36,11 @@ export async function syncWithPersonalCalendar(
     description: event.description,
     start: {
       dateTime: event.startTime.toISOString(),
-      timeZone: "UTC", // Adjust as necessary
+      timeZone: 'UTC', // Adjust as necessary
     },
     end: {
       dateTime: event.endTime.toISOString(),
-      timeZone: "UTC", // Adjust as necessary
+      timeZone: 'UTC', // Adjust as necessary
     },
     // Additional fields as needed
   }));
@@ -48,14 +48,14 @@ export async function syncWithPersonalCalendar(
   try {
     // Example with Google Calendar API
     const response = await axios.post(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
       {
         items: calendarEvents,
       },
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       }
     );
@@ -63,7 +63,7 @@ export async function syncWithPersonalCalendar(
     // Handle response as needed
     return response.data;
   } catch (error) {
-    console.error("Error syncing with personal calendar:", error);
-    throw new Error("Failed to sync with personal calendar.");
+    console.error('Error syncing with personal calendar:', error);
+    throw new Error('Failed to sync with personal calendar.');
   }
 }

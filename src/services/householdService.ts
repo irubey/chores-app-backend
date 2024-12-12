@@ -1,4 +1,4 @@
-import prisma from "../config/database";
+import prisma from '../config/database';
 import {
   CreateHouseholdDTO,
   UpdateHouseholdDTO,
@@ -6,34 +6,82 @@ import {
   Household,
   HouseholdWithMembers,
   HouseholdMemberWithUser,
-} from "@shared/types";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
-import { NotFoundError, BadRequestError } from "../middlewares/errorHandler";
-import { HouseholdRole } from "@shared/enums";
-import { verifyMembership } from "./authService";
+} from '@shared/types';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
+import { NotFoundError, BadRequestError } from '../middlewares/errorHandler';
+import { HouseholdRole } from '@shared/enums';
+import { verifyMembership } from './authService';
 import {
   transformHousehold,
-  transformHouseholdToHouseholdWithMembers,
+  transformHouseholdWithMembers,
   transformHouseholdMember,
-} from "../utils/transformers/householdTransformer";
-import logger from "../utils/logger";
+} from '../utils/transformers/householdTransformer';
+import logger from '../utils/logger';
 import {
   PrismaHouseholdBase,
   PrismaHouseholdWithFullRelations,
   PrismaUserMinimal,
-} from "../utils/transformers/transformerPrismaTypes";
-import { getIO } from "../sockets";
+  PrismaMemberInput,
+} from '../utils/transformers/transformerPrismaTypes';
+import { getIO } from '../sockets';
 import {
   wrapResponse,
   handleServiceError,
   emitHouseholdEvent,
   emitUserEvent,
-} from "../utils/servicesUtils";
+} from '../utils/servicesUtils';
 import {
   sendEmail,
   generateInvitationEmailTemplate,
   generateInviteToken,
-} from "../utils/emailUtils";
+} from '../utils/emailUtils';
+
+const userSelect = {
+  id: true,
+  email: true,
+  name: true,
+  profileImageURL: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  activeHouseholdId: true,
+} as const;
+
+const householdInclude = {
+  members: {
+    include: {
+      user: {
+        select: userSelect,
+      },
+    },
+  },
+  threads: true,
+  chores: true,
+  expenses: true,
+  events: true,
+  choreTemplates: true,
+  notificationSettings: true,
+} as const;
+
+// Socket event names
+const SOCKET_EVENTS = {
+  HOUSEHOLD_UPDATE: 'household_update',
+  HOUSEHOLD_DELETED: 'household_deleted',
+  MEMBER_REMOVED: 'member_removed',
+  INVITATION_ACCEPTED: 'invitation_accepted',
+  INVITATION_REJECTED: 'invitation_rejected',
+  HOUSEHOLD_INVITATION: 'household_invitation',
+} as const;
+
+// Error messages
+const ERROR_MESSAGES = {
+  HOUSEHOLD_NOT_FOUND: 'Household not found',
+  MEMBER_NOT_FOUND: 'Member not found',
+  USER_NOT_FOUND: 'User not found',
+  INVITER_NOT_FOUND: 'Inviting user not found',
+  ALREADY_MEMBER: 'User is already a member of this household',
+  INVALID_INVITATION: 'Invalid invitation status',
+} as const;
 
 /**
  * Creates a new household and adds the creator as an ADMIN member.
@@ -45,7 +93,7 @@ export async function createHousehold(
   data: CreateHouseholdDTO,
   userId: string
 ): Promise<ApiResponse<HouseholdWithMembers>> {
-  logger.debug("Creating new household", { data, userId });
+  logger.debug('Creating new household', { data, userId });
 
   try {
     const household = await prisma.household.create({
@@ -61,38 +109,31 @@ export async function createHousehold(
             isInvited: false,
             isAccepted: true,
             isRejected: false,
-            isSelected: true,
             joinedAt: new Date(),
           },
         },
       },
-      include: {
-        members: {
-          include: {
-            user: true,
-          },
-        },
-        threads: true,
-        chores: true,
-        expenses: true,
-        events: true,
-        choreTemplates: true,
-        notificationSettings: true,
-      },
+      include: householdInclude,
     });
 
-    logger.info("Successfully created household", {
+    // Set this as the user's active household
+    await prisma.user.update({
+      where: { id: userId },
+      data: { activeHouseholdId: household.id },
+    });
+
+    logger.info('Successfully created household', {
       householdId: household.id,
       userId,
     });
 
     return wrapResponse(
-      transformHouseholdToHouseholdWithMembers(
+      transformHouseholdWithMembers(
         household as PrismaHouseholdWithFullRelations
       )
     );
   } catch (error) {
-    return handleServiceError(error, "create household") as never;
+    return handleServiceError(error, 'create household') as never;
   }
 }
 
@@ -105,7 +146,7 @@ export async function getMembers(
   householdId: string,
   userId: string
 ): Promise<ApiResponse<HouseholdMemberWithUser[]>> {
-  logger.debug("Getting household members", { householdId, userId });
+  logger.debug('Getting household members', { householdId, userId });
 
   try {
     await verifyMembership(householdId, userId, [
@@ -117,27 +158,23 @@ export async function getMembers(
       where: { householdId },
       include: {
         user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
+          select: userSelect,
         },
       },
     });
 
-    logger.info("Successfully retrieved household members", {
+    logger.info('Successfully retrieved household members', {
       householdId,
       memberCount: members.length,
     });
 
-    return wrapResponse(members.map(transformHouseholdMember));
+    return wrapResponse(
+      members.map((member) =>
+        transformHouseholdMember(member as PrismaMemberInput)
+      )
+    );
   } catch (error) {
-    return handleServiceError(error, "get household members") as never;
+    return handleServiceError(error, 'get household members') as never;
   }
 }
 
@@ -153,8 +190,8 @@ export async function getHouseholdById(
   householdId: string,
   userId: string,
   includeMembers: boolean = false
-): Promise<ApiResponse<Household | HouseholdWithMembers>> {
-  logger.debug("Getting household by ID", {
+): Promise<ApiResponse<HouseholdWithMembers>> {
+  logger.debug('Getting household by ID', {
     householdId,
     userId,
     includeMembers,
@@ -163,24 +200,12 @@ export async function getHouseholdById(
   try {
     const household = await prisma.household.findUnique({
       where: { id: householdId },
-      include: {
-        members: {
-          include: {
-            user: true,
-          },
-        },
-        threads: true,
-        chores: true,
-        expenses: true,
-        events: true,
-        choreTemplates: true,
-        notificationSettings: true,
-      },
+      include: householdInclude,
     });
 
     if (!household) {
-      logger.warn("Household not found", { householdId });
-      throw new NotFoundError("Household not found");
+      logger.warn('Household not found', { householdId });
+      throw new NotFoundError('Household not found');
     }
 
     await verifyMembership(householdId, userId, [
@@ -188,14 +213,14 @@ export async function getHouseholdById(
       HouseholdRole.MEMBER,
     ]);
 
-    logger.info("Successfully retrieved household", { householdId, userId });
+    logger.info('Successfully retrieved household', { householdId, userId });
     return wrapResponse(
-      transformHouseholdToHouseholdWithMembers(
+      transformHouseholdWithMembers(
         household as PrismaHouseholdWithFullRelations
       )
     );
   } catch (error) {
-    return handleServiceError(error, "get household by ID") as never;
+    return handleServiceError(error, 'get household by ID') as never;
   }
 }
 
@@ -212,8 +237,8 @@ export async function updateHousehold(
   householdId: string,
   data: UpdateHouseholdDTO,
   userId: string
-): Promise<ApiResponse<Household>> {
-  logger.debug("Updating household", { householdId, data, userId });
+): Promise<ApiResponse<HouseholdWithMembers>> {
+  logger.debug('Updating household', { householdId, data, userId });
 
   try {
     await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
@@ -226,37 +251,25 @@ export async function updateHousehold(
         timezone: data.timezone,
         language: data.language,
       },
-      include: {
-        members: {
-          include: {
-            user: true,
-          },
-        },
-        threads: true,
-        chores: true,
-        expenses: true,
-        events: true,
-        choreTemplates: true,
-        notificationSettings: true,
-      },
+      include: householdInclude,
     });
 
-    const transformedHousehold = transformHouseholdToHouseholdWithMembers(
+    const transformedHousehold = transformHouseholdWithMembers(
       household as PrismaHouseholdWithFullRelations
     );
 
-    logger.info("Successfully updated household", {
+    logger.info('Successfully updated household', {
       householdId,
       userId,
     });
 
-    emitHouseholdEvent("household_update", householdId, {
+    emitHouseholdEvent(SOCKET_EVENTS.HOUSEHOLD_UPDATE, householdId, {
       household: transformedHousehold,
     });
 
     return wrapResponse(transformedHousehold);
   } catch (error) {
-    return handleServiceError(error, "update household") as never;
+    return handleServiceError(error, 'update household') as never;
   }
 }
 
@@ -271,40 +284,34 @@ export async function deleteHousehold(
   householdId: string,
   userId: string
 ): Promise<ApiResponse<void>> {
-  logger.debug("Deleting household", { householdId, userId });
+  logger.debug('Deleting household', { householdId, userId });
 
   try {
     await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
-    const household = await prisma.household.delete({
-      where: { id: householdId },
-      include: {
-        members: {
-          include: {
-            user: true,
-          },
-        },
-        threads: true,
-        chores: true,
-        expenses: true,
-        events: true,
-        choreTemplates: true,
-        notificationSettings: true,
-      },
+    // Clear activeHouseholdId for all users who had this as their active household
+    await prisma.user.updateMany({
+      where: { activeHouseholdId: householdId },
+      data: { activeHouseholdId: null },
     });
 
-    logger.info("Successfully deleted household", { householdId, userId });
+    const household = await prisma.household.delete({
+      where: { id: householdId },
+      include: householdInclude,
+    });
 
-    const transformedHousehold = transformHouseholdToHouseholdWithMembers(
+    logger.info('Successfully deleted household', { householdId, userId });
+
+    const transformedHousehold = transformHouseholdWithMembers(
       household as PrismaHouseholdWithFullRelations
     );
-    emitHouseholdEvent("household_deleted", householdId, {
+    emitHouseholdEvent('household_deleted', householdId, {
       household: transformedHousehold,
     });
 
     return wrapResponse(undefined);
   } catch (error) {
-    return handleServiceError(error, "delete household") as never;
+    return handleServiceError(error, 'delete household') as never;
   }
 }
 
@@ -316,7 +323,7 @@ export async function addMember(
   data: AddMemberDTO,
   requestingUserId: string
 ): Promise<ApiResponse<HouseholdMemberWithUser>> {
-  logger.debug("Adding member to household", {
+  logger.debug('Adding member to household', {
     householdId,
     email: data.email,
     requestingUserId,
@@ -327,25 +334,17 @@ export async function addMember(
       HouseholdRole.ADMIN,
     ]);
 
-    const user = (await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: data.email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        profileImageURL: true,
-        createdAt: true,
-        updatedAt: true,
-        deletedAt: true,
-      },
-    })) as PrismaUserMinimal;
+      select: userSelect,
+    });
 
     if (!user) {
-      logger.warn("User not found when adding member", {
+      logger.warn('User not found when adding member', {
         email: data.email,
         householdId,
       });
-      throw new NotFoundError("User not found");
+      throw new NotFoundError('User not found');
     }
 
     const existingMember = await prisma.householdMember.findUnique({
@@ -358,11 +357,11 @@ export async function addMember(
     });
 
     if (existingMember) {
-      logger.warn("User is already a member", {
+      logger.warn('User is already a member', {
         userId: user.id,
         householdId,
       });
-      throw new BadRequestError("User is already a member of this household");
+      throw new BadRequestError('User is already a member of this household');
     }
 
     const member = await prisma.householdMember.create({
@@ -373,38 +372,31 @@ export async function addMember(
         isInvited: true,
         isAccepted: false,
         isRejected: false,
-        isSelected: false,
         joinedAt: new Date(),
       },
       include: {
         user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
+          select: userSelect,
         },
       },
     });
 
-    logger.info("Successfully added member to household", {
+    logger.info('Successfully added member to household', {
       householdId,
       newUserId: user.id,
       requestingUserId,
     });
 
-    const transformedMember = transformHouseholdMember(member);
-    emitUserEvent("household_invitation", user.id, {
+    const transformedMember = transformHouseholdMember(
+      member as PrismaMemberInput
+    );
+    emitUserEvent('household_invitation', user.id, {
       member: transformedMember,
     });
 
     return wrapResponse(transformedMember);
   } catch (error) {
-    return handleServiceError(error, "add member to household") as never;
+    return handleServiceError(error, 'add member to household') as never;
   }
 }
 
@@ -416,7 +408,7 @@ export async function removeMember(
   memberId: string,
   requestingUserId: string
 ): Promise<ApiResponse<void>> {
-  logger.debug("Removing member from household", {
+  logger.debug('Removing member from household', {
     householdId,
     memberId,
     requestingUserId,
@@ -431,22 +423,28 @@ export async function removeMember(
       where: { id: memberId },
       include: {
         user: {
-          select: {
-            id: true,
-          },
+          select: userSelect,
         },
       },
     });
 
     if (!member) {
-      throw new NotFoundError("Member not found");
+      throw new NotFoundError(ERROR_MESSAGES.MEMBER_NOT_FOUND);
+    }
+
+    // If this was the user's active household, clear it
+    if (member.user?.activeHouseholdId === householdId) {
+      await prisma.user.update({
+        where: { id: member.user.id },
+        data: { activeHouseholdId: null },
+      });
     }
 
     await prisma.householdMember.delete({
       where: { id: memberId },
     });
 
-    logger.info("Successfully removed member from household", {
+    logger.info('Successfully removed member from household', {
       householdId,
       memberId,
       requestingUserId,
@@ -454,29 +452,23 @@ export async function removeMember(
 
     getIO()
       .to(`household_${householdId}`)
-      .emit("member_removed", { userId: member.user?.id });
+      .emit(SOCKET_EVENTS.MEMBER_REMOVED, { userId: member.user?.id });
 
     return wrapResponse(undefined);
   } catch (error) {
-    return handleServiceError(error, "remove member from household") as never;
+    return handleServiceError(error, 'remove member from household') as never;
   }
 }
 
 /**
  * Updates the status of a household member (e.g., accept/reject invitation).
- * @param householdId - The ID of the household.
- * @param userId - The ID of the user whose status is being updated.
- * @param status - Whether to accept (true) or reject (false) the invitation.
- * @returns The updated household member.
- * @throws NotFoundError if the member does not exist.
- * @throws BadRequestError if the invitation status is invalid.
  */
 export async function acceptOrRejectInvitation(
   householdId: string,
   userId: string,
   accept: boolean
 ): Promise<ApiResponse<HouseholdMemberWithUser>> {
-  logger.debug("Processing invitation response", {
+  logger.debug('Processing invitation response', {
     householdId,
     userId,
     accept,
@@ -492,29 +484,21 @@ export async function acceptOrRejectInvitation(
       },
       include: {
         user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
+          select: userSelect,
         },
       },
     });
 
     if (!member) {
-      logger.warn("Member not found for invitation response", {
+      logger.warn('Member not found for invitation response', {
         householdId,
         userId,
       });
-      throw new NotFoundError("Member not found in the household");
+      throw new NotFoundError('Member not found in the household');
     }
 
     if (!member.isInvited || member.isAccepted || member.isRejected) {
-      logger.warn("Invalid invitation status", {
+      logger.warn('Invalid invitation status', {
         householdId,
         userId,
         currentStatus: {
@@ -523,7 +507,7 @@ export async function acceptOrRejectInvitation(
           isRejected: member.isRejected,
         },
       });
-      throw new BadRequestError("Invalid invitation status");
+      throw new BadRequestError('Invalid invitation status');
     }
 
     const updatedMember = await prisma.householdMember.update({
@@ -539,690 +523,107 @@ export async function acceptOrRejectInvitation(
         isRejected: !accept,
         joinedAt: accept ? new Date() : member.joinedAt,
         leftAt: !accept ? new Date() : null,
-        isSelected: accept,
         role: accept ? HouseholdRole.MEMBER : member.role,
       },
       include: {
         user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
+          select: userSelect,
         },
         household: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    profileImageURL: true,
-                    createdAt: true,
-                    updatedAt: true,
-                    deletedAt: true,
-                  },
-                },
-              },
-            },
-            notificationSettings: true,
-            threads: true,
-            chores: true,
-            expenses: true,
-            choreTemplates: true,
-            events: true,
-          },
+          include: householdInclude,
         },
       },
     });
 
-    logger.info("Successfully processed invitation response", {
+    // If accepted, set as active household if user doesn't have one
+    if (accept) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { activeHouseholdId: true },
+      });
+
+      if (!user?.activeHouseholdId) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { activeHouseholdId: householdId },
+        });
+      }
+    }
+
+    logger.info('Successfully processed invitation response', {
       householdId,
       userId,
       accepted: accept,
     });
 
     const transformedMember = {
-      ...transformHouseholdMember(updatedMember),
+      ...transformHouseholdMember(updatedMember as PrismaMemberInput),
       household: updatedMember.household
-        ? transformHouseholdToHouseholdWithMembers(updatedMember.household)
+        ? transformHouseholdWithMembers(
+            updatedMember.household as PrismaHouseholdWithFullRelations
+        )
         : undefined,
     };
 
-    const eventName = accept ? "invitation_accepted" : "invitation_rejected";
+    const eventName = accept ? 'invitation_accepted' : 'invitation_rejected';
     getIO()
       .to(`household_${householdId}`)
       .emit(eventName, { member: transformedMember });
 
     return wrapResponse(transformedMember);
   } catch (error) {
-    return handleServiceError(error, "process invitation response") as never;
+    return handleServiceError(error, 'process invitation response') as never;
   }
 }
 
 /**
- * Gets all households selected by the authenticated user.
+ * Retrieves all households for a user.
  */
-export async function getSelectedHouseholds(
+export async function getHouseholdsByUserId(
   userId: string
-): Promise<ApiResponse<HouseholdMemberWithUser[]>> {
-  try {
-    logger.debug("Finding selected households", { userId });
+): Promise<ApiResponse<HouseholdWithMembers[]>> {
+  logger.debug('Getting households for user', { userId });
 
+  try {
     const members = await prisma.householdMember.findMany({
       where: {
         userId,
-        isSelected: true,
         isAccepted: true,
         isRejected: false,
-        leftAt: null,
-        household: {
-          deletedAt: null,
-        },
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
-        },
         household: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    profileImageURL: true,
-                    createdAt: true,
-                    updatedAt: true,
-                    deletedAt: true,
-                  },
-                },
-              },
-            },
-          },
+          include: householdInclude,
         },
       },
     });
 
-    logger.info("Found selected households", {
+    logger.info('Successfully retrieved user\'s households', {
       userId,
       count: members.length,
     });
 
-    return wrapResponse(members.map(transformHouseholdMember));
-  } catch (error) {
-    return handleServiceError(error, "find selected households") as never;
-  }
-}
-
-/**
- * Updates the isSelected status of a household member.
- * @param householdId - The ID of the household.
- * @param memberId - The ID of the member.
- * @param isSelected - The new selection status.
- * @returns The updated household member.
- */
-export async function updateHouseholdMemberSelection(
-  householdId: string,
-  userId: string,
-  isSelected: boolean
-): Promise<ApiResponse<HouseholdMemberWithUser>> {
-  logger.debug("Updating household member selection", {
-    householdId,
-    userId,
-    isSelected,
-  });
-
-  try {
-    const member = await prisma.householdMember.findUnique({
-      where: {
-        userId_householdId: {
-          householdId,
-          userId,
-        },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
-        },
-      },
-    });
-
-    if (!member) {
-      logger.warn("Member not found when updating selection", {
-        householdId,
-        userId,
-      });
-      throw new NotFoundError("Member not found in the household");
-    }
-
-    const updatedMember = await prisma.householdMember.update({
-      where: {
-        userId_householdId: {
-          householdId,
-          userId,
-        },
-      },
-      data: {
-        isSelected,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
-        },
-      },
-    });
-
-    logger.info("Successfully updated member selection", {
-      householdId,
-      userId,
-      isSelected,
-    });
-
-    const transformedMember = transformHouseholdMember(updatedMember);
-    getIO()
-      .to(`household_${householdId}`)
-      .emit("member_selection_updated", { member: transformedMember });
-
-    return wrapResponse(transformedMember);
-  } catch (error) {
-    return handleServiceError(error, "update member selection") as never;
-  }
-}
-
-/**
- * Gets all households for a user.
- */
-export async function getUserHouseholds(
-  userId: string
-): Promise<ApiResponse<HouseholdWithMembers[]>> {
-  logger.debug("Getting user households", { userId });
-
-  try {
-    const households = await prisma.household.findMany({
-      where: {
-        members: {
-          some: {
-            userId,
-            leftAt: null,
-            isAccepted: true,
-          },
-        },
-      },
-      include: {
-        members: {
-          include: {
-            user: true,
-          },
-        },
-        threads: true,
-        chores: true,
-        expenses: true,
-        events: true,
-        choreTemplates: true,
-        notificationSettings: true,
-      },
-    });
-
-    logger.info("Successfully retrieved user households", {
-      userId,
-      count: households.length,
-    });
-
-    return {
-      data: households.map((h) =>
-        transformHouseholdToHouseholdWithMembers(
-          h as PrismaHouseholdWithFullRelations
-        )
-      ),
-    };
-  } catch (error) {
-    return handleServiceError(error, "get user households") as never;
-  }
-}
-
-/**
- * Sends an invitation to a user to join a household.
- * @param householdId - The ID of the household.
- * @param data - The data of the user to invite.
- * @param requestingUserId - The ID of the user sending the invitation.
- * @returns The invitation details.
- */
-export async function sendInvitation(
-  householdId: string,
-  data: AddMemberDTO,
-  requestingUserId: string
-): Promise<ApiResponse<HouseholdMemberWithUser | { pending: true }>> {
-  logger.debug("Sending household invitation", {
-    householdId,
-    email: data.email,
-    requestingUserId,
-  });
-
-  try {
-    await verifyMembership(householdId, requestingUserId, [
-      HouseholdRole.ADMIN,
-    ]);
-
-    // Get the household details for the email
-    const household = await prisma.household.findUnique({
-      where: { id: householdId },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                profileImageURL: true,
-                createdAt: true,
-                updatedAt: true,
-                deletedAt: true,
-              },
-            },
-          },
-        },
-        notificationSettings: true,
-        threads: true,
-        chores: true,
-        expenses: true,
-        choreTemplates: true,
-        events: true,
-      },
-    });
-
-    if (!household) {
-      throw new NotFoundError("Household not found");
-    }
-
-    const inviterName =
-      household.members.find((m) => m.userId === requestingUserId)?.user
-        ?.name || "Someone";
-    const inviteToken = generateInviteToken();
-
-    const user = await prisma.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (!user) {
-      // User doesn't exist, send registration invitation
-      const invitationLink = `${process.env.FRONTEND_URL}/signup?email=${data.email}&inviteToken=${inviteToken}`;
-      const emailHtml = generateInvitationEmailTemplate(
-        inviterName,
-        household.name,
-        invitationLink
-      );
-
-      const emailSent = await sendEmail({
-        to: data.email,
-        subject: `Join ${household.name} on ChoresApp`,
-        html: emailHtml,
-      });
-
-      if (!emailSent) {
-        throw new Error("Failed to send invitation email");
-      }
-
-      // Create pending invitation for unregistered user
-      const pendingMember = await prisma.householdMember.create({
-        data: {
-          householdId,
-          role: data.role || HouseholdRole.MEMBER,
-          isInvited: true,
-          isAccepted: false,
-          isRejected: false,
-          isSelected: true,
-          // Set a temporary userId that will be updated when they register
-          userId: inviteToken, // Using inviteToken as a temporary userId
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              profileImageURL: true,
-              createdAt: true,
-              updatedAt: true,
-              deletedAt: true,
-            },
-          },
-          household: {
-            include: {
-              members: {
-                include: {
-                  user: {
-                    select: {
-                      id: true,
-                      email: true,
-                      name: true,
-                      profileImageURL: true,
-                      createdAt: true,
-                      updatedAt: true,
-                      deletedAt: true,
-                    },
-                  },
-                },
-              },
-              notificationSettings: true,
-              threads: true,
-              chores: true,
-              expenses: true,
-              choreTemplates: true,
-              events: true,
-            },
-          },
-        },
-      });
-
-      logger.info("Sent registration invitation email", {
-        email: data.email,
-        householdId,
-      });
-
-      return wrapResponse({
-        ...transformHouseholdMember(pendingMember),
-        household: transformHouseholdToHouseholdWithMembers(
-          pendingMember.household
-        ),
-      });
-    }
-
-    // Check if user is already a member
-    const existingMember = await prisma.householdMember.findUnique({
-      where: {
-        userId_householdId: {
-          householdId,
-          userId: user.id,
-        },
-      },
-    });
-
-    if (existingMember) {
-      throw new BadRequestError(
-        "User is already a member or has a pending invitation"
-      );
-    }
-
-    // Create invitation for existing user
-    const newMember = await prisma.householdMember.create({
-      data: {
-        household: { connect: { id: householdId } },
-        user: { connect: { id: user.id } },
-        role: data.role || HouseholdRole.MEMBER,
-        isInvited: true,
-        isAccepted: false,
-        isRejected: false,
-        isSelected: true,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
-        },
-        household: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    profileImageURL: true,
-                    createdAt: true,
-                    updatedAt: true,
-                    deletedAt: true,
-                  },
-                },
-              },
-            },
-            notificationSettings: true,
-            threads: true,
-            chores: true,
-            expenses: true,
-            choreTemplates: true,
-            events: true,
-          },
-        },
-      },
-    });
-
-    // Send invitation email to existing user
-    const invitationLink = `${process.env.FRONTEND_URL}/households/join?token=${inviteToken}`;
-    const emailHtml = generateInvitationEmailTemplate(
-      inviterName,
-      household.name,
-      invitationLink
-    );
-
-    const emailSent = await sendEmail({
-      to: data.email,
-      subject: `You've been invited to join ${household.name}`,
-      html: emailHtml,
-    });
-
-    if (!emailSent) {
-      // Clean up the created member if email fails
-      await prisma.householdMember.delete({
-        where: { id: newMember.id },
-      });
-      throw new Error("Failed to send invitation email");
-    }
-
-    logger.info("Successfully sent household invitation", {
-      householdId,
-      userId: user.id,
-      email: data.email,
-    });
-
-    const transformedMember = {
-      ...transformHouseholdMember(newMember),
-      household: transformHouseholdToHouseholdWithMembers(newMember.household),
-    };
-    getIO()
-      .to(`user_${user.id}`)
-      .emit("household_invitation", { member: transformedMember });
-
-    return wrapResponse(transformedMember);
-  } catch (error) {
-    return handleServiceError(error, "send household invitation") as never;
-  }
-}
-
-/**
- * Updates the role of a household member.
- */
-export async function updateHouseholdMemberRole(
-  householdId: string,
-  memberId: string,
-  role: HouseholdRole,
-  requestingUserId: string
-): Promise<ApiResponse<HouseholdMemberWithUser>> {
-  logger.debug("Updating household member role", {
-    householdId,
-    memberId,
-    role,
-    requestingUserId,
-  });
-
-  try {
-    await verifyMembership(householdId, requestingUserId, [
-      HouseholdRole.ADMIN,
-    ]);
-
-    const member = await prisma.householdMember.update({
-      where: { id: memberId },
-      data: { role },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
-        },
-      },
-    });
-
-    logger.info("Successfully updated member role", {
-      householdId,
-      memberId,
-      role,
-      requestingUserId,
-    });
-
-    return wrapResponse(transformHouseholdMember(member));
-  } catch (error) {
-    return handleServiceError(error, "update member role") as never;
-  }
-}
-
-/**
- * Gets all pending invitations for the authenticated user.
- */
-export async function getInvitations(
-  userId: string
-): Promise<ApiResponse<HouseholdMemberWithUser[]>> {
-  logger.debug("Getting user invitations", { userId });
-
-  try {
-    const invitations = await prisma.householdMember.findMany({
-      where: {
-        OR: [
-          {
-            userId,
-            isInvited: true,
-            isAccepted: false,
-            isRejected: false,
-            household: {
-              deletedAt: null,
-            },
-          },
-          {
-            userId: {
-              startsWith: "invite_", // Match temporary invite tokens
-            },
-            isInvited: true,
-            isAccepted: false,
-            isRejected: false,
-            household: {
-              deletedAt: null,
-            },
-          },
-        ],
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
-        },
-        household: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    profileImageURL: true,
-                    createdAt: true,
-                    updatedAt: true,
-                    deletedAt: true,
-                  },
-                },
-              },
-            },
-            notificationSettings: true,
-            threads: true,
-            chores: true,
-            expenses: true,
-            choreTemplates: true,
-            events: true,
-          },
-        },
-      },
-    });
-
-    logger.info("Successfully retrieved user invitations", {
-      userId,
-      count: invitations.length,
-      pendingCount: invitations.filter((i) => i.userId.startsWith("invite_"))
-        .length,
-    });
-
     return wrapResponse(
-      invitations.map((invitation) => ({
-        ...transformHouseholdMember(invitation),
-        household: invitation.household
-          ? transformHouseholdToHouseholdWithMembers(invitation.household)
-          : undefined,
-      }))
+      members
+        .filter((member) => member.household)
+        .map((member) =>
+          transformHouseholdWithMembers(
+            member.household as PrismaHouseholdWithFullRelations
+          )
+        )
     );
   } catch (error) {
-    return handleServiceError(error, "get user invitations") as never;
+    return handleServiceError(error, 'get user\'s households') as never;
   }
 }
 
 /**
- * Gets all pending household invitations for a user.
+ * Retrieves all pending invitations for a user.
  */
 export async function getPendingInvitations(
   userId: string
 ): Promise<ApiResponse<HouseholdMemberWithUser[]>> {
-  logger.debug("Getting pending household invitations", { userId });
+  logger.debug('Getting pending invitations for user', { userId });
 
   try {
     const members = await prisma.householdMember.findMany({
@@ -1231,192 +632,114 @@ export async function getPendingInvitations(
         isInvited: true,
         isAccepted: false,
         isRejected: false,
-        leftAt: null,
-        household: {
-          deletedAt: null,
-        },
       },
       include: {
         user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
+          select: userSelect,
         },
         household: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    profileImageURL: true,
-                    createdAt: true,
-                    updatedAt: true,
-                    deletedAt: true,
-                  },
-                },
-              },
-            },
-            notificationSettings: true,
-            threads: true,
-            chores: true,
-            expenses: true,
-            choreTemplates: true,
-            events: true,
-          },
+          include: householdInclude,
         },
       },
     });
 
-    logger.info("Found pending invitations", {
+    logger.info('Successfully retrieved pending invitations', {
       userId,
       count: members.length,
     });
 
     return wrapResponse(
-      members.map((m) => ({
-        ...transformHouseholdMember(m),
-        household: transformHouseholdToHouseholdWithMembers(m.household),
+      members.map((member) => ({
+        ...transformHouseholdMember(member as PrismaMemberInput),
+        household: member.household
+          ? transformHouseholdWithMembers(
+              member.household as PrismaHouseholdWithFullRelations
+          )
+          : undefined,
       }))
     );
   } catch (error) {
-    return handleServiceError(error, "get pending invitations") as never;
+    return handleServiceError(error, 'get pending invitations') as never;
   }
 }
 
 /**
- * Handles a member leaving a household.
- * @param householdId - The ID of the household
- * @param memberId - The ID of the member leaving
- * @param requestingUserId - The ID of the user making the request
- * @returns void
- * @throws UnauthorizedError if the user doesn't have permission
- * @throws NotFoundError if the member or household is not found
+ * Sends an invitation email to a user.
  */
-export async function leaveHousehold(
+export async function sendInvitationEmail(
   householdId: string,
-  memberId: string,
+  email: string,
   requestingUserId: string
-): Promise<ApiResponse<HouseholdMemberWithUser>> {
-  logger.debug("Processing household leave request", {
+): Promise<ApiResponse<void>> {
+  logger.debug('Sending invitation email', {
     householdId,
-    memberId,
+    email,
     requestingUserId,
   });
 
   try {
-    // Get the member with their role
-    const member = await prisma.householdMember.findUnique({
-      where: { id: memberId },
+    await verifyMembership(householdId, requestingUserId, [
+      HouseholdRole.ADMIN,
+    ]);
+
+    const household = await prisma.household.findUnique({
+      where: { id: householdId },
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
+        members: {
+          where: { userId: requestingUserId },
+          include: {
+            user: {
+              select: userSelect,
+            },
           },
         },
       },
     });
 
-    if (!member) {
-      throw new NotFoundError("Member not found");
+    if (!household) {
+      throw new NotFoundError('Household not found');
     }
 
-    // Check if the requesting user is the member leaving or an admin
-    if (member.userId !== requestingUserId) {
-      // If not the member themselves, verify admin status
-      await verifyMembership(householdId, requestingUserId, [
-        HouseholdRole.ADMIN,
-      ]);
+    const inviter = household.members[0]?.user;
+    if (!inviter) {
+      throw new NotFoundError('Inviting user not found');
     }
 
-    // Check if they're the last admin
-    if (member.role === HouseholdRole.ADMIN) {
-      const adminCount = await prisma.householdMember.count({
-        where: {
-          householdId,
-          role: HouseholdRole.ADMIN,
-          leftAt: null,
-        },
-      });
+    const token = generateInviteToken();
+    const emailTemplate = generateInvitationEmailTemplate(
+      household.name,
+      inviter.name || inviter.email,
+      `${process.env.FRONTEND_URL}/invite?token=${token}`
+    );
 
-      if (adminCount === 1) {
-        throw new BadRequestError(
-          "Cannot leave household - you are the last admin. Please assign another admin first."
-        );
-      }
-    }
-
-    // Check if they're the last member
-    const memberCount = await prisma.householdMember.count({
-      where: {
-        householdId,
-        leftAt: null,
-      },
+    await sendEmail({
+      to: email,
+      subject: `Invitation to join ${household.name}`,
+      html: emailTemplate,
     });
 
-    if (memberCount === 1) {
-      // Delete the household if they're the last member
-      await prisma.household.delete({
-        where: { id: householdId },
-      });
-
-      logger.info("Household deleted - last member left", {
-        householdId,
-        memberId,
-      });
-
-      return wrapResponse(transformHouseholdMember(member));
-    }
-
-    // Update the member's status
-    const updatedMember = await prisma.householdMember.update({
-      where: { id: memberId },
-      data: {
-        leftAt: new Date(),
-        isSelected: false,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-            deletedAt: true,
-          },
-        },
-      },
-    });
-
-    logger.info("Member left household", {
+    logger.info('Successfully sent invitation email', {
       householdId,
-      memberId,
+      email,
       requestingUserId,
     });
 
-    // Emit socket event
-    getIO()
-      .to(`household_${householdId}`)
-      .emit("member_left", { member: transformHouseholdMember(updatedMember) });
-
-    return wrapResponse(transformHouseholdMember(updatedMember));
+    return wrapResponse(undefined);
   } catch (error) {
-    return handleServiceError(error, "leave household") as never;
+    return handleServiceError(error, 'send invitation email') as never;
   }
 }
+
+export default {
+  createHousehold,
+  getHouseholdById,
+  updateHousehold,
+  deleteHousehold,
+  getMembers,
+  addMember,
+  removeMember,
+  acceptOrRejectInvitation,
+  getHouseholdsByUserId,
+  getPendingInvitations,
+  sendInvitationEmail,
+};

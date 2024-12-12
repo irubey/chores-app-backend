@@ -1,13 +1,13 @@
-import { Request, Response, NextFunction } from "express";
-import rateLimit from "express-rate-limit";
-import RedisStore from "rate-limit-redis";
-import Redis from "ioredis";
-import logger from "../utils/logger";
+import { Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
+import Redis from 'ioredis';
+import logger from '../utils/logger';
 
 // Initialize Redis client
 const redisClient = new Redis({
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt((process.env.REDIS_PORT as string) || "6379", 10),
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt((process.env.REDIS_PORT as string) || '6379', 10),
   password: process.env.REDIS_PASSWORD || undefined,
 });
 
@@ -18,7 +18,7 @@ type SendCommandFn = (
 
 // Define rate limit options based on environment
 const getRateLimitOptions = () => {
-  if (process.env.NODE_ENV === "test") {
+  if (process.env.NODE_ENV === 'test') {
     return {
       windowMs: 1 * 1000, // 1 second
       max: 1000, // Much higher limit for tests
@@ -32,12 +32,12 @@ const getRateLimitOptions = () => {
           try {
             return (await redisClient.call(command, ...args)) as any;
           } catch (error) {
-            logger.error("Redis command error", { error });
+            logger.error('Redis command error', { error });
             throw error;
           }
         }) as SendCommandFn,
       }),
-      message: "Too many requests, please try again later.",
+      message: 'Too many requests, please try again later.',
     };
   }
 
@@ -55,12 +55,12 @@ const getRateLimitOptions = () => {
         try {
           return (await redisClient.call(command, ...args)) as any;
         } catch (error) {
-          logger.error("Redis command error", { error });
+          logger.error('Redis command error', { error });
           throw error;
         }
       }) as SendCommandFn,
     }),
-    message: "Too many requests, please try again later.",
+    message: 'Too many requests, please try again later.',
   };
 };
 
@@ -74,12 +74,12 @@ const rateLimitMiddleware = (
   next: NextFunction
 ) => {
   // Skip rate limiting entirely in test environment for specific endpoints
-  if (process.env.NODE_ENV === "test" && req.path.startsWith("/api/auth")) {
+  if (process.env.NODE_ENV === 'test' && req.path.startsWith('/api/auth')) {
     return next();
   }
 
   // Apply rate limiting to all routes except those starting with /public
-  if (!req.path.startsWith("/public")) {
+  if (!req.path.startsWith('/public')) {
     return limiter(req, res, next);
   }
   next();

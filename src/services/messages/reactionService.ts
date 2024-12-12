@@ -1,16 +1,16 @@
 import {
   NotFoundError,
   UnauthorizedError,
-} from "../../middlewares/errorHandler";
-import prisma from "../../config/database";
-import { ApiResponse } from "@shared/interfaces/apiResponse";
-import { HouseholdRole, MessageAction, ReactionType } from "@shared/enums";
-import { CreateReactionDTO, ReactionWithUser } from "@shared/types";
-import { getIO } from "../../sockets";
-import { verifyMembership } from "../authService";
-import { transformReactionWithUser } from "../../utils/transformers/messageTransformer";
-import { PrismaReactionWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
-import logger from "../../utils/logger";
+} from '../../middlewares/errorHandler';
+import prisma from '../../config/database';
+import { ApiResponse } from '@shared/interfaces/apiResponse';
+import { HouseholdRole, MessageAction, ReactionType } from '@shared/enums';
+import { CreateReactionDTO, ReactionWithUser } from '@shared/types';
+import { getIO } from '../../sockets';
+import { verifyMembership } from '../authService';
+import { transformReactionWithUser } from '../../utils/transformers/messageTransformer';
+import { PrismaReactionWithFullRelations } from '../../utils/transformers/transformerPrismaTypes';
+import logger from '../../utils/logger';
 
 // Helper function to wrap data in ApiResponse
 function wrapResponse<T>(data: T): ApiResponse<T> {
@@ -68,7 +68,7 @@ export async function addReaction(
       });
 
       if (!message) {
-        throw new NotFoundError("Message not found");
+        throw new NotFoundError('Message not found');
       }
 
       // Check for existing reaction from this user with same type
@@ -81,7 +81,7 @@ export async function addReaction(
       });
 
       if (existingReaction) {
-        throw new Error("User has already reacted with this reaction type");
+        throw new Error('User has already reacted with this reaction type');
       }
 
       // Create new reaction
@@ -107,7 +107,7 @@ export async function addReaction(
     const transformedReaction = transformReactionWithUser(reaction);
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit("reaction_update", {
+    getIO().to(`household_${householdId}`).emit('reaction_update', {
       action: MessageAction.REACTION_ADDED,
       messageId,
       reaction: transformedReaction,
@@ -143,16 +143,16 @@ export async function removeReaction(
       });
 
       if (!reaction) {
-        throw new NotFoundError("Reaction not found");
+        throw new NotFoundError('Reaction not found');
       }
 
       if (reaction.userId !== userId) {
-        throw new UnauthorizedError("Cannot remove another user's reaction");
+        throw new UnauthorizedError('Cannot remove another user\'s reaction');
       }
 
       if (reaction.message.thread.householdId !== householdId) {
         throw new UnauthorizedError(
-          "Reaction does not belong to this household"
+          'Reaction does not belong to this household'
         );
       }
 
@@ -168,7 +168,7 @@ export async function removeReaction(
     });
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit("reaction_update", {
+    getIO().to(`household_${householdId}`).emit('reaction_update', {
       action: MessageAction.REACTION_REMOVED,
       messageId,
       reactionId,
@@ -207,7 +207,7 @@ export async function getMessageReactions(
       },
       include: reactionInclude,
       orderBy: {
-        createdAt: "asc",
+        createdAt: 'asc',
       },
     });
 
@@ -238,7 +238,7 @@ export async function getReactionAnalytics(
     ]);
 
     const reactions = await prisma.reaction.groupBy({
-      by: ["type"],
+      by: ['type'],
       where: {
         messageId,
         message: {
@@ -295,7 +295,7 @@ export async function getReactionsByType(
       },
       include: reactionInclude,
       orderBy: {
-        createdAt: "asc",
+        createdAt: 'asc',
       },
     });
 

@@ -1,6 +1,6 @@
-import { MessageRead, MessageReadWithUser } from "@shared/types";
-import { PrismaMessageReadWithFullRelations } from "../transformerPrismaTypes";
-import { transformUser } from "../userTransformer";
+import { MessageRead, MessageReadWithUser } from '@shared/types';
+import { PrismaMessageReadWithFullRelations } from '../transformerPrismaTypes';
+import { transformUser } from '../userTransformer';
 
 export function transformMessageRead(
   read: PrismaMessageReadWithFullRelations
@@ -17,11 +17,11 @@ export function transformMessageReadWithUser(
   read: PrismaMessageReadWithFullRelations
 ): MessageReadWithUser {
   if (!read.user) {
-    throw new Error("MessageRead must have a user");
+    throw new Error('MessageRead must have a user');
   }
 
   if (!read.message) {
-    throw new Error("MessageRead must have a message");
+    throw new Error('MessageRead must have a message');
   }
 
   return {

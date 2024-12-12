@@ -5,14 +5,18 @@ import { AuthenticatedRequest } from '../types';
 
 /**
  * Wraps an async function and passes errors to Express's error handler.
- * 
+ *
  * @param fn - Async function to wrap
  * @returns Express RequestHandler
  */
-export function asyncHandler(
-  fn: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>
+export function asyncHandler<T = unknown, R = unknown>(
+  fn: (
+    req: AuthenticatedRequest<T>,
+    res: Response,
+    next: NextFunction
+  ) => Promise<R>
 ): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
-    fn(req as AuthenticatedRequest, res, next).catch(next);
+    Promise.resolve(fn(req as AuthenticatedRequest<T>, res, next)).catch(next);
   };
 }

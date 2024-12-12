@@ -7,12 +7,12 @@ import {
   ExpenseSplitWithUser,
   HouseholdExpense,
   TransactionWithDetails,
-} from "@shared/types";
+} from '@shared/types';
 import {
   ExpenseAction,
   ExpenseCategory,
   TransactionStatus,
-} from "@shared/enums";
+} from '@shared/enums';
 import {
   PrismaExpenseBase,
   PrismaExpenseWithFullRelations,
@@ -21,8 +21,8 @@ import {
   PrismaReceiptWithFullRelations,
   PrismaExpenseHistoryWithFullRelations,
   PrismaTransactionWithFullRelations,
-} from "./transformerPrismaTypes";
-import { transformUser } from "./userTransformer";
+} from './transformerPrismaTypes';
+import { transformUser } from './userTransformer';
 
 function isValidExpenseCategory(category: string): category is ExpenseCategory {
   return Object.values(ExpenseCategory).includes(category as ExpenseCategory);
@@ -129,7 +129,7 @@ export function transformTransactionWithDetails(
   transaction: PrismaTransactionWithFullRelations
 ): TransactionWithDetails {
   if (!transaction.fromUser || !transaction.toUser) {
-    throw new Error("Transaction must have fromUser and toUser");
+    throw new Error('Transaction must have fromUser and toUser');
   }
 
   return {

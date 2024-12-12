@@ -4,7 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": "..",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -21,8 +21,9 @@
     "paths": {
       "@shared/*": ["node_modules/@irubey/chores-app-shared/dist/*"],
       "@backendTypes/*": ["src/types/*"]
-    }
+    },
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "prisma/**/*.ts"]
+  "exclude": ["node_modules", "dist", "prisma"]
 }

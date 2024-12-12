@@ -1,4 +1,4 @@
-import prisma from "../config/database";
+import prisma from '../config/database';
 import {
   CreateCalendarEventDTO,
   UpdateCalendarEventDTO,
@@ -12,18 +12,18 @@ import {
   UpdateEventDTO,
   UpdateEventStatusDTO,
   CalendarEventHistory,
-} from "@shared/types";
-import { ApiResponse } from "@shared/interfaces";
+} from '@shared/types';
+import { ApiResponse } from '@shared/interfaces';
 import {
   EventCategory,
   EventStatus,
   HouseholdRole,
   CalendarEventAction,
   EventReminderType,
-} from "@shared/enums";
-import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
-import { getIO } from "../sockets";
-import { verifyMembership } from "./authService";
+} from '@shared/enums';
+import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+import { getIO } from '../sockets';
+import { verifyMembership } from './authService';
 import {
   transformEventWithDetails,
   transformCalendarEventHistory,
@@ -31,14 +31,14 @@ import {
   transformEvent,
   transformEventReminder,
   transformUpdateEventDTO,
-} from "../utils/transformers/eventTransformer";
+} from '../utils/transformers/eventTransformer';
 import {
   PrismaEventBase,
   PrismaEventMinimal,
   PrismaEventReminderWithRelations,
   PrismaEventUpdateInput,
   PrismaEventWithFullRelations,
-} from "../utils/transformers/transformerPrismaTypes";
+} from '../utils/transformers/transformerPrismaTypes';
 
 function wrapResponse<T>(data: T): ApiResponse<T> {
   return { data };
@@ -110,7 +110,7 @@ export async function getEventById(
   })) as PrismaEventWithFullRelations;
 
   if (!event || event.householdId !== householdId) {
-    throw new NotFoundError("Calendar event not found.");
+    throw new NotFoundError('Calendar event not found.');
   }
 
   const transformedEvent = transformEventWithDetails(event);
@@ -166,7 +166,7 @@ export async function createCalendarEvent(
     event as PrismaEventWithFullRelations
   );
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_created", {
+  getIO().to(`household_${householdId}`).emit('calendar_event_created', {
     action: CalendarEventAction.CREATED,
     event: transformedEvent,
   });
@@ -198,7 +198,7 @@ export async function updateEvent(
     })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
-      throw new NotFoundError("Calendar event not found.");
+      throw new NotFoundError('Calendar event not found.');
     }
 
     const isRecurrenceChanged =
@@ -248,7 +248,7 @@ export async function updateEvent(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
+  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -272,7 +272,7 @@ export async function deleteEvent(
     });
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
-      throw new NotFoundError("Calendar event not found.");
+      throw new NotFoundError('Calendar event not found.');
     }
 
     await createCalendarEventHistory(
@@ -287,7 +287,7 @@ export async function deleteEvent(
     });
   });
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_deleted", {
+  getIO().to(`household_${householdId}`).emit('calendar_event_deleted', {
     action: CalendarEventAction.DELETED,
     eventId,
   });
@@ -319,7 +319,7 @@ export async function addReminder(
     })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
-      throw new NotFoundError("Calendar event not found.");
+      throw new NotFoundError('Calendar event not found.');
     }
 
     const updatedEvent = (await tx.event.update({
@@ -353,7 +353,7 @@ export async function addReminder(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
+  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -385,7 +385,7 @@ export async function removeReminder(
     })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
-      throw new NotFoundError("Calendar event not found.");
+      throw new NotFoundError('Calendar event not found.');
     }
 
     const updatedEvent = (await tx.event.update({
@@ -416,7 +416,7 @@ export async function removeReminder(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
+  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
     action: CalendarEventAction.UPDATED,
     event: transformedEvent,
   });
@@ -486,7 +486,7 @@ export async function updateEventStatus(
     })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
-      throw new NotFoundError("Calendar event not found.");
+      throw new NotFoundError('Calendar event not found.');
     }
 
     const updatedEvent = (await tx.event.update({
@@ -513,7 +513,7 @@ export async function updateEventStatus(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
+  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
     action: CalendarEventAction.STATUS_CHANGED,
     event: transformedEvent,
   });
@@ -544,7 +544,7 @@ export async function deleteCalendarEvent(
     })) as PrismaEventWithFullRelations;
 
     if (!existingEvent || existingEvent.householdId !== householdId) {
-      throw new NotFoundError("Calendar event not found.");
+      throw new NotFoundError('Calendar event not found.');
     }
 
     // Soft delete the event
@@ -574,7 +574,7 @@ export async function deleteCalendarEvent(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit("calendar_event_update", {
+  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
     action: CalendarEventAction.DELETED,
     event: transformedEvent,
   });

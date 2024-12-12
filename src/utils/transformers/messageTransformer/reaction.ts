@@ -1,7 +1,7 @@
-import { Reaction, ReactionWithUser } from "@shared/types";
-import { ReactionType } from "@shared/enums";
-import { PrismaReactionWithFullRelations } from "../transformerPrismaTypes";
-import { transformUser } from "../userTransformer";
+import { Reaction, ReactionWithUser } from '@shared/types';
+import { ReactionType } from '@shared/enums';
+import { PrismaReactionWithFullRelations } from '../transformerPrismaTypes';
+import { transformUser } from '../userTransformer';
 
 function isValidReactionType(type: string): type is ReactionType {
   return Object.values(ReactionType).includes(type as ReactionType);
@@ -26,11 +26,11 @@ export function transformReactionWithUser(
   reaction: PrismaReactionWithFullRelations
 ): ReactionWithUser {
   if (!reaction.user) {
-    throw new Error("Reaction must have a user");
+    throw new Error('Reaction must have a user');
   }
 
   if (!reaction.message) {
-    throw new Error("Reaction must have a message");
+    throw new Error('Reaction must have a message');
   }
 
   return {

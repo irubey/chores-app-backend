@@ -5,14 +5,14 @@ import {
   HouseholdMemberWithUser,
   CreateHouseholdDTO,
   UpdateHouseholdDTO,
-} from "@shared/types";
-import { HouseholdRole } from "@shared/enums";
+} from '@shared/types';
+import { HouseholdRole } from '@shared/enums';
 import {
   PrismaHouseholdBase,
   PrismaHouseholdWithFullRelations,
   PrismaUserMinimal,
-} from "./transformerPrismaTypes";
-import { transformUser } from "./userTransformer";
+} from './transformerPrismaTypes';
+import { transformUser } from './userTransformer';
 
 function isValidHouseholdRole(role: string): role is HouseholdRole {
   return Object.values(HouseholdRole).includes(role as HouseholdRole);
@@ -29,33 +29,73 @@ interface PrismaMemberInput {
   isInvited: boolean;
   isAccepted: boolean;
   isRejected: boolean;
-  isSelected: boolean;
-  lastAssignedChoreAt: Date | null;
+  nickname: string | null;
   user?: PrismaUserMinimal;
 }
 
-export function transformHousehold(household: PrismaHouseholdBase): Household {
+/**
+ * Transforms a Prisma Household into a shared Household type
+ */
+export function transformHousehold(
+  prismaHousehold: PrismaHouseholdBase | PrismaHouseholdWithFullRelations
+): Household {
+  const {
+    id,
+    name,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    currency,
+    icon,
+    timezone,
+    language,
+  } = prismaHousehold;
+
   return {
-    id: household.id,
-    name: household.name,
-    createdAt: household.createdAt,
-    updatedAt: household.updatedAt,
-    deletedAt: household.deletedAt ?? undefined,
-    currency: household.currency,
-    icon: household.icon ?? undefined,
-    timezone: household.timezone,
-    language: household.language,
+    id,
+    name,
+    createdAt,
+    updatedAt,
+    deletedAt: deletedAt ?? undefined,
+    currency,
+    icon: icon ?? undefined,
+    timezone,
+    language,
   };
 }
 
-export function transformHouseholdToHouseholdWithMembers(
-  household: PrismaHouseholdWithFullRelations
+/**
+ * Transforms a Prisma HouseholdMember into a shared HouseholdMember type
+ */
+export function transformMembership(membership: any): HouseholdMember {
+  const sharedMembership: HouseholdMember = {
+    id: membership.id,
+    userId: membership.userId,
+    householdId: membership.householdId,
+    role: membership.role,
+    joinedAt: membership.joinedAt,
+    leftAt: membership.leftAt ?? undefined,
+    isInvited: membership.isInvited,
+    isAccepted: membership.isAccepted,
+    isRejected: membership.isRejected,
+    nickname: membership.nickname ?? undefined,
+  };
+
+  return sharedMembership;
+}
+
+/**
+ * Transforms a Prisma Household with members into a shared HouseholdWithMembers type
+ */
+export function transformHouseholdWithMembers(
+  prismaHousehold: PrismaHouseholdWithFullRelations
 ): HouseholdWithMembers {
+  const household = transformHousehold(prismaHousehold);
+  const members = prismaHousehold.members?.map(transformMembership) ?? [];
+
   return {
-    ...transformHousehold(household),
-    members: household.members?.map((member) =>
-      transformHouseholdMember(member)
-    ),
+    ...household,
+    members,
   };
 }
 
@@ -76,15 +116,14 @@ export function transformHouseholdMember(
     isInvited: member.isInvited,
     isAccepted: member.isAccepted,
     isRejected: member.isRejected,
-    isSelected: member.isSelected,
-    lastAssignedChoreAt: member.lastAssignedChoreAt ?? undefined,
+    nickname: member.nickname ?? undefined,
     user: member.user ? transformUser(member.user) : undefined,
   };
 }
 
 export function transformCreateHouseholdDTO(
   dto: CreateHouseholdDTO
-): Omit<PrismaHouseholdBase, "id" | "createdAt" | "updatedAt" | "deletedAt"> {
+): Omit<PrismaHouseholdBase, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'> {
   return {
     name: dto.name,
     currency: dto.currency,
@@ -97,7 +136,7 @@ export function transformCreateHouseholdDTO(
 export function transformUpdateHouseholdDTO(
   dto: UpdateHouseholdDTO
 ): Partial<
-  Omit<PrismaHouseholdBase, "id" | "createdAt" | "updatedAt" | "deletedAt">
+  Omit<PrismaHouseholdBase, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>
 > {
   const transformed: Partial<PrismaHouseholdBase> = {};
 
