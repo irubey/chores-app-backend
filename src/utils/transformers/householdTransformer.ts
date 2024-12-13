@@ -5,14 +5,14 @@ import {
   HouseholdMemberWithUser,
   CreateHouseholdDTO,
   UpdateHouseholdDTO,
-} from '@shared/types';
-import { HouseholdRole } from '@shared/enums';
+} from "@shared/types";
+import { HouseholdRole } from "@shared/enums";
 import {
   PrismaHouseholdBase,
   PrismaHouseholdWithFullRelations,
   PrismaUserMinimal,
-} from './transformerPrismaTypes';
-import { transformUser } from './userTransformer';
+} from "./transformerPrismaTypes";
+import { transformUser } from "./userTransformer";
 
 function isValidHouseholdRole(role: string): role is HouseholdRole {
   return Object.values(HouseholdRole).includes(role as HouseholdRole);
@@ -91,7 +91,10 @@ export function transformHouseholdWithMembers(
   prismaHousehold: PrismaHouseholdWithFullRelations
 ): HouseholdWithMembers {
   const household = transformHousehold(prismaHousehold);
-  const members = prismaHousehold.members?.map(transformMembership) ?? [];
+  const members =
+    prismaHousehold.members?.map((member) =>
+      transformHouseholdMember(member)
+    ) ?? [];
 
   return {
     ...household,
@@ -123,7 +126,7 @@ export function transformHouseholdMember(
 
 export function transformCreateHouseholdDTO(
   dto: CreateHouseholdDTO
-): Omit<PrismaHouseholdBase, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'> {
+): Omit<PrismaHouseholdBase, "id" | "createdAt" | "updatedAt" | "deletedAt"> {
   return {
     name: dto.name,
     currency: dto.currency,
@@ -136,7 +139,7 @@ export function transformCreateHouseholdDTO(
 export function transformUpdateHouseholdDTO(
   dto: UpdateHouseholdDTO
 ): Partial<
-  Omit<PrismaHouseholdBase, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>
+  Omit<PrismaHouseholdBase, "id" | "createdAt" | "updatedAt" | "deletedAt">
 > {
   const transformed: Partial<PrismaHouseholdBase> = {};
 
