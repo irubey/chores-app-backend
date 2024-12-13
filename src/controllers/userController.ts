@@ -1,8 +1,8 @@
-import { Response, NextFunction, response } from 'express';
-import * as userService from '../services/userService';
-import { UnauthorizedError } from '../middlewares/errorHandler';
-import { AuthenticatedRequest } from '../types';
-import { UpdateUserDTO } from '@shared/types';
+import { Response, NextFunction, response } from "express";
+import * as userService from "../services/userService";
+import { UnauthorizedError } from "../middlewares/errorHandler";
+import { AuthenticatedRequest } from "../types";
+import { UpdateUserDTO } from "@shared/types";
 
 /**
  * UserController handles all user-related operations such as registration, login, and household management.
@@ -21,7 +21,7 @@ export class UserController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const response = await userService.getUserProfile(req.user.id);
       res.status(200).json(response);
@@ -43,13 +43,21 @@ export class UserController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
 
       const updateData: UpdateUserDTO = {
         name: req.body.name,
         profileImageURL: req.body.profileImageURL,
+        activeHouseholdId: req.body.activeHouseholdId,
       };
+
+      // Remove undefined fields
+      (Object.keys(updateData) as Array<keyof UpdateUserDTO>).forEach((key) => {
+        if (updateData[key] === undefined) {
+          delete updateData[key];
+        }
+      });
 
       const response = await userService.updateUserProfile(
         req.user.id,
