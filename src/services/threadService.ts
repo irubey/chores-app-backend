@@ -1,4 +1,4 @@
-import prisma from '../config/database';
+import prisma from "../config/database";
 import {
   CreateThreadDTO,
   Thread,
@@ -7,30 +7,128 @@ import {
   UpdateThreadDTO,
   InviteUsersDTO,
   ThreadWithDetails,
-} from '@shared/types';
-import { PaginationOptions } from '@shared/interfaces';
-import { ApiResponse } from '@shared/interfaces/apiResponse';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import { HouseholdRole, ThreadAction } from '@shared/enums';
-import { verifyMembership } from './authService';
+} from "@shared/types";
+import { PaginationOptions } from "@shared/interfaces";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { NotFoundError, UnauthorizedError } from "../middlewares/errorHandler";
+import { HouseholdRole, ThreadAction } from "@shared/enums";
+import { verifyMembership } from "./authService";
 import {
   transformThread,
   transformThreadWithDetails,
   transformThreadWithMessages,
   transformThreadWithParticipants,
-} from '../utils/transformers/messageTransformer';
+} from "../utils/transformers/messageTransformer";
 import {
   PrismaThreadWithFullRelations,
   PrismaThreadWithMessagesAndParticipants,
   PrismaThreadWithParticipantsOnly,
   userMinimalSelect,
-} from '../utils/transformers/transformerPrismaTypes';
-import logger from '../utils/logger';
+} from "../utils/transformers/transformerPrismaTypes";
+import logger from "../utils/logger";
 import {
   wrapResponse,
   handleServiceError,
   emitThreadEvent,
-} from '../utils/servicesUtils';
+} from "../utils/servicesUtils";
+
+// Create a constant for the message include object to avoid repetition
+const messageInclude = {
+  thread: {
+    select: {
+      id: true,
+      householdId: true,
+      authorId: true,
+      title: true,
+      createdAt: true,
+      updatedAt: true,
+      deletedAt: true,
+    },
+  },
+  author: {
+    select: userMinimalSelect,
+  },
+  attachments: {
+    include: {
+      message: {
+        select: {
+          id: true,
+          threadId: true,
+        },
+      },
+    },
+  },
+  reactions: {
+    include: {
+      user: {
+        select: userMinimalSelect,
+      },
+      message: {
+        include: {
+          thread: true,
+        },
+      },
+    },
+  },
+  mentions: {
+    include: {
+      user: {
+        select: userMinimalSelect,
+      },
+      message: {
+        include: {
+          thread: true,
+        },
+      },
+    },
+  },
+  reads: {
+    include: {
+      user: {
+        select: userMinimalSelect,
+      },
+      message: {
+        include: {
+          thread: true,
+        },
+      },
+    },
+  },
+  poll: {
+    include: {
+      message: {
+        include: {
+          thread: true,
+        },
+      },
+      event: true,
+      options: {
+        include: {
+          votes: {
+            include: {
+              user: {
+                select: userMinimalSelect,
+              },
+            },
+          },
+          selectedForPolls: true,
+        },
+      },
+      selectedOption: {
+        include: {
+          votes: {
+            include: {
+              user: {
+                select: userMinimalSelect,
+              },
+            },
+          },
+          selectedForPolls: true,
+        },
+      },
+    },
+  },
+};
 
 /**
  * Retrieves all threads for a specific household.
@@ -40,7 +138,7 @@ export async function getThreads(
   userId: string,
   options?: PaginationOptions
 ): Promise<ApiResponse<ThreadWithDetails[]>> {
-  logger.debug('Fetching threads for household', {
+  logger.debug("Fetching threads for household", {
     householdId,
     userId,
     options,
@@ -58,7 +156,7 @@ export async function getThreads(
       skip: options?.cursor ? 1 : 0,
       cursor: options?.cursor ? { id: options.cursor } : undefined,
       orderBy: {
-        [options?.sortBy || 'updatedAt']: options?.direction || 'desc',
+        [options?.sortBy || "updatedAt"]: options?.direction || "desc",
       },
       include: {
         author: {
@@ -66,8 +164,8 @@ export async function getThreads(
         },
         household: true,
         messages: {
-          take: 20, // Fixed limit for initial messages
-          orderBy: { createdAt: 'desc' },
+          take: 20,
+          orderBy: { createdAt: "desc" },
           include: {
             thread: {
               select: {
@@ -100,17 +198,7 @@ export async function getThreads(
                 },
                 message: {
                   include: {
-                    thread: {
-                      select: {
-                        id: true,
-                        householdId: true,
-                        authorId: true,
-                        title: true,
-                        createdAt: true,
-                        updatedAt: true,
-                        deletedAt: true,
-                      },
-                    },
+                    thread: true,
                   },
                 },
               },
@@ -122,17 +210,7 @@ export async function getThreads(
                 },
                 message: {
                   include: {
-                    thread: {
-                      select: {
-                        id: true,
-                        householdId: true,
-                        authorId: true,
-                        title: true,
-                        createdAt: true,
-                        updatedAt: true,
-                        deletedAt: true,
-                      },
-                    },
+                    thread: true,
                   },
                 },
               },
@@ -144,17 +222,7 @@ export async function getThreads(
                 },
                 message: {
                   include: {
-                    thread: {
-                      select: {
-                        id: true,
-                        householdId: true,
-                        authorId: true,
-                        title: true,
-                        createdAt: true,
-                        updatedAt: true,
-                        deletedAt: true,
-                      },
-                    },
+                    thread: true,
                   },
                 },
               },
@@ -206,7 +274,7 @@ export async function getThreads(
     const lastThread = threads[threads.length - 1];
     const hasMore = threads.length === (options?.limit || 20);
 
-    logger.info('Successfully retrieved threads', {
+    logger.info("Successfully retrieved threads", {
       householdId,
       threadCount: threads.length,
       hasMore,
@@ -215,7 +283,7 @@ export async function getThreads(
 
     return wrapResponse(threads.map(transformThreadWithDetails));
   } catch (error) {
-    return handleServiceError(error, 'fetch threads', { householdId }) as never;
+    return handleServiceError(error, "fetch threads", { householdId }) as never;
   }
 }
 
@@ -226,7 +294,7 @@ export async function createThread(
   data: CreateThreadDTO,
   userId: string
 ): Promise<ApiResponse<ThreadWithDetails>> {
-  logger.debug('Creating new thread', {
+  logger.debug("Creating new thread", {
     householdId: data.householdId,
     userId,
   });
@@ -253,15 +321,7 @@ export async function createThread(
           },
           household: true,
           messages: {
-            include: {
-              author: {
-                select: userMinimalSelect,
-              },
-              thread: true,
-              attachments: true,
-              reactions: true,
-              mentions: true,
-            },
+            include: messageInclude,
           },
           participants: {
             include: {
@@ -300,21 +360,21 @@ export async function createThread(
       return newThread;
     });
 
-    logger.info('Successfully created thread', {
+    logger.info("Successfully created thread", {
       threadId: thread.id,
       householdId: data.householdId,
     });
 
     const transformedThread = transformThreadWithDetails(thread);
 
-    emitThreadEvent('thread_update', thread.id, data.householdId, {
+    emitThreadEvent("thread_update", thread.id, data.householdId, {
       action: ThreadAction.CREATED,
       thread: transformedThread,
     });
 
     return wrapResponse(transformedThread);
   } catch (error) {
-    return handleServiceError(error, 'create thread') as never;
+    return handleServiceError(error, "create thread") as never;
   }
 }
 
@@ -326,7 +386,7 @@ export async function getThreadById(
   threadId: string,
   userId: string
 ): Promise<ApiResponse<ThreadWithDetails>> {
-  logger.debug('Fetching thread by ID', { householdId, threadId, userId });
+  logger.debug("Fetching thread by ID", { householdId, threadId, userId });
 
   try {
     await verifyMembership(householdId, userId, [
@@ -342,15 +402,7 @@ export async function getThreadById(
         },
         household: true,
         messages: {
-          include: {
-            author: {
-              select: userMinimalSelect,
-            },
-            thread: true,
-            attachments: true,
-            reactions: true,
-            mentions: true,
-          },
+          include: messageInclude,
         },
         participants: {
           include: {
@@ -361,15 +413,15 @@ export async function getThreadById(
     });
 
     if (!thread) {
-      logger.warn('Thread not found', { threadId });
-      throw new NotFoundError('Thread not found');
+      logger.warn("Thread not found", { threadId });
+      throw new NotFoundError("Thread not found");
     }
 
-    logger.info('Successfully retrieved thread', { threadId });
+    logger.info("Successfully retrieved thread", { threadId });
 
     return wrapResponse(transformThreadWithDetails(thread));
   } catch (error) {
-    return handleServiceError(error, 'fetch thread by ID', {
+    return handleServiceError(error, "fetch thread by ID", {
       threadId,
     }) as never;
   }
@@ -384,7 +436,7 @@ export async function updateThread(
   data: UpdateThreadDTO,
   userId: string
 ): Promise<ApiResponse<ThreadWithDetails>> {
-  logger.debug('Updating thread', { householdId, threadId, userId });
+  logger.debug("Updating thread", { householdId, threadId, userId });
 
   try {
     await verifyMembership(householdId, userId, [
@@ -403,7 +455,7 @@ export async function updateThread(
 
         if (householdMembers.length !== data.participants.add.length) {
           throw new UnauthorizedError(
-            'Some users are not members of this household'
+            "Some users are not members of this household"
           );
         }
       }
@@ -433,15 +485,7 @@ export async function updateThread(
           },
           household: true,
           messages: {
-            include: {
-              author: {
-                select: userMinimalSelect,
-              },
-              thread: true,
-              attachments: true,
-              reactions: true,
-              mentions: true,
-            },
+            include: messageInclude,
           },
           participants: {
             include: {
@@ -452,18 +496,18 @@ export async function updateThread(
       });
     });
 
-    logger.info('Successfully updated thread', { threadId });
+    logger.info("Successfully updated thread", { threadId });
 
     const transformedThread = transformThreadWithDetails(updatedThread);
 
-    emitThreadEvent('thread_update', threadId, householdId, {
+    emitThreadEvent("thread_update", threadId, householdId, {
       action: ThreadAction.UPDATED,
       thread: transformedThread,
     });
 
     return wrapResponse(transformedThread);
   } catch (error) {
-    return handleServiceError(error, 'update thread', { threadId }) as never;
+    return handleServiceError(error, "update thread", { threadId }) as never;
   }
 }
 
@@ -475,23 +519,23 @@ export async function deleteThread(
   threadId: string,
   userId: string
 ): Promise<ApiResponse<void>> {
-  logger.debug('Deleting thread', { householdId, threadId, userId });
+  logger.debug("Deleting thread", { householdId, threadId, userId });
 
   try {
     await verifyMembership(householdId, userId, [HouseholdRole.ADMIN]);
 
     await prisma.thread.delete({ where: { id: threadId } });
 
-    logger.info('Successfully deleted thread', { threadId });
+    logger.info("Successfully deleted thread", { threadId });
 
-    emitThreadEvent('thread_update', threadId, householdId, {
+    emitThreadEvent("thread_update", threadId, householdId, {
       action: ThreadAction.DELETED,
       threadId,
     });
 
     return wrapResponse(undefined);
   } catch (error) {
-    return handleServiceError(error, 'delete thread', { threadId }) as never;
+    return handleServiceError(error, "delete thread", { threadId }) as never;
   }
 }
 
@@ -504,7 +548,7 @@ export async function inviteUsersToThread(
   data: InviteUsersDTO,
   userId: string
 ): Promise<ApiResponse<ThreadWithDetails>> {
-  logger.debug('Inviting users to thread', {
+  logger.debug("Inviting users to thread", {
     householdId,
     threadId,
     userIds: data.userIds,
@@ -527,7 +571,7 @@ export async function inviteUsersToThread(
 
       if (householdMembers.length !== data.userIds.length) {
         throw new UnauthorizedError(
-          'Some users are not members of this household'
+          "Some users are not members of this household"
         );
       }
 
@@ -549,15 +593,7 @@ export async function inviteUsersToThread(
           },
           household: true,
           messages: {
-            include: {
-              author: {
-                select: userMinimalSelect,
-              },
-              thread: true,
-              attachments: true,
-              reactions: true,
-              mentions: true,
-            },
+            include: messageInclude,
           },
           participants: {
             include: {
@@ -568,21 +604,21 @@ export async function inviteUsersToThread(
       });
     });
 
-    logger.info('Successfully invited users to thread', {
+    logger.info("Successfully invited users to thread", {
       threadId,
       invitedUserCount: data.userIds.length,
     });
 
     const transformedThread = transformThreadWithDetails(updatedThread);
 
-    emitThreadEvent('thread_update', threadId, householdId, {
+    emitThreadEvent("thread_update", threadId, householdId, {
       action: ThreadAction.USERS_INVITED,
       thread: transformedThread,
     });
 
     return wrapResponse(transformedThread);
   } catch (error) {
-    return handleServiceError(error, 'invite users to thread', {
+    return handleServiceError(error, "invite users to thread", {
       threadId,
     }) as never;
   }
