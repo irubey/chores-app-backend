@@ -1,27 +1,27 @@
 import {
   NotFoundError,
   UnauthorizedError,
-} from '../../middlewares/errorHandler';
-import prisma from '../../config/database';
-import logger from '../../utils/logger';
-import { getIO } from '../../sockets';
-import { verifyMembership } from '../authService';
+} from "../../middlewares/errorHandler";
+import prisma from "../../config/database";
+import logger from "../../utils/logger";
+import { getIO } from "../../sockets";
+import { verifyMembership } from "../authService";
 import {
   transformMessage,
   transformMessageWithDetails,
-} from '../../utils/transformers/messageTransformer';
+} from "../../utils/transformers/messageTransformer";
 import {
   CreateMessageDTO,
   UpdateMessageDTO,
   Message,
   MessageWithDetails,
   MessageReadStatus,
-} from '@shared/types';
-import { ApiResponse } from '@shared/interfaces/apiResponse';
-import { PaginationOptions } from '@shared/interfaces/pagination';
-import { HouseholdRole, MessageAction } from '@shared/enums';
-import { PrismaMessageWithFullRelations } from '../../utils/transformers/transformerPrismaTypes';
-import { wrapResponse, handleServiceError } from '../../utils/servicesUtils';
+} from "@shared/types";
+import { ApiResponse } from "@shared/interfaces/apiResponse";
+import { PaginationOptions } from "@shared/interfaces/pagination";
+import { HouseholdRole, MessageAction } from "@shared/enums";
+import { PrismaMessageWithFullRelations } from "../../utils/transformers/transformerPrismaTypes";
+import { wrapResponse, handleServiceError } from "../../utils/servicesUtils";
 
 /**
  * Get messages for a thread with pagination
@@ -46,7 +46,7 @@ export async function getMessages(
       skip: options?.cursor ? 1 : 0,
       cursor: options?.cursor ? { id: options.cursor } : undefined,
       orderBy: {
-        [options?.sortBy || 'createdAt']: options?.direction || 'desc',
+        [options?.sortBy || "createdAt"]: options?.direction || "desc",
       },
       include: {
         thread: true,
@@ -137,7 +137,7 @@ export async function getMessages(
     const lastMessage = messages[messages.length - 1];
     const hasMore = messages.length === (options?.limit || 20);
 
-    logger.info('Successfully retrieved messages', {
+    logger.info("Successfully retrieved messages", {
       threadId,
       messageCount: messages.length,
       hasMore,
@@ -155,7 +155,7 @@ export async function getMessages(
       }
     );
   } catch (error) {
-    return handleServiceError(error, 'fetch messages', { threadId }) as never;
+    return handleServiceError(error, "fetch messages", { threadId }) as never;
   }
 }
 
@@ -280,14 +280,14 @@ export async function createMessage(
       message as PrismaMessageWithFullRelations
     );
 
-    getIO().to(`household_${householdId}`).emit('message_update', {
+    getIO().to(`household_${householdId}`).emit("message_update", {
       action: MessageAction.CREATED,
       message: transformedMessage,
     });
 
     return wrapResponse(transformedMessage);
   } catch (error) {
-    return handleServiceError(error, 'create message', { threadId }) as never;
+    return handleServiceError(error, "create message", { threadId }) as never;
   }
 }
 
@@ -310,7 +310,7 @@ export async function updateMessage(
     });
 
     if (!message) {
-      throw new NotFoundError('Message not found');
+      throw new NotFoundError("Message not found");
     }
 
     if (message.authorId !== userId) {
@@ -413,14 +413,14 @@ export async function updateMessage(
       updatedMessage as PrismaMessageWithFullRelations
     );
 
-    getIO().to(`household_${householdId}`).emit('message_update', {
+    getIO().to(`household_${householdId}`).emit("message_update", {
       action: MessageAction.UPDATED,
       message: transformedMessage,
     });
 
     return wrapResponse(transformedMessage);
   } catch (error) {
-    return handleServiceError(error, 'update message', { messageId }) as never;
+    return handleServiceError(error, "update message", { messageId }) as never;
   }
 }
 
@@ -442,7 +442,7 @@ export async function deleteMessage(
     });
 
     if (!message) {
-      throw new NotFoundError('Message not found');
+      throw new NotFoundError("Message not found");
     }
 
     if (message.authorId !== userId) {
@@ -454,14 +454,14 @@ export async function deleteMessage(
       data: { deletedAt: new Date() },
     });
 
-    getIO().to(`household_${householdId}`).emit('message_update', {
+    getIO().to(`household_${householdId}`).emit("message_update", {
       action: MessageAction.DELETED,
       messageId,
     });
 
     return wrapResponse(undefined);
   } catch (error) {
-    return handleServiceError(error, 'delete message', { messageId }) as never;
+    return handleServiceError(error, "delete message", { messageId }) as never;
   }
 }
 
@@ -497,7 +497,7 @@ export async function markMessageAsRead(
 
     return wrapResponse(undefined);
   } catch (error) {
-    return handleServiceError(error, 'mark message as read', {
+    return handleServiceError(error, "mark message as read", {
       messageId,
     }) as never;
   }
@@ -538,7 +538,7 @@ export async function getMessageReadStatus(
     });
 
     if (!thread) {
-      throw new NotFoundError('Message not found');
+      throw new NotFoundError("Message not found");
     }
 
     const participantIds = thread.thread.participants.map((p) => p.userId);
@@ -555,7 +555,7 @@ export async function getMessageReadStatus(
       unreadBy,
     });
   } catch (error) {
-    return handleServiceError(error, 'get message read status', {
+    return handleServiceError(error, "get message read status", {
       messageId,
     }) as never;
   }

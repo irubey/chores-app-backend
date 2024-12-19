@@ -28,7 +28,20 @@ export const createChoreSchema = Joi.object({
  * Schema for creating a new message.
  */
 export const createMessageSchema = Joi.object({
-  content: Joi.string().required(),
+  content: Joi.string().required().messages({
+    "string.base": "'content' should be a type of 'text'",
+    "string.empty": "'content' cannot be empty",
+    "any.required": "'content' is a required field",
+  }),
+  threadId: Joi.string().uuid().required().messages({
+    "string.base": "'threadId' should be a type of 'string'",
+    "string.uuid": "'threadId' must be a valid UUID",
+    "any.required": "'threadId' is a required field",
+  }),
+  mentions: Joi.array().items(Joi.string().uuid()).optional().messages({
+    "array.base": "'mentions' should be a type of 'array'",
+    "string.uuid": "Each mention ID must be a valid UUID",
+  }),
   attachments: Joi.array()
     .items(
       Joi.object({
@@ -36,7 +49,29 @@ export const createMessageSchema = Joi.object({
         fileType: Joi.string().required(),
       })
     )
-    .optional(),
+    .optional()
+    .messages({
+      "array.base": "'attachments' should be a type of 'array'",
+    }),
+  poll: Joi.object({
+    question: Joi.string().required(),
+    pollType: Joi.string().required(),
+    maxChoices: Joi.number().integer().min(1).optional(),
+    maxRank: Joi.number().integer().min(1).optional(),
+    endDate: Joi.date().iso().optional(),
+    eventId: Joi.string().uuid().optional(),
+    options: Joi.array()
+      .items(
+        Joi.object({
+          text: Joi.string().required(),
+          order: Joi.number().integer().min(0).required(),
+          startTime: Joi.date().iso().optional(),
+          endTime: Joi.date().iso().optional(),
+        })
+      )
+      .min(1)
+      .required(),
+  }).optional(),
 });
 
 /**

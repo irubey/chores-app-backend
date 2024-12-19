@@ -1,12 +1,12 @@
-import { Response, NextFunction } from 'express';
-import * as messageService from '../services/messages/messageService';
-import * as attachmentService from '../services/messages/attachmentService';
-import * as mentionService from '../services/messages/mentionService';
-import * as reactionService from '../services/messages/reactionService';
-import * as pollService from '../services/messages/pollService';
-import { AuthenticatedRequest } from '../types';
-import { PaginationOptions } from '@shared/interfaces/pagination';
-import { ReactionType } from '@shared/enums';
+import { Response, NextFunction } from "express";
+import * as messageService from "../services/messages/messageService";
+import * as attachmentService from "../services/messages/attachmentService";
+import * as mentionService from "../services/messages/mentionService";
+import * as reactionService from "../services/messages/reactionService";
+import * as pollService from "../services/messages/pollService";
+import { AuthenticatedRequest } from "../types";
+import { PaginationOptions } from "@shared/interfaces/pagination";
+import { ReactionType } from "@shared/enums";
 
 /**
  * MessageController handles all service operations related to messages.
@@ -22,6 +22,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId } = req.params;
+
+      if (!householdId || !threadId) {
+        throw new Error(
+          "Missing required parameters: householdId and threadId"
+        );
+      }
+
       const { cursor, limit } = req.query;
 
       const paginationOptions: PaginationOptions = {
@@ -48,6 +55,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId } = req.params;
+
+      if (!householdId || !threadId) {
+        throw new Error(
+          "Missing required parameters: householdId and threadId"
+        );
+      }
+
       const response = await messageService.createMessage(
         householdId,
         threadId,
@@ -67,6 +81,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
+
+      if (!householdId || !threadId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and messageId"
+        );
+      }
+
       const response = await messageService.updateMessage(
         householdId,
         threadId,
@@ -87,6 +108,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
+
+      if (!householdId || !threadId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and messageId"
+        );
+      }
+
       const response = await messageService.deleteMessage(
         householdId,
         threadId,
@@ -106,6 +134,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await messageService.markMessageAsRead(
         householdId,
         messageId,
@@ -124,6 +159,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await messageService.getMessageReadStatus(
         householdId,
         messageId,
@@ -145,6 +187,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
+
+      if (!householdId || !threadId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and messageId"
+        );
+      }
+
       const response = await attachmentService.addAttachment(
         householdId,
         threadId,
@@ -165,6 +214,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId, attachmentId } = req.params;
+
+      if (!householdId || !threadId || !messageId || !attachmentId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, messageId, and attachmentId"
+        );
+      }
+
       const response = await attachmentService.deleteAttachment(
         householdId,
         threadId,
@@ -185,6 +241,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId, attachmentId } = req.params;
+
+      if (!householdId || !threadId || !messageId || !attachmentId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, messageId, and attachmentId"
+        );
+      }
+
       const response = await attachmentService.getAttachment(
         householdId,
         threadId,
@@ -205,6 +268,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, messageId } = req.params;
+
+      if (!householdId || !threadId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and messageId"
+        );
+      }
+
       const response = await attachmentService.getMessageAttachments(
         householdId,
         threadId,
@@ -227,6 +297,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await mentionService.createMention(
         householdId,
         messageId,
@@ -246,6 +323,11 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId } = req.params;
+
+      if (!householdId) {
+        throw new Error("Missing required parameters: householdId");
+      }
+
       const response = await mentionService.getUserMentions(
         householdId,
         req.user!.id
@@ -263,6 +345,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await mentionService.getMessageMentions(
         householdId,
         messageId,
@@ -281,6 +370,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId, mentionId } = req.params;
+
+      if (!householdId || !messageId || !mentionId) {
+        throw new Error(
+          "Missing required parameters: householdId, messageId, and mentionId"
+        );
+      }
+
       const response = await mentionService.deleteMention(
         householdId,
         messageId,
@@ -300,6 +396,11 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId } = req.params;
+
+      if (!householdId) {
+        throw new Error("Missing required parameters: householdId");
+      }
+
       const response = await mentionService.getUnreadMentionsCount(
         householdId,
         req.user!.id
@@ -320,6 +421,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await reactionService.addReaction(
         householdId,
         messageId,
@@ -339,6 +447,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId, reactionId } = req.params;
+
+      if (!householdId || !messageId || !reactionId) {
+        throw new Error(
+          "Missing required parameters: householdId, messageId, and reactionId"
+        );
+      }
+
       const response = await reactionService.removeReaction(
         householdId,
         messageId,
@@ -358,6 +473,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await reactionService.getMessageReactions(
         householdId,
         messageId,
@@ -376,6 +498,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await reactionService.getReactionAnalytics(
         householdId,
         messageId,
@@ -394,6 +523,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, messageId } = req.params;
+
+      if (!householdId || !messageId) {
+        throw new Error(
+          "Missing required parameters: householdId and messageId"
+        );
+      }
+
       const response = await reactionService.getReactionsByType(
         householdId,
         messageId,
@@ -416,6 +552,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId } = req.params;
+
+      if (!householdId || !threadId) {
+        throw new Error(
+          "Missing required parameters: householdId and threadId"
+        );
+      }
+
       const response = await pollService.getPollsInThread(
         householdId,
         threadId,
@@ -434,6 +577,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, pollId } = req.params;
+
+      if (!householdId || !threadId || !pollId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and pollId"
+        );
+      }
+
       const response = await pollService.getPoll(
         householdId,
         threadId,
@@ -453,6 +603,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId } = req.params;
+
+      if (!householdId || !threadId) {
+        throw new Error(
+          "Missing required parameters: householdId and threadId"
+        );
+      }
+
       const response = await pollService.createPoll(
         householdId,
         threadId,
@@ -472,6 +629,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, pollId } = req.params;
+
+      if (!householdId || !threadId || !pollId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and pollId"
+        );
+      }
+
       const response = await pollService.updatePoll(
         householdId,
         threadId,
@@ -492,6 +656,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, pollId } = req.params;
+
+      if (!householdId || !threadId || !pollId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and pollId"
+        );
+      }
+
       const response = await pollService.deletePoll(
         householdId,
         threadId,
@@ -511,6 +682,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, pollId } = req.params;
+
+      if (!householdId || !threadId || !pollId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and pollId"
+        );
+      }
+
       const response = await pollService.votePoll(
         householdId,
         threadId,
@@ -531,6 +709,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, pollId } = req.params;
+
+      if (!householdId || !threadId || !pollId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and pollId"
+        );
+      }
+
       const response = await pollService.removePollVote(
         householdId,
         threadId,
@@ -551,6 +736,13 @@ export class MessageController {
   ): Promise<void> {
     try {
       const { householdId, threadId, pollId } = req.params;
+
+      if (!householdId || !threadId || !pollId) {
+        throw new Error(
+          "Missing required parameters: householdId, threadId, and pollId"
+        );
+      }
+
       const response = await pollService.getPollAnalytics(
         householdId,
         threadId,
