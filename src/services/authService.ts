@@ -27,17 +27,6 @@ interface TokenRefreshResponse {
   sessionId: string;
 }
 
-// Track recently refreshed tokens
-interface RecentRefresh {
-  oldToken: string;
-  newToken: string;
-  userId: string;
-  cleanupTimeout: NodeJS.Timeout;
-}
-
-const recentRefreshes = new Map<string, RecentRefresh>();
-const CLEANUP_DELAY = 30000; // 30 seconds
-
 /**
  * AuthService handles the business logic for authentication.
  */
@@ -304,26 +293,6 @@ export class AuthService {
   ): Promise<ApiResponse<TokenRefreshResponse>> {
     logger.debug("Token refresh attempt");
 
-    // Check if this token was recently refreshed
-    const recentRefresh = recentRefreshes.get(refreshToken);
-    if (recentRefresh) {
-      logger.debug("Using cached refresh result", {
-        userId: recentRefresh.userId,
-        oldToken: refreshToken,
-      });
-
-      // Return the new tokens from the recent refresh
-      return wrapResponse({
-        accessToken: recentRefresh.newToken,
-        refreshToken: recentRefresh.newToken,
-        sessionId: this.setAuthCookies(
-          res,
-          recentRefresh.newToken,
-          recentRefresh.newToken
-        ),
-      });
-    }
-
     // Verify token before database operations
     const decoded = this.verifyToken(
       refreshToken,
@@ -332,7 +301,6 @@ export class AuthService {
 
     // Use transaction for atomicity
     return await prisma.$transaction(async (tx: TransactionClient) => {
-      // Lock the refresh token row for update
       const existingToken = await tx.refreshToken.findUnique({
         where: { token: refreshToken },
         include: {
@@ -353,19 +321,12 @@ export class AuthService {
         throw new UnauthorizedError("Invalid refresh token");
       }
 
-      if (!existingToken.user) {
-        logger.warn("Token refresh failed - user not found", {
-          userId: decoded.userId,
+      if (!existingToken.user || existingToken.user.deletedAt) {
+        logger.warn("Token refresh failed - invalid user", {
+          userId: existingToken.user?.id,
+          deletedAt: existingToken.user?.deletedAt,
         });
-        throw new UnauthorizedError("Invalid refresh token");
-      }
-
-      if (existingToken.user.deletedAt) {
-        logger.warn("Token refresh failed - deleted user", {
-          userId: existingToken.user.id,
-          deletedAt: existingToken.user.deletedAt,
-        });
-        throw new UnauthorizedError("Account has been deleted");
+        throw new UnauthorizedError("Invalid user account");
       }
 
       // Create new tokens
@@ -376,57 +337,31 @@ export class AuthService {
 
       const newAccessToken = this.generateAccessToken(newPayload);
       const newRefreshToken = this.generateRefreshToken(newPayload);
+
+      // Revoke old token and create new one atomically
+      await tx.refreshToken.update({
+        where: { id: existingToken.id },
+        data: { revoked: true },
+      });
+
+      await tx.refreshToken.create({
+        data: {
+          token: newRefreshToken,
+          userId: existingToken.user.id,
+          expiresAt: new Date(
+            Date.now() + ms(authConfig.jwt.refreshTokenExpiration)
+          ),
+        },
+      });
+
       const sessionId = this.setAuthCookies(
         res,
         newAccessToken,
         newRefreshToken
       );
 
-      // Store the refresh in recent refreshes with cleanup timeout
-      const cleanup = setTimeout(async () => {
-        try {
-          logger.debug("Cleaning up old refresh token", {
-            userId: existingToken.user.id,
-            token: refreshToken,
-          });
-
-          // Revoke old token
-          await prisma.refreshToken.update({
-            where: { id: existingToken.id },
-            data: { revoked: true },
-          });
-
-          // Create new refresh token
-          await prisma.refreshToken.create({
-            data: {
-              token: newRefreshToken,
-              userId: existingToken.user.id,
-              expiresAt: new Date(
-                Date.now() + ms(authConfig.jwt.refreshTokenExpiration)
-              ),
-            },
-          });
-
-          // Remove from recent refreshes
-          recentRefreshes.delete(refreshToken);
-        } catch (error) {
-          logger.error("Error during token cleanup", {
-            error,
-            userId: existingToken.user.id,
-          });
-        }
-      }, CLEANUP_DELAY);
-
-      recentRefreshes.set(refreshToken, {
-        oldToken: refreshToken,
-        newToken: newRefreshToken,
-        userId: existingToken.user.id,
-        cleanupTimeout: cleanup,
-      });
-
       logger.info("Token refresh successful", {
         userId: existingToken.user.id,
-        delayedCleanup: true,
       });
 
       return wrapResponse({
