@@ -17,6 +17,10 @@ export interface AuthenticatedRequest<T = any> extends Request {
     mentionId?: string;
     reactionId?: string;
     pollId?: string;
+    choreId?: string;
+    swapRequestId?: string;
+    subtaskId?: string;
+    ruleId?: string;
   };
   body: T;
   cookies: {

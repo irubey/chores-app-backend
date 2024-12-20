@@ -3,6 +3,8 @@ import {
   HouseholdRole,
   NotificationType,
   TransactionStatus,
+  RecurrenceFrequency,
+  DaysOfWeek,
 } from "@shared/enums";
 
 /**
@@ -434,4 +436,19 @@ export const emailSchema = Joi.object({
     "string.empty": "'email' cannot be empty",
     "any.required": "'email' is a required field",
   }),
+});
+
+export const createRecurrenceRuleSchema = Joi.object({
+  frequency: Joi.string()
+    .valid("DAILY", "WEEKLY", "MONTHLY", "YEARLY")
+    .required(),
+  interval: Joi.number().min(1).required(),
+  byWeekDay: Joi.array()
+    .items(Joi.string().valid("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"))
+    .optional(),
+  byMonthDay: Joi.array().items(Joi.number().min(1).max(31)).optional(),
+  bySetPos: Joi.number().optional(),
+  count: Joi.number().min(1).optional(),
+  until: Joi.date().iso().optional(),
+  customRuleString: Joi.string().optional(),
 });

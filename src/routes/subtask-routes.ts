@@ -1,13 +1,14 @@
-import { Router } from 'express';
-import { SubtaskController } from '../controllers/SubtaskController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
+import { Router } from "express";
+import { SubtaskController } from "../controllers/SubtaskController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
 import {
   createSubtaskSchema,
   updateSubtaskStatusSchema,
-} from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
+import { HouseholdRole } from "@shared/enums";
 
 const router = Router({ mergeParams: true });
 
@@ -16,7 +17,12 @@ const router = Router({ mergeParams: true });
  * @desc    Retrieve all subtasks for a specific chore
  * @access  Protected
  */
-router.get('/', authMiddleware, asyncHandler(SubtaskController.getSubtasks));
+router.get(
+  "/",
+  authMiddleware,
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
+  asyncHandler(SubtaskController.getSubtasks)
+);
 
 /**
  * @route   POST /api/households/:householdId/chores/:choreId/subtasks
@@ -24,9 +30,9 @@ router.get('/', authMiddleware, asyncHandler(SubtaskController.getSubtasks));
  * @access  Protected, Write access required
  */
 router.post(
-  '/:choreId/subtasks',
+  "/",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   validate(createSubtaskSchema),
   asyncHandler(SubtaskController.addSubtask)
 );
@@ -37,9 +43,9 @@ router.post(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:choreId/subtasks/:subtaskId',
+  "/:subtaskId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   validate(updateSubtaskStatusSchema),
   asyncHandler(SubtaskController.updateSubtask)
 );
@@ -50,9 +56,9 @@ router.patch(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:choreId/subtasks/:subtaskId',
+  "/:subtaskId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware([HouseholdRole.ADMIN]),
   asyncHandler(SubtaskController.deleteSubtask)
 );
 

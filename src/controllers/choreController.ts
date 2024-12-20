@@ -1,8 +1,8 @@
-import { Response, NextFunction } from 'express';
-import * as choreService from '../services/choreService';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import { CreateChoreDTO, UpdateChoreDTO } from '@shared/types';
-import { AuthenticatedRequest } from '../types';
+import { Response, NextFunction } from "express";
+import * as choreService from "../services/choreService";
+import { UnauthorizedError } from "../middlewares/errorHandler";
+import { CreateChoreDTO, UpdateChoreDTO } from "@shared/types";
+import { AuthenticatedRequest } from "../types";
 
 /**
  * ChoreController handles all CRUD operations related to chores.
@@ -11,17 +11,19 @@ export class ChoreController {
   /**
    * Retrieves all chores for a specific household.
    */
-  static async getChores(
+  public static async getChores(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      const householdId = req.params.householdId;
+      const { householdId } = req.params;
       const userId = req.user?.id;
 
-      if (!userId) {
-        throw new UnauthorizedError('Unauthorized');
+      if (!userId || !householdId) {
+        throw new UnauthorizedError(
+          "User not authenticated or invalid household"
+        );
       }
 
       const response = await choreService.getChores(householdId, userId);
@@ -34,18 +36,20 @@ export class ChoreController {
   /**
    * Creates a new chore.
    */
-  static async createChore(
-    req: AuthenticatedRequest,
+  public static async createChore(
+    req: AuthenticatedRequest<CreateChoreDTO>,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      const householdId = req.params.householdId;
-      const choreData: CreateChoreDTO = req.body;
+      const { householdId } = req.params;
+      const choreData = req.body;
       const userId = req.user?.id;
 
-      if (!userId) {
-        throw new UnauthorizedError('Unauthorized');
+      if (!userId || !householdId) {
+        throw new UnauthorizedError(
+          "User not authenticated or invalid household"
+        );
       }
 
       const response = await choreService.createChore(
@@ -62,7 +66,7 @@ export class ChoreController {
   /**
    * Retrieves details of a specific chore.
    */
-  static async getChoreDetails(
+  public static async getChoreDetails(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -71,8 +75,8 @@ export class ChoreController {
       const { householdId, choreId } = req.params;
       const userId = req.user?.id;
 
-      if (!userId) {
-        throw new UnauthorizedError('Unauthorized');
+      if (!userId || !householdId || !choreId) {
+        throw new UnauthorizedError("Missing required parameters");
       }
 
       const response = await choreService.getChoreById(
@@ -89,18 +93,18 @@ export class ChoreController {
   /**
    * Updates an existing chore.
    */
-  static async updateChore(
-    req: AuthenticatedRequest,
+  public static async updateChore(
+    req: AuthenticatedRequest<UpdateChoreDTO>,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
       const { householdId, choreId } = req.params;
-      const updateData: UpdateChoreDTO = req.body;
+      const updateData = req.body;
       const userId = req.user?.id;
 
-      if (!userId) {
-        throw new UnauthorizedError('Unauthorized');
+      if (!userId || !householdId || !choreId) {
+        throw new UnauthorizedError("Missing required parameters");
       }
 
       const response = await choreService.updateChore(
@@ -118,7 +122,7 @@ export class ChoreController {
   /**
    * Deletes a chore.
    */
-  static async deleteChore(
+  public static async deleteChore(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -127,8 +131,8 @@ export class ChoreController {
       const { householdId, choreId } = req.params;
       const userId = req.user?.id;
 
-      if (!userId) {
-        throw new UnauthorizedError('Unauthorized');
+      if (!userId || !householdId || !choreId) {
+        throw new UnauthorizedError("Missing required parameters");
       }
 
       await choreService.deleteChore(householdId, choreId, userId);
@@ -139,9 +143,9 @@ export class ChoreController {
   }
 
   /**
-   * Requests a chore swap.
+   * Creates a chore swap request.
    */
-  static async createChoreSwapRequest(
+  public static async createChoreSwapRequest(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -151,8 +155,8 @@ export class ChoreController {
       const { targetUserId } = req.body;
       const requestingUserId = req.user?.id;
 
-      if (!requestingUserId) {
-        throw new UnauthorizedError('Unauthorized');
+      if (!requestingUserId || !householdId || !choreId) {
+        throw new UnauthorizedError("Missing required parameters");
       }
 
       const response = await choreService.createChoreSwapRequest(
@@ -169,7 +173,7 @@ export class ChoreController {
   /**
    * Approves or rejects a chore swap request.
    */
-  static async approveOrRejectChoreSwap(
+  public static async approveOrRejectChoreSwap(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -179,8 +183,8 @@ export class ChoreController {
       const { approved } = req.body;
       const approvingUserId = req.user?.id;
 
-      if (!approvingUserId) {
-        throw new UnauthorizedError('Unauthorized');
+      if (!approvingUserId || !householdId || !choreId || !swapRequestId) {
+        throw new UnauthorizedError("Missing required parameters");
       }
 
       const response = await choreService.approveOrRejectChoreSwap(
