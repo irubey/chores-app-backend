@@ -1,8 +1,8 @@
-import { Response, NextFunction } from 'express';
-import * as subtaskService from '../services/subtaskService';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import { AuthenticatedRequest } from '../types';
-import { CreateSubtaskDTO, UpdateSubtaskDTO } from '@shared/types';
+import { Response, NextFunction } from "express";
+import * as subtaskService from "../services/subtaskService";
+import { UnauthorizedError } from "../middlewares/errorHandler";
+import { AuthenticatedRequest } from "../types";
+import { CreateSubtaskDTO, UpdateSubtaskDTO } from "@shared/types";
 
 /**
  * SubtaskController handles all CRUD operations related to subtasks.
@@ -10,28 +10,26 @@ import { CreateSubtaskDTO, UpdateSubtaskDTO } from '@shared/types';
 export class SubtaskController {
   /**
    * Adds a new subtask to a specific chore.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async addSubtask(
-    req: AuthenticatedRequest,
+  public static async addSubtask(
+    req: AuthenticatedRequest<CreateSubtaskDTO>,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
-
       const { householdId, choreId } = req.params;
-      const subtaskData: CreateSubtaskDTO = req.body;
+      const subtaskData = req.body;
+      const userId = req.user?.id;
+
+      if (!userId || !householdId || !choreId) {
+        throw new UnauthorizedError("Missing required parameters");
+      }
 
       const response = await subtaskService.addSubtask(
         householdId,
         choreId,
         subtaskData,
-        req.user.id
+        userId
       );
       res.status(201).json(response);
     } catch (error) {
@@ -42,25 +40,26 @@ export class SubtaskController {
   /**
    * Updates an existing subtask.
    */
-  static async updateSubtask(
-    req: AuthenticatedRequest,
+  public static async updateSubtask(
+    req: AuthenticatedRequest<UpdateSubtaskDTO>,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
-
       const { householdId, choreId, subtaskId } = req.params;
-      const subtaskData: UpdateSubtaskDTO = req.body;
+      const subtaskData = req.body;
+      const userId = req.user?.id;
+
+      if (!userId || !householdId || !choreId || !subtaskId) {
+        throw new UnauthorizedError("Missing required parameters");
+      }
 
       const response = await subtaskService.updateSubtask(
         householdId,
         choreId,
         subtaskId,
         subtaskData,
-        req.user.id
+        userId
       );
       res.status(200).json(response);
     } catch (error) {
@@ -71,22 +70,23 @@ export class SubtaskController {
   /**
    * Gets all subtasks for a specific chore.
    */
-  static async getSubtasks(
+  public static async getSubtasks(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
-
       const { householdId, choreId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId || !householdId || !choreId) {
+        throw new UnauthorizedError("Missing required parameters");
+      }
 
       const response = await subtaskService.getSubtasks(
         householdId,
         choreId,
-        req.user.id
+        userId
       );
       res.status(200).json(response);
     } catch (error) {
@@ -96,27 +96,25 @@ export class SubtaskController {
 
   /**
    * Deletes a subtask from a specific chore.
-   * @param req Authenticated Express Request object
-   * @param res Express Response object
-   * @param next Express NextFunction for error handling
    */
-  static async deleteSubtask(
+  public static async deleteSubtask(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
-      }
-
       const { householdId, choreId, subtaskId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId || !householdId || !choreId || !subtaskId) {
+        throw new UnauthorizedError("Missing required parameters");
+      }
 
       await subtaskService.deleteSubtask(
         householdId,
         choreId,
         subtaskId,
-        req.user.id
+        userId
       );
       res.status(204).send();
     } catch (error) {

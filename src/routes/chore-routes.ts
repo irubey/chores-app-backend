@@ -1,15 +1,16 @@
-import { Router } from 'express';
-import { ChoreController } from '../controllers/ChoreController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
+import { Router } from "express";
+import { ChoreController } from "../controllers/ChoreController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
 import {
   createChoreSchema,
   updateChoreSchema,
   createSubtaskSchema,
   updateSubtaskStatusSchema,
-} from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
+import { HouseholdRole } from "@shared/enums";
 
 const router = Router({ mergeParams: true });
 
@@ -19,9 +20,9 @@ const router = Router({ mergeParams: true });
  * @access  Protected
  */
 router.get(
-  '/',
+  "/",
   authMiddleware,
-  rbacMiddleware('READ'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreController.getChores)
 );
 
@@ -31,9 +32,9 @@ router.get(
  * @access  Protected, Admin only
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware([HouseholdRole.ADMIN]),
   validate(createChoreSchema),
   asyncHandler(ChoreController.createChore)
 );
@@ -44,9 +45,9 @@ router.post(
  * @access  Protected
  */
 router.get(
-  '/:choreId',
+  "/:choreId",
   authMiddleware,
-  rbacMiddleware('READ'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreController.getChoreDetails)
 );
 
@@ -56,9 +57,9 @@ router.get(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:choreId',
+  "/:choreId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   validate(updateChoreSchema),
   asyncHandler(ChoreController.updateChore)
 );
@@ -69,9 +70,9 @@ router.patch(
  * @access  Protected, Admin only
  */
 router.delete(
-  '/:choreId',
+  "/:choreId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware([HouseholdRole.ADMIN]),
   asyncHandler(ChoreController.deleteChore)
 );
 
@@ -81,9 +82,9 @@ router.delete(
  * @access  Protected, Write access required
  */
 router.post(
-  '/:choreId/swap-request',
+  "/:choreId/swap-request",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreController.createChoreSwapRequest)
 );
 
@@ -93,9 +94,9 @@ router.post(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:choreId/swap-approve',
+  "/:choreId/swap-approve",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreController.approveOrRejectChoreSwap)
 );
 
