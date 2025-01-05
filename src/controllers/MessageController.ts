@@ -735,17 +735,17 @@ export class MessageController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { householdId, threadId, pollId } = req.params;
+      const { householdId, messageId, pollId } = req.params;
 
-      if (!householdId || !threadId || !pollId) {
+      if (!householdId || !messageId || !pollId) {
         throw new Error(
-          "Missing required parameters: householdId, threadId, and pollId"
+          "Missing required parameters: householdId, messageId, and pollId"
         );
       }
 
       const response = await pollService.getPollAnalytics(
         householdId,
-        threadId,
+        messageId,
         pollId,
         req.user!.id
       );

@@ -41,7 +41,10 @@ export async function getMessages(
     ]);
 
     const messages = await prisma.message.findMany({
-      where: { threadId },
+      where: {
+        threadId,
+        deletedAt: null,
+      },
       take: options?.limit || 20,
       skip: options?.cursor ? 1 : 0,
       cursor: options?.cursor ? { id: options.cursor } : undefined,

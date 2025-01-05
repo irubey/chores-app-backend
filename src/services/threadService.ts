@@ -166,6 +166,7 @@ export async function getThreads(
         messages: {
           take: 20,
           orderBy: { createdAt: "desc" },
+          where: { deletedAt: null },
           include: {
             thread: {
               select: {
