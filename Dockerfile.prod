@@ -8,7 +8,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies including dev dependencies for build
+# Create .npmrc file using ARG
+ARG NPM_TOKEN
+RUN echo "@irubey:registry=https://npm.pkg.github.com/\n//npm.pkg.github.com/:_authToken=${NPM_TOKEN}\nalways-auth=true" > .npmrc
+
+# Install dependencies
 RUN npm ci
 
 # Copy source code
@@ -28,8 +32,15 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
+# Create .npmrc file using ARG again
+ARG NPM_TOKEN
+RUN echo "@irubey:registry=https://npm.pkg.github.com/\n//npm.pkg.github.com/:_authToken=${NPM_TOKEN}\nalways-auth=true" > .npmrc
+
+# Install production dependencies
 RUN npm ci --only=production
+
+# Remove .npmrc after install
+RUN rm -f .npmrc
 
 # Copy built assets from builder
 COPY --from=builder /app/dist ./dist
