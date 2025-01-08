@@ -69,3 +69,5 @@ dist/*node_modules/
 
 .npmrc
 .docker.npmrc
+.env.production
+

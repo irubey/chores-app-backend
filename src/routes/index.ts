@@ -12,6 +12,7 @@ import calendarEventRoutes from "./calendar-event-routes";
 import choreEventRoutes from "./chore-event-routes";
 import threadRoutes from "./thread-routes";
 import recurrenceRuleRoutes from "./recurrence-rule-routes";
+import healthRoutes from "./health-routes";
 
 const router = Router();
 
@@ -92,5 +93,11 @@ router.use("/households/:householdId/threads", threadRoutes);
  * @desc    Recurrence rule management routes
  */
 router.use("/recurrence-rules", recurrenceRuleRoutes);
+
+/**
+ * @route   /api/health
+ * @desc    Health check routes
+ */
+router.use("/health", healthRoutes);
 
 export default router;
