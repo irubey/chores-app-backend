@@ -1,23 +1,24 @@
-import { Router } from 'express';
-import { ExpenseController } from '../controllers/ExpenseController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
+import { Router } from "express";
+import { ExpenseController } from "../controllers/ExpenseController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
 import {
   createExpenseSchema,
   updateExpenseSchema,
-} from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
-import multer from 'multer';
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
+import { HouseholdRole } from "@shared/enums";
+import multer from "multer";
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/receipts/');
+    cb(null, "uploads/receipts/");
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + "-" + file.originalname);
   },
 });
 
@@ -30,7 +31,7 @@ const router = Router({ mergeParams: true });
  * @desc    Retrieve all expenses for a specific household
  * @access  Protected
  */
-router.get('/', authMiddleware, asyncHandler(ExpenseController.getExpenses));
+router.get("/", authMiddleware, asyncHandler(ExpenseController.getExpenses));
 
 /**
  * @route   POST /api/households/:householdId/expenses
@@ -38,9 +39,9 @@ router.get('/', authMiddleware, asyncHandler(ExpenseController.getExpenses));
  * @access  Protected, Write access required
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   validate(createExpenseSchema),
   asyncHandler(ExpenseController.createExpense)
 );
@@ -51,7 +52,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  '/:expenseId',
+  "/:expenseId",
   authMiddleware,
   asyncHandler(ExpenseController.getExpenseDetails)
 );
@@ -62,9 +63,9 @@ router.get(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:expenseId',
+  "/:expenseId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   validate(updateExpenseSchema),
   asyncHandler(ExpenseController.updateExpense)
 );
@@ -75,21 +76,22 @@ router.patch(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:expenseId',
+  "/:expenseId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware([HouseholdRole.ADMIN]),
   asyncHandler(ExpenseController.deleteExpense)
 );
 
 /**
  * @route   POST /api/households/:householdId/expenses/:expenseId/receipts
  * @desc    Upload a receipt for a specific expense
- * @access  Protected
+ * @access  Protected, Write access required
  */
 router.post(
-  '/:expenseId/receipts',
+  "/:expenseId/receipts",
   authMiddleware,
-  upload.single('file'), // 'file' should match the form-data key
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
+  upload.single("file"), // 'file' should match the form-data key
   asyncHandler(ExpenseController.uploadReceipt)
 );
 
@@ -99,7 +101,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  '/:expenseId/receipts',
+  "/:expenseId/receipts",
   authMiddleware,
   asyncHandler(ExpenseController.getReceipts)
 );
@@ -110,7 +112,7 @@ router.get(
  * @access  Protected
  */
 router.get(
-  '/:expenseId/receipts/:receiptId',
+  "/:expenseId/receipts/:receiptId",
   authMiddleware,
   asyncHandler(ExpenseController.getReceiptById)
 );
@@ -118,11 +120,12 @@ router.get(
 /**
  * @route   DELETE /api/households/:householdId/expenses/:expenseId/receipts/:receiptId
  * @desc    Delete a receipt by ID
- * @access  Protected
+ * @access  Protected, Admin access required
  */
 router.delete(
-  '/:expenseId/receipts/:receiptId',
+  "/:expenseId/receipts/:receiptId",
   authMiddleware,
+  rbacMiddleware([HouseholdRole.ADMIN]),
   asyncHandler(ExpenseController.deleteReceipt)
 );
 
@@ -132,9 +135,9 @@ router.delete(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:expenseId/splits',
+  "/:expenseId/splits",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ExpenseController.updateExpenseSplits)
 );
 

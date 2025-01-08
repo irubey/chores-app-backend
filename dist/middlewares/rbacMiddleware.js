@@ -1,12 +1,19 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.rbacMiddleware = rbacMiddleware;
+const client_1 = require("@prisma/client");
+const logger_1 = __importDefault(require("../utils/logger"));
+const prisma = new client_1.PrismaClient();
 /**
  * Role-Based Access Control Middleware
  *
- * @param allowedRoles - Array of roles allowed to access the route
+ * @param allowedRoles - Array of roles that are allowed to access the route
  * @returns Middleware function
  */
-export function rbacMiddleware(allowedRoles) {
+function rbacMiddleware(allowedRoles) {
     return async (req, res, next) => {
         const authReq = req;
         const user = authReq.user;
@@ -27,15 +34,29 @@ export function rbacMiddleware(allowedRoles) {
                 },
             });
             if (!householdMember) {
-                return res.status(403).json({ message: 'You are not a member of this household.' });
+                return res
+                    .status(403)
+                    .json({ message: 'You are not a member of this household.' });
             }
             if (allowedRoles.includes(householdMember.role)) {
                 return next();
             }
-            return res.status(403).json({ message: 'Access denied.' });
+            logger_1.default.warn('Access denied', {
+                userId: user.id,
+                householdId,
+                userRole: householdMember.role,
+                requiredRoles: allowedRoles,
+            });
+            return res.status(403).json({
+                message: `Access denied. Required roles: ${allowedRoles.join(', ')}`,
+            });
         }
         catch (error) {
-            console.error('RBAC Middleware Error:', error);
+            logger_1.default.error('RBAC Middleware Error:', {
+                userId: user.id,
+                householdId,
+                error: error instanceof Error ? error.message : 'Unknown error',
+            });
             return res.status(500).json({ message: 'Internal server error.' });
         }
     };

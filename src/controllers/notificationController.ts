@@ -1,12 +1,16 @@
-import { Response, NextFunction } from 'express';
-import * as notificationService from '../services/notificationService';
-import { AuthenticatedRequest } from '../types';
+import { Response, NextFunction } from "express";
+import * as notificationService from "../services/notificationService";
+import { AuthenticatedRequest } from "../types";
 import {
   CreateNotificationDTO,
   UpdateNotificationDTO,
   Notification,
-} from '@shared/types';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+} from "@shared/types";
+import {
+  NotFoundError,
+  UnauthorizedError,
+  BadRequestError,
+} from "../middlewares/errorHandler";
 
 /**
  * NotificationController handles all CRUD operations related to notifications.
@@ -22,7 +26,7 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError('User not authenticated');
+        throw new UnauthorizedError("User not authenticated");
       }
 
       const response = await notificationService.getNotifications(req.user.id);
@@ -42,12 +46,12 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError('User not authenticated');
+        throw new UnauthorizedError("User not authenticated");
       }
 
-      const notificationData = {
+      const notificationData: CreateNotificationDTO = {
         ...req.body,
-        userId: req.user.id, // Ensure the notification is created for the authenticated user
+        userId: req.user.id,
       };
 
       const response = await notificationService.createNotification(
@@ -69,10 +73,14 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError('User not authenticated');
+        throw new UnauthorizedError("User not authenticated");
       }
 
       const { notificationId } = req.params;
+      if (!notificationId) {
+        throw new BadRequestError("Notification ID is required");
+      }
+
       const response = await notificationService.markAsRead(
         req.user.id,
         notificationId
@@ -93,10 +101,14 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError('User not authenticated');
+        throw new UnauthorizedError("User not authenticated");
       }
 
       const { notificationId } = req.params;
+      if (!notificationId) {
+        throw new BadRequestError("Notification ID is required");
+      }
+
       await notificationService.deleteNotification(req.user.id, notificationId);
       res.status(204).send();
     } catch (error) {
@@ -114,10 +126,14 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError('User not authenticated');
+        throw new UnauthorizedError("User not authenticated");
       }
 
       const { householdId } = req.params;
+      if (!householdId) {
+        throw new BadRequestError("Household ID is required");
+      }
+
       const response = await notificationService.getNotificationSettings(
         req.user.id,
         householdId
@@ -138,13 +154,15 @@ export class NotificationController {
   ): Promise<void> {
     try {
       if (!req.user?.id) {
-        throw new UnauthorizedError('User not authenticated');
+        throw new UnauthorizedError("User not authenticated");
       }
 
       const { settingsId } = req.params;
-      const settingsData = req.body;
+      if (!settingsId) {
+        throw new BadRequestError("Settings ID is required");
+      }
 
-      // Ensure the settings belong to the authenticated user
+      const settingsData = req.body;
       const response = await notificationService.updateNotificationSettings(
         settingsId,
         settingsData

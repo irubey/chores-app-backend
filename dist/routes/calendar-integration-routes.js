@@ -1,39 +1,16 @@
-import { Router } from 'express';
-import { CalendarIntegrationController } from '../controllers/CalendarIntegrationController';
-import authMiddleware from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
-import { createEventSchema, updateEventSchema, } from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
-const router = Router({ mergeParams: true });
-/**
- * @route   GET /api/households/:householdId/calendar
- * @desc    Retrieve all calendar events for a specific household
- * @access  Protected
- */
-router.get('/', authMiddleware, asyncHandler(CalendarIntegrationController.getCalendarEvents));
-/**
- * @route   POST /api/households/:householdId/calendar
- * @desc    Create a new calendar event within a household
- * @access  Protected, Admin only
- */
-router.post('/', authMiddleware, rbacMiddleware(['ADMIN']), validate(createEventSchema), asyncHandler(CalendarIntegrationController.createEvent));
-/**
- * @route   PATCH /api/households/:householdId/calendar/:eventId
- * @desc    Update an existing calendar event
- * @access  Protected, Admin only
- */
-router.patch('/:eventId', authMiddleware, rbacMiddleware(['ADMIN']), validate(updateEventSchema), asyncHandler(CalendarIntegrationController.updateEvent));
-/**
- * @route   DELETE /api/households/:householdId/calendar/:eventId
- * @desc    Delete a calendar event from a household
- * @access  Protected, Admin only
- */
-router.delete('/:eventId', authMiddleware, rbacMiddleware(['ADMIN']), asyncHandler(CalendarIntegrationController.deleteEvent));
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const calendarIntegrationController_1 = require("../controllers/calendarIntegrationController");
+const authMiddleware_1 = require("../middlewares/authMiddleware");
+const validationMiddleware_1 = require("../middlewares/validationMiddleware");
+const validationSchemas_1 = require("../utils/validationSchemas");
+const asyncHandler_1 = require("../utils/asyncHandler");
+const router = (0, express_1.Router)({ mergeParams: true });
 /**
  * @route   POST /api/households/:householdId/calendar/sync
  * @desc    Sync household calendar with a user's personal calendar
  * @access  Protected
  */
-router.post('/sync', authMiddleware, asyncHandler(CalendarIntegrationController.syncWithPersonalCalendar));
-export default router;
+router.post("/sync", authMiddleware_1.authMiddleware, (0, validationMiddleware_1.validate)(validationSchemas_1.syncCalendarSchema), (0, asyncHandler_1.asyncHandler)(calendarIntegrationController_1.CalendarIntegrationController.syncWithPersonalCalendar));
+exports.default = router;

@@ -1,7 +1,22 @@
-import { TransactionStatus, HouseholdRole } from '@prisma/client';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import prisma from '../config/database';
-import { getIO } from '../sockets';
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getTransactions = getTransactions;
+exports.createTransaction = createTransaction;
+exports.updateTransactionStatus = updateTransactionStatus;
+exports.deleteTransaction = deleteTransaction;
+const enums_1 = require("../../node_modules/@irubey/chores-app-shared/dist/enums");
+const errorHandler_1 = require("../middlewares/errorHandler");
+const database_1 = __importDefault(require("../config/database"));
+const sockets_1 = require("../sockets");
+const authService_1 = require("./authService");
+const expenseTransformer_1 = require("../utils/transformers/expenseTransformer");
+// Helper function to wrap data in ApiResponse
+function wrapResponse(data) {
+    return { data };
+}
 /**
  * Retrieves all transactions for a specific household.
  * @param householdId - The ID of the household.
@@ -9,20 +24,12 @@ import { getIO } from '../sockets';
  * @returns A list of transactions.
  * @throws UnauthorizedError if the user is not a household member.
  */
-export async function getTransactions(householdId, userId) {
-    // Verify user is a member of the household
-    const membership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId,
-            },
-        },
-    });
-    if (!membership) {
-        throw new UnauthorizedError('You do not have access to this household.');
-    }
-    const transactions = await prisma.transaction.findMany({
+async function getTransactions(householdId, userId) {
+    await (0, authService_1.verifyMembership)(householdId, userId, [
+        enums_1.HouseholdRole.ADMIN,
+        enums_1.HouseholdRole.MEMBER,
+    ]);
+    const transactions = await database_1.default.transaction.findMany({
         where: { expense: { householdId } },
         include: {
             fromUser: true,
@@ -33,7 +40,8 @@ export async function getTransactions(householdId, userId) {
             createdAt: 'desc',
         },
     });
-    return transactions;
+    const transformedTransactions = transactions.map((transaction) => (0, expenseTransformer_1.transformTransactionWithDetails)(transaction));
+    return wrapResponse(transformedTransactions);
 }
 /**
  * Creates a new transaction within a household.
@@ -44,44 +52,47 @@ export async function getTransactions(householdId, userId) {
  * @throws UnauthorizedError if the user is not a household member or insufficient permissions.
  * @throws NotFoundError if the related expense does not exist.
  */
-export async function createTransaction(householdId, data, userId) {
-    // Verify user is a member of the household
-    const membership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId,
+async function createTransaction(householdId, data, userId) {
+    await (0, authService_1.verifyMembership)(householdId, userId, [
+        enums_1.HouseholdRole.ADMIN,
+        enums_1.HouseholdRole.MEMBER,
+    ]);
+    const transaction = await database_1.default.$transaction(async (tx) => {
+        const expense = await tx.expense.findUnique({
+            where: { id: data.expenseId },
+        });
+        if (!expense || expense.householdId !== householdId) {
+            throw new errorHandler_1.NotFoundError('Related expense not found.');
+        }
+        return tx.transaction.create({
+            data: {
+                expenseId: data.expenseId,
+                fromUserId: data.fromUserId,
+                toUserId: data.toUserId,
+                amount: data.amount,
+                status: data.status || enums_1.TransactionStatus.PENDING,
             },
-        },
+            include: {
+                fromUser: true,
+                toUser: true,
+                expense: {
+                    include: {
+                        paidBy: true,
+                        splits: {
+                            include: {
+                                user: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
     });
-    if (!membership) {
-        throw new UnauthorizedError('You do not have access to this household.');
-    }
-    // Verify the related expense exists and belongs to the household
-    const expense = await prisma.expense.findUnique({
-        where: { id: data.expenseId },
-    });
-    if (!expense || expense.householdId !== householdId) {
-        throw new NotFoundError('Related expense not found.');
-    }
-    // Create the transaction
-    const transaction = await prisma.transaction.create({
-        data: {
-            expenseId: data.expenseId,
-            fromUserId: data.fromUserId,
-            toUserId: data.toUserId,
-            amount: data.amount,
-            status: data.status || TransactionStatus.PENDING,
-        },
-        include: {
-            fromUser: true,
-            toUser: true,
-            expense: true,
-        },
-    });
-    // Emit real-time event for new transaction
-    getIO().to(`household_${householdId}`).emit('transaction_update', { transaction });
-    return transaction;
+    const transformedTransaction = (0, expenseTransformer_1.transformTransactionWithDetails)(transaction);
+    (0, sockets_1.getIO)()
+        .to(`household_${householdId}`)
+        .emit('transaction_created', { transaction: transformedTransaction });
+    return wrapResponse(transformedTransaction);
 }
 /**
  * Updates the status of an existing transaction.
@@ -93,42 +104,49 @@ export async function createTransaction(householdId, data, userId) {
  * @throws UnauthorizedError if the user does not have ADMIN role or is not related to the transaction.
  * @throws NotFoundError if the transaction does not exist.
  */
-export async function updateTransactionStatus(householdId, transactionId, status, userId) {
-    // Verify user is a member of the household
-    const membership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId,
+async function updateTransactionStatus(householdId, transactionId, data, userId) {
+    const membership = await (0, authService_1.verifyMembership)(householdId, userId, [
+        enums_1.HouseholdRole.ADMIN,
+        enums_1.HouseholdRole.MEMBER,
+    ]);
+    const transaction = await database_1.default.$transaction(async (tx) => {
+        const existingTransaction = await tx.transaction.findUnique({
+            where: { id: transactionId },
+            include: { expense: true },
+        });
+        if (!existingTransaction ||
+            existingTransaction.expense.householdId !== householdId) {
+            throw new errorHandler_1.NotFoundError('Transaction not found.');
+        }
+        if (membership.role !== enums_1.HouseholdRole.ADMIN &&
+            existingTransaction.fromUserId !== userId &&
+            existingTransaction.toUserId !== userId) {
+            throw new errorHandler_1.UnauthorizedError('You do not have permission to update this transaction.');
+        }
+        return tx.transaction.update({
+            where: { id: transactionId },
+            data: { status: data.status },
+            include: {
+                fromUser: true,
+                toUser: true,
+                expense: {
+                    include: {
+                        paidBy: true,
+                        splits: {
+                            include: {
+                                user: true,
+                            },
+                        },
+                    },
+                },
             },
-        },
+        });
     });
-    if (!membership) {
-        throw new UnauthorizedError('You do not have access to this household.');
-    }
-    // Fetch the transaction
-    const transaction = await prisma.transaction.findUnique({
-        where: { id: transactionId },
-    });
-    if (!transaction || transaction.expenseId !== householdId) {
-        throw new NotFoundError('Transaction not found.');
-    }
-    // Optionally, verify if the user has permission to update (e.g., is admin or involved in the transaction)
-    if (membership.role !== HouseholdRole.ADMIN && transaction.fromUserId !== userId && transaction.toUserId !== userId) {
-        throw new UnauthorizedError('You do not have permission to update this transaction.');
-    }
-    const updatedTransaction = await prisma.transaction.update({
-        where: { id: transactionId },
-        data: { status },
-        include: {
-            fromUser: true,
-            toUser: true,
-            expense: true,
-        },
-    });
-    // Emit real-time event for updated transaction
-    getIO().to(`household_${householdId}`).emit('transaction_update', { transaction: updatedTransaction });
-    return updatedTransaction;
+    const transformedTransaction = (0, expenseTransformer_1.transformTransactionWithDetails)(transaction);
+    (0, sockets_1.getIO)()
+        .to(`household_${householdId}`)
+        .emit('transaction_updated', { transaction: transformedTransaction });
+    return wrapResponse(transformedTransaction);
 }
 /**
  * Deletes a transaction from a household.
@@ -138,30 +156,22 @@ export async function updateTransactionStatus(householdId, transactionId, status
  * @throws UnauthorizedError if the user does not have ADMIN role.
  * @throws NotFoundError if the transaction does not exist.
  */
-export async function deleteTransaction(householdId, transactionId, userId) {
-    // Verify user has ADMIN role in the household
-    const membership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId,
-            },
-        },
+async function deleteTransaction(householdId, transactionId, userId) {
+    await (0, authService_1.verifyMembership)(householdId, userId, [enums_1.HouseholdRole.ADMIN]);
+    await database_1.default.$transaction(async (tx) => {
+        const transaction = await tx.transaction.findUnique({
+            where: { id: transactionId },
+            include: { expense: true },
+        });
+        if (!transaction || transaction.expense.householdId !== householdId) {
+            throw new errorHandler_1.NotFoundError('Transaction not found.');
+        }
+        await tx.transaction.delete({
+            where: { id: transactionId },
+        });
     });
-    if (!membership || membership.role !== HouseholdRole.ADMIN) {
-        throw new UnauthorizedError('You do not have permission to delete this transaction.');
-    }
-    // Verify the transaction exists and belongs to the household
-    const transaction = await prisma.transaction.findUnique({
-        where: { id: transactionId },
-        include: { expense: true },
-    });
-    if (!transaction || transaction.expense.householdId !== householdId) {
-        throw new NotFoundError('Transaction not found.');
-    }
-    await prisma.transaction.delete({
-        where: { id: transactionId },
-    });
-    // Emit real-time event for deleted transaction
-    getIO().to(`household_${householdId}`).emit('transaction_update', { transactionId });
+    (0, sockets_1.getIO)()
+        .to(`household_${householdId}`)
+        .emit('transaction_deleted', { transactionId });
+    return wrapResponse(undefined);
 }

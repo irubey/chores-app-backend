@@ -1,5 +1,4 @@
-import { Prisma } from '@prisma/client';
-import { HouseholdRole } from '@shared/enums';
+import { Prisma } from "@prisma/client";
 
 // Base types without relations
 export type PrismaUserBase = {
@@ -192,7 +191,7 @@ export type PrismaEventWithFullRelations = Prisma.EventGetPayload<{
             user: true;
           };
         };
-        swapRequests: {
+        choreSwapRequests: {
           include: {
             requestingUser: true;
             targetUser: true;
@@ -283,21 +282,21 @@ export type PrismaNotificationSettingsWithFullRelations =
   }>;
 
 // Utility types for flexible composition
-export type WithCustomUser<T, U = PrismaUserMinimal> = Omit<T, 'user'> & {
+export type WithCustomUser<T, U = PrismaUserMinimal> = Omit<T, "user"> & {
   user: U;
 };
 
-export type WithCustomUsers<T, U = PrismaUserMinimal> = Omit<T, 'users'> & {
+export type WithCustomUsers<T, U = PrismaUserMinimal> = Omit<T, "users"> & {
   users: U[];
 };
 
-export type WithCustomEvent<T, U = PrismaEventMinimal> = Omit<T, 'event'> & {
+export type WithCustomEvent<T, U = PrismaEventMinimal> = Omit<T, "event"> & {
   event: U;
 };
 
 export type WithCustomParticipants<T, U = PrismaUserMinimal> = Omit<
   T,
-  'participants'
+  "participants"
 > & {
   participants: {
     user: U;
@@ -536,14 +535,14 @@ export type PrismaMessageMinimal = Prisma.MessageGetPayload<{
 
 export type WithCustomHousehold<T, U = PrismaHouseholdMinimal> = Omit<
   T,
-  'household'
+  "household"
 > & {
   household: U;
 };
 
 export type WithCustomMessage<T, U = PrismaMessageMinimal> = Omit<
   T,
-  'message'
+  "message"
 > & {
   message: U;
 };

@@ -1,13 +1,13 @@
-import { Response, NextFunction } from 'express';
-import * as expenseService from '../services/expenseService';
+import { Response, NextFunction } from "express";
+import * as expenseService from "../services/expenseService";
 import {
   NotFoundError,
   UnauthorizedError,
   BadRequestError,
-} from '../middlewares/errorHandler';
-import { AuthenticatedRequest } from '../types';
-import path from 'path';
-import { UpdateExpenseSplitDTO } from '@shared/types';
+} from "../middlewares/errorHandler";
+import { AuthenticatedRequest } from "../types";
+import path from "path";
+import { UpdateExpenseSplitDTO } from "@shared/types";
 
 /**
  * ExpenseController handles all CRUD operations related to expenses.
@@ -23,9 +23,12 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
-      const householdId = req.params.householdId;
+      const { householdId } = req.params;
+      if (!householdId) {
+        throw new BadRequestError("Household ID is required");
+      }
       const response = await expenseService.getExpenses(
         householdId,
         req.user.id
@@ -46,9 +49,12 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
-      const householdId = req.params.householdId;
+      const { householdId } = req.params;
+      if (!householdId) {
+        throw new BadRequestError("Household ID is required");
+      }
       const expenseData = req.body;
       const response = await expenseService.createExpense(
         householdId,
@@ -71,16 +77,19 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
+      if (!householdId || !expenseId) {
+        throw new BadRequestError("Household ID and Expense ID are required");
+      }
       const response = await expenseService.getExpenseById(
         householdId,
         expenseId,
         req.user.id
       );
       if (!response) {
-        throw new NotFoundError('Expense not found');
+        throw new NotFoundError("Expense not found");
       }
       res.status(200).json(response);
     } catch (error) {
@@ -98,9 +107,12 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
+      if (!householdId || !expenseId) {
+        throw new BadRequestError("Household ID and Expense ID are required");
+      }
       const updateData = req.body;
       const response = await expenseService.updateExpense(
         householdId,
@@ -110,7 +122,7 @@ export class ExpenseController {
       );
       if (!response) {
         throw new NotFoundError(
-          'Expense not found or you do not have permission to update it'
+          "Expense not found or you do not have permission to update it"
         );
       }
       res.status(200).json(response);
@@ -129,9 +141,12 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
+      if (!householdId || !expenseId) {
+        throw new BadRequestError("Household ID and Expense ID are required");
+      }
       await expenseService.deleteExpense(householdId, expenseId, req.user.id);
       res.status(204).send();
     } catch (error) {
@@ -149,19 +164,19 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
-
       const { householdId, expenseId } = req.params;
-
+      if (!householdId || !expenseId) {
+        throw new BadRequestError("Household ID and Expense ID are required");
+      }
       if (!req.file) {
-        throw new BadRequestError('No file uploaded');
+        throw new BadRequestError("No file uploaded");
       }
 
-      const filePath = path.join('uploads/receipts/', req.file.filename);
+      const filePath = path.join("uploads/receipts/", req.file.filename);
       const fileType = req.file.mimetype;
 
-      // Call the service to handle database and storage logic
       const response = await expenseService.uploadReceipt(
         householdId,
         expenseId,
@@ -172,7 +187,6 @@ export class ExpenseController {
           expenseId: expenseId,
         }
       );
-
       res.status(201).json(response);
     } catch (error) {
       next(error);
@@ -189,9 +203,12 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId } = req.params;
+      if (!householdId || !expenseId) {
+        throw new BadRequestError("Household ID and Expense ID are required");
+      }
       const response = await expenseService.getReceipts(
         householdId,
         expenseId,
@@ -213,9 +230,14 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId, receiptId } = req.params;
+      if (!householdId || !expenseId || !receiptId) {
+        throw new BadRequestError(
+          "Household ID, Expense ID, and Receipt ID are required"
+        );
+      }
       const response = await expenseService.getReceiptById(
         householdId,
         expenseId,
@@ -223,7 +245,7 @@ export class ExpenseController {
         req.user.id
       );
       if (!response) {
-        throw new NotFoundError('Receipt not found');
+        throw new NotFoundError("Receipt not found");
       }
       res.status(200).json(response);
     } catch (error) {
@@ -241,9 +263,14 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, expenseId, receiptId } = req.params;
+      if (!householdId || !expenseId || !receiptId) {
+        throw new BadRequestError(
+          "Household ID, Expense ID, and Receipt ID are required"
+        );
+      }
       await expenseService.deleteReceipt(
         householdId,
         expenseId,
@@ -266,11 +293,16 @@ export class ExpenseController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
-
       const { householdId, expenseId } = req.params;
+      if (!householdId || !expenseId) {
+        throw new BadRequestError("Household ID and Expense ID are required");
+      }
       const splits: UpdateExpenseSplitDTO[] = req.body.splits;
+      if (!splits || !Array.isArray(splits)) {
+        throw new BadRequestError("Valid splits array is required");
+      }
 
       const response = await expenseService.updateExpenseSplits(
         householdId,

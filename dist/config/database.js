@@ -1,7 +1,14 @@
-import { PrismaClient } from '@prisma/client';
-import logger from '../utils/logger';
-// Initialize Prisma Client
-const prisma = new PrismaClient({
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.disconnectDatabase = exports.connectDatabase = void 0;
+const client_1 = require("@prisma/client");
+const logger_1 = __importDefault(require("../utils/logger"));
+const prismaExtensions_1 = require("./prismaExtensions");
+// Initialize base Prisma Client with logging
+const basePrisma = new client_1.PrismaClient({
     log: [
         { emit: 'event', level: 'query' },
         { emit: 'event', level: 'error' },
@@ -9,32 +16,38 @@ const prisma = new PrismaClient({
         { emit: 'event', level: 'warn' },
     ],
 });
-// Log queries in development environment
+// Set up event listeners before extending
 if (process.env.NODE_ENV === 'development') {
-    prisma.$on('query', (e) => {
-        logger.debug('Query: ' + e.query);
-        logger.debug('Params: ' + e.params);
-        logger.debug('Duration: ' + e.duration + 'ms');
+    basePrisma.$on('query', (e) => {
+        logger_1.default.debug('Query: ' + e.query);
+        logger_1.default.debug('Params: ' + e.params);
+        logger_1.default.debug('Duration: ' + e.duration + 'ms');
     });
 }
-// Log errors
-prisma.$on('error', (e) => {
-    logger.error('Prisma Error: ' + e.message);
+basePrisma.$on('error', (e) => {
+    logger_1.default.error('Prisma Error: ' + e.message);
 });
+// Apply extensions after setting up listeners
+const prisma = basePrisma.$extends(prismaExtensions_1.prismaExtensions);
 // Function to connect to the database
-export const connectDatabase = async () => {
+const connectDatabase = async () => {
     try {
-        await prisma.$connect();
-        logger.info('Successfully connected to the database');
+        await basePrisma.$connect();
+        logger_1.default.info('Successfully connected to the database');
     }
     catch (error) {
-        logger.error('Failed to connect to the database:', error);
+        logger_1.default.error('Failed to connect to the database', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+        });
         process.exit(1);
     }
 };
+exports.connectDatabase = connectDatabase;
 // Function to disconnect from the database
-export const disconnectDatabase = async () => {
-    await prisma.$disconnect();
-    logger.info('Disconnected from the database');
+const disconnectDatabase = async () => {
+    await basePrisma.$disconnect();
+    logger_1.default.info('Disconnected from the database');
 };
-export default prisma;
+exports.disconnectDatabase = disconnectDatabase;
+exports.default = prisma;

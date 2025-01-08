@@ -1,41 +1,45 @@
-import * as userService from '../services/userService';
-import { UnauthorizedError } from '../middlewares/errorHandler';
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.UserController = void 0;
+const userService = __importStar(require("../services/userService"));
+const errorHandler_1 = require("../middlewares/errorHandler");
 /**
  * UserController handles all user-related operations such as registration, login, and household management.
  */
-export class UserController {
-    /**
-     * Registers a new user.
-     * @param req Express Request object containing user registration data
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
-     */
-    static async register(req, res, next) {
-        try {
-            const { email, password, name } = req.body;
-            const user = await userService.registerUser({ email, password, name });
-            res.status(201).json(user);
-        }
-        catch (error) {
-            next(error);
-        }
-    }
-    /**
-     * Logs in an existing user.
-     * @param req Express Request object containing login credentials
-     * @param res Express Response object with authentication tokens
-     * @param next Express NextFunction for error handling
-     */
-    static async login(req, res, next) {
-        try {
-            const { email, password } = req.body;
-            const tokens = await userService.loginUser({ email, password });
-            res.status(200).json(tokens);
-        }
-        catch (error) {
-            next(error);
-        }
-    }
+class UserController {
     /**
      * Retrieves the profile of the authenticated user.
      * @param req Authenticated Express Request object
@@ -45,110 +49,43 @@ export class UserController {
     static async getProfile(req, res, next) {
         try {
             if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
+                throw new errorHandler_1.UnauthorizedError("Unauthorized");
             }
-            const user = await userService.getUserProfile(req.user.id);
-            res.status(200).json(user);
+            const response = await userService.getUserProfile(req.user.id);
+            res.status(200).json(response);
         }
         catch (error) {
             next(error);
         }
     }
     /**
-     * Creates a new household.
-     * @param req Authenticated Express Request object containing household data
-     * @param res Express Response object with created household data
+     * Updates the profile of the authenticated user.
+     * @param req Authenticated Express Request object
+     * @param res Express Response object with updated user data
      * @param next Express NextFunction for error handling
      */
-    static async createHousehold(req, res, next) {
+    static async updateProfile(req, res, next) {
         try {
             if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
+                throw new errorHandler_1.UnauthorizedError("Unauthorized");
             }
-            const { name } = req.body;
-            const household = await userService.createHousehold({ name }, req.user.id);
-            res.status(201).json(household);
-        }
-        catch (error) {
-            next(error);
-        }
-    }
-    /**
-     * Adds a new member to a household.
-     * @param req Authenticated Express Request object containing member data
-     * @param res Express Response object with updated household data
-     * @param next Express NextFunction for error handling
-     */
-    static async addMember(req, res, next) {
-        try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
-            }
-            const { householdId } = req.params;
-            const { userId, role } = req.body;
-            const household = await userService.addMemberToHousehold(householdId, userId, role, req.user.id);
-            res.status(200).json(household);
-        }
-        catch (error) {
-            next(error);
-        }
-    }
-    /**
-     * Removes a member from a household.
-     * @param req Authenticated Express Request object containing member ID
-     * @param res Express Response object with updated household data
-     * @param next Express NextFunction for error handling
-     */
-    static async removeMember(req, res, next) {
-        try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
-            }
-            const { householdId, memberId } = req.params;
-            await userService.removeMemberFromHousehold(householdId, memberId, req.user.id);
-            res.status(204).send();
-        }
-        catch (error) {
-            next(error);
-        }
-    }
-    /**
-     * Updates household details.
-     * @param req Authenticated Express Request object containing updated household data
-     * @param res Express Response object with updated household data
-     * @param next Express NextFunction for error handling
-     */
-    static async updateHousehold(req, res, next) {
-        try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
-            }
-            const { householdId } = req.params;
-            const updateData = req.body;
-            const updatedHousehold = await userService.updateHousehold(householdId, updateData, req.user.id);
-            res.status(200).json(updatedHousehold);
-        }
-        catch (error) {
-            next(error);
-        }
-    }
-    /**
-     * Deletes a household.
-     * @param req Authenticated Express Request object containing household ID
-     * @param res Express Response object with no content
-     * @param next Express NextFunction for error handling
-     */
-    static async deleteHousehold(req, res, next) {
-        try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
-            }
-            const { householdId } = req.params;
-            await userService.deleteHousehold(householdId, req.user.id);
-            res.status(204).send();
+            const updateData = {
+                name: req.body.name,
+                profileImageURL: req.body.profileImageURL,
+                activeHouseholdId: req.body.activeHouseholdId,
+            };
+            // Remove undefined fields
+            Object.keys(updateData).forEach((key) => {
+                if (updateData[key] === undefined) {
+                    delete updateData[key];
+                }
+            });
+            const response = await userService.updateUserProfile(req.user.id, updateData);
+            res.status(200).json(response);
         }
         catch (error) {
             next(error);
         }
     }
 }
+exports.UserController = UserController;

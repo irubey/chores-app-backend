@@ -1,6 +1,14 @@
-import nodemailer from 'nodemailer';
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateInviteToken = exports.isValidEmail = exports.generateChoreReminderEmailTemplate = exports.generateInvitationEmailTemplate = exports.sendEmail = void 0;
+const nodemailer_1 = __importDefault(require("nodemailer"));
+const crypto_1 = __importDefault(require("crypto"));
+const logger_1 = __importDefault(require("../utils/logger"));
 // Configure the email transporter
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer_1.default.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: process.env.SMTP_SECURE === 'true',
@@ -14,8 +22,15 @@ const transporter = nodemailer.createTransport({
  * @param options EmailOptions object containing to, subject, and text/html
  * @returns Promise<boolean> indicating whether the email was sent successfully
  */
-export const sendEmail = async (options) => {
+const sendEmail = async (options) => {
     try {
+        logger_1.default.info('Attempting to send email', {
+            to: options.to,
+            subject: options.subject,
+            smtpHost: process.env.SMTP_HOST,
+            smtpPort: process.env.SMTP_PORT,
+            smtpUser: process.env.SMTP_USER,
+        });
         await transporter.sendMail({
             from: process.env.EMAIL_FROM,
             to: options.to,
@@ -23,13 +38,20 @@ export const sendEmail = async (options) => {
             text: options.text,
             html: options.html,
         });
+        logger_1.default.info('Email sent successfully', { to: options.to });
         return true;
     }
     catch (error) {
-        console.error('Error sending email:', error);
+        logger_1.default.error('Failed to send email', {
+            error: error instanceof Error ? error.message : String(error),
+            to: options.to,
+            smtpHost: process.env.SMTP_HOST,
+            smtpPort: process.env.SMTP_PORT,
+        });
         return false;
     }
 };
+exports.sendEmail = sendEmail;
 /**
  * Generates an HTML email template for household invitations
  * @param inviterName Name of the user sending the invitation
@@ -37,7 +59,7 @@ export const sendEmail = async (options) => {
  * @param invitationLink URL for accepting the invitation
  * @returns HTML string for the email body
  */
-export const generateInvitationEmailTemplate = (inviterName, householdName, invitationLink) => {
+const generateInvitationEmailTemplate = (inviterName, householdName, invitationLink) => {
     return `
     <html>
       <body>
@@ -50,6 +72,7 @@ export const generateInvitationEmailTemplate = (inviterName, householdName, invi
     </html>
   `;
 };
+exports.generateInvitationEmailTemplate = generateInvitationEmailTemplate;
 /**
  * Generates an HTML email template for chore reminders
  * @param userName Name of the user receiving the reminder
@@ -58,7 +81,7 @@ export const generateInvitationEmailTemplate = (inviterName, householdName, invi
  * @param choreLink URL to view the chore details
  * @returns HTML string for the email body
  */
-export const generateChoreReminderEmailTemplate = (userName, choreName, dueDate, choreLink) => {
+const generateChoreReminderEmailTemplate = (userName, choreName, dueDate, choreLink) => {
     return `
     <html>
       <body>
@@ -72,12 +95,23 @@ export const generateChoreReminderEmailTemplate = (userName, choreName, dueDate,
     </html>
   `;
 };
+exports.generateChoreReminderEmailTemplate = generateChoreReminderEmailTemplate;
 /**
  * Validates an email address format
  * @param email Email address to validate
  * @returns boolean indicating whether the email format is valid
  */
-export const isValidEmail = (email) => {
+const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 };
+exports.isValidEmail = isValidEmail;
+/**
+ * Generates a secure token for invitations
+ * @returns string A random token for invitation links
+ */
+const generateInviteToken = () => {
+    const token = crypto_1.default.randomBytes(32).toString('hex');
+    return `invite_${token}`;
+};
+exports.generateInviteToken = generateInviteToken;

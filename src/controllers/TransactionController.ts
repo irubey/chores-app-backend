@@ -1,8 +1,12 @@
-import { Response, NextFunction } from 'express';
-import * as transactionService from '../services/transactionService';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
-import { AuthenticatedRequest } from '../types';
-import { CreateTransactionDTO, UpdateTransactionDTO } from '@shared/types';
+import { Response, NextFunction } from "express";
+import * as transactionService from "../services/transactionService";
+import {
+  NotFoundError,
+  UnauthorizedError,
+  BadRequestError,
+} from "../middlewares/errorHandler";
+import { AuthenticatedRequest } from "../types";
+import { CreateTransactionDTO, UpdateTransactionDTO } from "@shared/types";
 
 /**
  * TransactionController handles all CRUD operations related to transactions.
@@ -18,9 +22,12 @@ export class TransactionController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
-      const householdId = req.params.householdId;
+      const { householdId } = req.params;
+      if (!householdId) {
+        throw new BadRequestError("Household ID is required");
+      }
       const response = await transactionService.getTransactions(
         householdId,
         req.user.id
@@ -41,9 +48,13 @@ export class TransactionController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
-      const householdId = req.params.householdId;
+      const { householdId } = req.params;
+      if (!householdId) {
+        throw new BadRequestError("Household ID is required");
+      }
+
       const transactionData: CreateTransactionDTO = {
         expenseId: req.body.expenseId,
         fromUserId: req.body.fromUserId,
@@ -73,9 +84,15 @@ export class TransactionController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, transactionId } = req.params;
+      if (!householdId || !transactionId) {
+        throw new BadRequestError(
+          "Household ID and Transaction ID are required"
+        );
+      }
+
       const updateData: UpdateTransactionDTO = {
         status: req.body.status,
       };
@@ -89,7 +106,7 @@ export class TransactionController {
 
       if (!response) {
         throw new NotFoundError(
-          'Transaction not found or you do not have permission to update it'
+          "Transaction not found or you do not have permission to update it"
         );
       }
       res.status(200).json(response);
@@ -108,9 +125,15 @@ export class TransactionController {
   ): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError("Unauthorized");
       }
       const { householdId, transactionId } = req.params;
+      if (!householdId || !transactionId) {
+        throw new BadRequestError(
+          "Household ID and Transaction ID are required"
+        );
+      }
+
       await transactionService.deleteTransaction(
         householdId,
         transactionId,

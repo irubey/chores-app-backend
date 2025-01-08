@@ -1,30 +1,37 @@
 import {
   Event,
   EventReminder,
-  EventWithDetails,
+  EventWithDetails as BaseEventWithDetails,
   CreateEventDTO,
   UpdateEventDTO,
   CreateReminderDTO,
   UpdateReminderDTO,
   CalendarEventHistory,
-} from '@shared/types';
+  ChoreWithAssignees,
+} from "@shared/types";
 import {
   EventCategory,
   EventStatus,
   EventReminderType,
   CalendarEventAction,
-} from '@shared/enums';
+  ChoreSwapRequestStatus,
+} from "@shared/enums";
 import {
   PrismaEventWithFullRelations,
   PrismaEventReminderWithRelations,
   PrismaEventBase,
   PrismaEventUpdateInput,
-} from './transformerPrismaTypes';
-import { transformChoreToChoreWithAssignees } from './choreTransformer';
-import { transformUser } from './userTransformer';
-import { transformHousehold } from './householdTransformer';
-import { transformPollWithDetails } from './messageTransformer/poll';
-import { transformRecurrenceRule } from './recurrenceRuleTransformer';
+} from "./transformerPrismaTypes";
+import { transformChoreToChoreWithAssignees } from "./choreTransformer";
+import { transformUser } from "./userTransformer";
+import { transformHousehold } from "./householdTransformer";
+import { transformPollWithDetails } from "./messageTransformer/poll";
+import { transformRecurrenceRule } from "./recurrenceRuleTransformer";
+
+// Extend the base interface to use ChoreWithAssignees
+interface EventWithDetails extends Omit<BaseEventWithDetails, "chore"> {
+  chore?: ChoreWithAssignees;
+}
 
 function isValidEventCategory(category: string): category is EventCategory {
   return Object.values(EventCategory).includes(category as EventCategory);
@@ -52,7 +59,7 @@ export function transformEventReminder(
 }
 
 export function transformCalendarEventHistory(
-  history: PrismaEventWithFullRelations['history'][0]
+  history: PrismaEventWithFullRelations["history"][0]
 ): CalendarEventHistory {
   return {
     id: history.id,
@@ -89,6 +96,26 @@ export function transformEvent(event: PrismaEventWithFullRelations): Event {
   };
 }
 
+function transformChoreForEvent(
+  chore: PrismaEventWithFullRelations["chore"]
+): ChoreWithAssignees | undefined {
+  if (!chore) return undefined;
+  const transformedChore = transformChoreToChoreWithAssignees(chore);
+  return {
+    ...transformedChore,
+    swapRequests:
+      chore.choreSwapRequests?.map((request) => ({
+        id: request.id,
+        choreId: request.choreId,
+        requestingUserId: request.requestingUserId,
+        targetUserId: request.targetUserId,
+        status: request.status as unknown as ChoreSwapRequestStatus,
+        createdAt: request.createdAt,
+        updatedAt: request.updatedAt,
+      })) || [],
+  };
+}
+
 export function transformEventWithDetails(
   event: PrismaEventWithFullRelations
 ): EventWithDetails {
@@ -97,9 +124,7 @@ export function transformEventWithDetails(
     reminders: event.reminders.map(transformEventReminder),
     household: transformHousehold(event.household),
     createdBy: transformUser(event.createdBy),
-    chore: event.chore
-      ? transformChoreToChoreWithAssignees(event.chore)
-      : undefined,
+    chore: transformChoreForEvent(event.chore),
     recurrenceRule: event.recurrenceRule
       ? transformRecurrenceRule(event.recurrenceRule)
       : undefined,
@@ -110,7 +135,7 @@ export function transformEventWithDetails(
 
 export function transformCreateEventDTO(
   dto: CreateEventDTO
-): Omit<PrismaEventBase, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'> {
+): Omit<PrismaEventBase, "id" | "createdAt" | "updatedAt" | "deletedAt"> {
   return {
     householdId: dto.householdId,
     title: dto.title,

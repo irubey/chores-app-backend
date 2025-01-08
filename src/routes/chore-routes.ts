@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ChoreController } from "../controllers/ChoreController";
+import { ChoreController } from "../controllers/choreController";
 import { authMiddleware } from "../middlewares/authMiddleware";
 import { rbacMiddleware } from "../middlewares/rbacMiddleware";
 import { validate } from "../middlewares/validationMiddleware";

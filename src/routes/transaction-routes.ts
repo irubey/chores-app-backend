@@ -1,13 +1,14 @@
-import { Router } from 'express';
-import { TransactionController } from '../controllers/TransactionController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
+import { Router } from "express";
+import { TransactionController } from "../controllers/TransactionController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
 import {
   createTransactionSchema,
   updateTransactionStatusSchema,
-} from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
+import { HouseholdRole } from "@shared/enums";
 
 const router = Router({ mergeParams: true });
 
@@ -17,7 +18,7 @@ const router = Router({ mergeParams: true });
  * @access  Protected
  */
 router.get(
-  '/',
+  "/",
   authMiddleware,
   asyncHandler(TransactionController.getTransactions)
 );
@@ -28,9 +29,9 @@ router.get(
  * @access  Protected, Write access required
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   validate(createTransactionSchema),
   asyncHandler(TransactionController.createTransaction)
 );
@@ -41,9 +42,9 @@ router.post(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:transactionId',
+  "/:transactionId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   validate(updateTransactionStatusSchema),
   asyncHandler(TransactionController.updateTransactionStatus)
 );
@@ -54,9 +55,9 @@ router.patch(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:transactionId',
+  "/:transactionId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware([HouseholdRole.ADMIN]),
   asyncHandler(TransactionController.deleteTransaction)
 );
 

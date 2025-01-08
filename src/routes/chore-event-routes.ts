@@ -1,9 +1,10 @@
-import { Router } from 'express';
-import { ChoreEventController } from '../controllers/ChoreEventController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { rbacMiddleware } from '../middlewares/rbacMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
-import { asyncHandler } from '../utils/asyncHandler';
+import { Router } from "express";
+import { ChoreEventController } from "../controllers/ChoreEventController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { rbacMiddleware } from "../middlewares/rbacMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
+import { asyncHandler } from "../utils/asyncHandler";
+import { HouseholdRole } from "@shared/enums";
 
 const router = Router({ mergeParams: true });
 
@@ -13,7 +14,7 @@ const router = Router({ mergeParams: true });
  * @access  Protected
  */
 router.get(
-  '/',
+  "/",
   authMiddleware,
   asyncHandler(ChoreEventController.getChoreEvents)
 );
@@ -24,9 +25,9 @@ router.get(
  * @access  Protected, Write access required
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreEventController.createChoreEvent)
 );
 
@@ -36,7 +37,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  '/:eventId',
+  "/:eventId",
   authMiddleware,
   asyncHandler(ChoreEventController.getChoreEventById)
 );
@@ -47,9 +48,9 @@ router.get(
  * @access  Protected, Write access required
  */
 router.patch(
-  '/:eventId',
+  "/:eventId",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreEventController.updateChoreEvent)
 );
 
@@ -59,9 +60,9 @@ router.patch(
  * @access  Protected, Admin access required
  */
 router.delete(
-  '/:eventId',
+  "/:eventId",
   authMiddleware,
-  rbacMiddleware('ADMIN'),
+  rbacMiddleware([HouseholdRole.ADMIN]),
   asyncHandler(ChoreEventController.deleteChoreEvent)
 );
 
@@ -71,9 +72,9 @@ router.delete(
  * @access  Protected, Write access required
  */
 router.post(
-  '/:eventId/complete',
+  "/:eventId/complete",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreEventController.updateChoreEventStatus)
 );
 
@@ -83,9 +84,9 @@ router.post(
  * @access  Protected, Write access required
  */
 router.post(
-  '/:eventId/reschedule',
+  "/:eventId/reschedule",
   authMiddleware,
-  rbacMiddleware('WRITE'),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(ChoreEventController.rescheduleChoreEvent)
 );
 
@@ -95,7 +96,7 @@ router.post(
  * @access  Protected
  */
 router.get(
-  '/upcoming',
+  "/upcoming",
   authMiddleware,
   asyncHandler(ChoreEventController.getUpcomingChoreEvents)
 );

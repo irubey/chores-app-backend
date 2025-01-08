@@ -1,7 +1,7 @@
-import { Response, NextFunction } from 'express';
-import * as choreEventService from '../services/choreEventService';
-import { AuthenticatedRequest } from '../types';
-import { CreateEventDTO, UpdateEventDTO } from '@shared/types';
+import { Response, NextFunction } from "express";
+import * as choreEventService from "../services/choreEventService";
+import { AuthenticatedRequest } from "../types";
+import { CreateEventDTO, UpdateEventDTO } from "@shared/types";
 
 /**
  * ChoreEventController handles all CRUD operations related to chore events.
@@ -17,6 +17,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId } = req.params;
+      if (!householdId || !choreId) {
+        throw new Error("Household ID and Chore ID are required");
+      }
       const response = await choreEventService.getChoreEvents(
         householdId,
         choreId,
@@ -38,6 +41,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId } = req.params;
+      if (!householdId || !choreId) {
+        throw new Error("Household ID and Chore ID are required");
+      }
       const choreEventData: CreateEventDTO = req.body;
       const response = await choreEventService.createChoreEvent(
         householdId,
@@ -61,6 +67,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId, eventId } = req.params;
+      if (!householdId || !choreId || !eventId) {
+        throw new Error("Household ID, Chore ID, and Event ID are required");
+      }
       const response = await choreEventService.getChoreEventById(
         householdId,
         choreId,
@@ -83,6 +92,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId, eventId } = req.params;
+      if (!householdId || !choreId || !eventId) {
+        throw new Error("Household ID, Chore ID, and Event ID are required");
+      }
       const updateData: UpdateEventDTO = req.body;
       const response = await choreEventService.updateChoreEvent(
         householdId,
@@ -107,6 +119,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId, eventId } = req.params;
+      if (!householdId || !choreId || !eventId) {
+        throw new Error("Household ID, Chore ID, and Event ID are required");
+      }
       await choreEventService.deleteChoreEvent(
         householdId,
         choreId,
@@ -129,6 +144,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId, eventId } = req.params;
+      if (!householdId || !choreId || !eventId) {
+        throw new Error("Household ID, Chore ID, and Event ID are required");
+      }
       const { status } = req.body;
       const response = await choreEventService.updateChoreEventStatus(
         householdId,
@@ -153,6 +171,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId, eventId } = req.params;
+      if (!householdId || !choreId || !eventId) {
+        throw new Error("Household ID, Chore ID, and Event ID are required");
+      }
       const { newStartTime, newEndTime } = req.body;
       const response = await choreEventService.rescheduleChoreEvent(
         householdId,
@@ -178,6 +199,9 @@ export class ChoreEventController {
   ): Promise<void> {
     try {
       const { householdId, choreId } = req.params;
+      if (!householdId || !choreId) {
+        throw new Error("Household ID and Chore ID are required");
+      }
       const { limit } = req.query;
       const response = await choreEventService.getUpcomingChoreEvents(
         householdId,

@@ -1,5 +1,5 @@
 import express from "express";
-import { initializeSocket } from "./sockets";
+// import { initializeSocket } from "./sockets";
 import http from "http";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -31,8 +31,8 @@ app.use(
 // Handle Preflight Requests
 app.options("*", cors());
 
-// Initialize Socket.io
-const io = initializeSocket(server);
+// // Initialize Socket.io
+// const io = initializeSocket(server);
 
 // Connect to the database
 connectDatabase();

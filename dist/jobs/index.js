@@ -1,25 +1,31 @@
-import cron from 'node-cron';
-import { processNotifications } from './notificationJob';
-import { scheduleRotatingChores } from './choreSchedulerJob';
-import { sendReminders } from './reminderJob';
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.initializeJobs = initializeJobs;
+const node_cron_1 = __importDefault(require("node-cron"));
+const notificationJob_1 = require("./notificationJob");
+const choreSchedulerJob_1 = require("./choreSchedulerJob");
+const reminderJob_1 = require("./reminderJob");
 /**
  * Initializes all scheduled jobs.
  */
-export function initializeJobs() {
+function initializeJobs() {
     // Process notifications every minute
-    cron.schedule('* * * * *', () => {
+    node_cron_1.default.schedule('* * * * *', () => {
         console.log('Running notification job...');
-        processNotifications();
+        (0, notificationJob_1.processNotifications)();
     });
     // Schedule rotating chores every day at midnight
-    cron.schedule('0 0 * * *', () => {
+    node_cron_1.default.schedule('0 0 * * *', () => {
         console.log('Running chore scheduler job...');
-        scheduleRotatingChores();
+        (0, choreSchedulerJob_1.scheduleRotatingChores)();
     });
     // Send reminders every hour
-    cron.schedule('0 * * * *', () => {
+    node_cron_1.default.schedule('0 * * * *', () => {
         console.log('Running reminder job...');
-        sendReminders();
+        (0, reminderJob_1.sendReminders)();
     });
     console.log('All jobs have been initialized.');
 }

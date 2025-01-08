@@ -1,150 +1,431 @@
-import * as messageService from '../services/messageService';
-import { NotFoundError, UnauthorizedError } from '../middlewares/errorHandler';
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.MessageController = void 0;
+const messageService = __importStar(require("../services/messages/messageService"));
+const attachmentService = __importStar(require("../services/messages/attachmentService"));
+const mentionService = __importStar(require("../services/messages/mentionService"));
+const reactionService = __importStar(require("../services/messages/reactionService"));
+const pollService = __importStar(require("../services/messages/pollService"));
 /**
- * MessageController handles all CRUD operations related to messages.
+ * MessageController handles all service operations related to messages.
  */
-export class MessageController {
+class MessageController {
     /**
-     * Retrieves all messages for a specific household.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
+     * Message related endpoints
      */
     static async getMessages(req, res, next) {
         try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
+            const { householdId, threadId } = req.params;
+            if (!householdId || !threadId) {
+                throw new Error("Missing required parameters: householdId and threadId");
             }
-            const householdId = req.params.householdId;
-            const messages = await messageService.getMessages(householdId, req.user.id);
-            res.status(200).json(messages);
+            const { cursor, limit } = req.query;
+            const paginationOptions = {
+                cursor: cursor,
+                limit: limit ? parseInt(limit) : undefined,
+            };
+            const response = await messageService.getMessages(householdId, threadId, req.user.id, paginationOptions);
+            res.json(response);
         }
         catch (error) {
             next(error);
         }
     }
-    /**
-     * Creates a new message within a household.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
-     */
     static async createMessage(req, res, next) {
         try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
+            const { householdId, threadId } = req.params;
+            if (!householdId || !threadId) {
+                throw new Error("Missing required parameters: householdId and threadId");
             }
-            const householdId = req.params.householdId;
-            const messageData = req.body;
-            const message = await messageService.createMessage(householdId, messageData, req.user.id);
-            res.status(201).json(message);
+            const response = await messageService.createMessage(householdId, threadId, req.body, req.user.id);
+            res.status(201).json(response);
         }
         catch (error) {
             next(error);
         }
     }
-    /**
-     * Retrieves details of a specific message.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
-     */
-    static async getMessageDetails(req, res, next) {
-        try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
-            }
-            const { householdId, messageId } = req.params;
-            const message = await messageService.getMessageById(householdId, messageId, req.user.id);
-            if (!message) {
-                throw new NotFoundError('Message not found');
-            }
-            res.status(200).json(message);
-        }
-        catch (error) {
-            next(error);
-        }
-    }
-    /**
-     * Updates an existing message.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
-     */
     static async updateMessage(req, res, next) {
         try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
+            const { householdId, threadId, messageId } = req.params;
+            if (!householdId || !threadId || !messageId) {
+                throw new Error("Missing required parameters: householdId, threadId, and messageId");
             }
-            const { householdId, messageId } = req.params;
-            const updateData = req.body;
-            const updatedMessage = await messageService.updateMessage(householdId, messageId, updateData, req.user.id);
-            if (!updatedMessage) {
-                throw new NotFoundError('Message not found or you do not have permission to update it');
-            }
-            res.status(200).json(updatedMessage);
+            const response = await messageService.updateMessage(householdId, threadId, messageId, req.body, req.user.id);
+            res.json(response);
         }
         catch (error) {
             next(error);
         }
     }
-    /**
-     * Deletes a message from a household.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
-     */
     static async deleteMessage(req, res, next) {
         try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
+            const { householdId, threadId, messageId } = req.params;
+            if (!householdId || !threadId || !messageId) {
+                throw new Error("Missing required parameters: householdId, threadId, and messageId");
             }
-            const { householdId, messageId } = req.params;
-            await messageService.deleteMessage(householdId, messageId, req.user.id);
-            res.status(204).send();
+            const response = await messageService.deleteMessage(householdId, threadId, messageId, req.user.id);
+            res.status(204).json(response);
         }
         catch (error) {
             next(error);
         }
     }
-    /**
-     * Adds a thread to a specific message.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
-     */
-    static async addThread(req, res, next) {
+    static async markMessageAsRead(req, res, next) {
         try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
-            }
             const { householdId, messageId } = req.params;
-            const threadData = req.body;
-            const thread = await messageService.addThread(householdId, messageId, threadData, req.user.id);
-            res.status(201).json(thread);
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await messageService.markMessageAsRead(householdId, messageId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getMessageReadStatus(req, res, next) {
+        try {
+            const { householdId, messageId } = req.params;
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await messageService.getMessageReadStatus(householdId, messageId, req.user.id);
+            res.json(response);
         }
         catch (error) {
             next(error);
         }
     }
     /**
-     * Adds an attachment to a specific message.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
+     * Attachment related endpoints
      */
     static async addAttachment(req, res, next) {
         try {
-            if (!req.user) {
-                throw new UnauthorizedError('Unauthorized');
+            const { householdId, threadId, messageId } = req.params;
+            if (!householdId || !threadId || !messageId) {
+                throw new Error("Missing required parameters: householdId, threadId, and messageId");
             }
+            const response = await attachmentService.addAttachment(householdId, threadId, messageId, req.body, req.user.id);
+            res.status(201).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async deleteAttachment(req, res, next) {
+        try {
+            const { householdId, threadId, messageId, attachmentId } = req.params;
+            if (!householdId || !threadId || !messageId || !attachmentId) {
+                throw new Error("Missing required parameters: householdId, threadId, messageId, and attachmentId");
+            }
+            const response = await attachmentService.deleteAttachment(householdId, threadId, messageId, attachmentId, req.user.id);
+            res.status(204).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getAttachment(req, res, next) {
+        try {
+            const { householdId, threadId, messageId, attachmentId } = req.params;
+            if (!householdId || !threadId || !messageId || !attachmentId) {
+                throw new Error("Missing required parameters: householdId, threadId, messageId, and attachmentId");
+            }
+            const response = await attachmentService.getAttachment(householdId, threadId, messageId, attachmentId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getMessageAttachments(req, res, next) {
+        try {
+            const { householdId, threadId, messageId } = req.params;
+            if (!householdId || !threadId || !messageId) {
+                throw new Error("Missing required parameters: householdId, threadId, and messageId");
+            }
+            const response = await attachmentService.getMessageAttachments(householdId, threadId, messageId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Mention related endpoints
+     */
+    static async createMention(req, res, next) {
+        try {
             const { householdId, messageId } = req.params;
-            const attachmentData = req.body;
-            const attachment = await messageService.addAttachment(householdId, messageId, attachmentData, req.user.id);
-            res.status(201).json(attachment);
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await mentionService.createMention(householdId, messageId, req.body, req.user.id);
+            res.status(201).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getUserMentions(req, res, next) {
+        try {
+            const { householdId } = req.params;
+            if (!householdId) {
+                throw new Error("Missing required parameters: householdId");
+            }
+            const response = await mentionService.getUserMentions(householdId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getMessageMentions(req, res, next) {
+        try {
+            const { householdId, messageId } = req.params;
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await mentionService.getMessageMentions(householdId, messageId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async deleteMention(req, res, next) {
+        try {
+            const { householdId, messageId, mentionId } = req.params;
+            if (!householdId || !messageId || !mentionId) {
+                throw new Error("Missing required parameters: householdId, messageId, and mentionId");
+            }
+            const response = await mentionService.deleteMention(householdId, messageId, mentionId, req.user.id);
+            res.status(204).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getUnreadMentionsCount(req, res, next) {
+        try {
+            const { householdId } = req.params;
+            if (!householdId) {
+                throw new Error("Missing required parameters: householdId");
+            }
+            const response = await mentionService.getUnreadMentionsCount(householdId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Reaction related endpoints
+     */
+    static async addReaction(req, res, next) {
+        try {
+            const { householdId, messageId } = req.params;
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await reactionService.addReaction(householdId, messageId, req.user.id, req.body);
+            res.status(201).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async removeReaction(req, res, next) {
+        try {
+            const { householdId, messageId, reactionId } = req.params;
+            if (!householdId || !messageId || !reactionId) {
+                throw new Error("Missing required parameters: householdId, messageId, and reactionId");
+            }
+            const response = await reactionService.removeReaction(householdId, messageId, reactionId, req.user.id);
+            res.status(204).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getMessageReactions(req, res, next) {
+        try {
+            const { householdId, messageId } = req.params;
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await reactionService.getMessageReactions(householdId, messageId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getReactionAnalytics(req, res, next) {
+        try {
+            const { householdId, messageId } = req.params;
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await reactionService.getReactionAnalytics(householdId, messageId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getReactionsByType(req, res, next) {
+        try {
+            const { householdId, messageId } = req.params;
+            if (!householdId || !messageId) {
+                throw new Error("Missing required parameters: householdId and messageId");
+            }
+            const response = await reactionService.getReactionsByType(householdId, messageId, req.body.type, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * Poll related endpoints
+     */
+    static async getPollsInThread(req, res, next) {
+        try {
+            const { householdId, threadId } = req.params;
+            if (!householdId || !threadId) {
+                throw new Error("Missing required parameters: householdId and threadId");
+            }
+            const response = await pollService.getPollsInThread(householdId, threadId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getPoll(req, res, next) {
+        try {
+            const { householdId, threadId, pollId } = req.params;
+            if (!householdId || !threadId || !pollId) {
+                throw new Error("Missing required parameters: householdId, threadId, and pollId");
+            }
+            const response = await pollService.getPoll(householdId, threadId, pollId, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async createPoll(req, res, next) {
+        try {
+            const { householdId, threadId } = req.params;
+            if (!householdId || !threadId) {
+                throw new Error("Missing required parameters: householdId and threadId");
+            }
+            const response = await pollService.createPoll(householdId, threadId, req.body, req.user.id);
+            res.status(201).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async updatePoll(req, res, next) {
+        try {
+            const { householdId, threadId, pollId } = req.params;
+            if (!householdId || !threadId || !pollId) {
+                throw new Error("Missing required parameters: householdId, threadId, and pollId");
+            }
+            const response = await pollService.updatePoll(householdId, threadId, pollId, req.body, req.user.id);
+            res.json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async deletePoll(req, res, next) {
+        try {
+            const { householdId, threadId, pollId } = req.params;
+            if (!householdId || !threadId || !pollId) {
+                throw new Error("Missing required parameters: householdId, threadId, and pollId");
+            }
+            const response = await pollService.deletePoll(householdId, threadId, pollId, req.user.id);
+            res.status(204).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async votePoll(req, res, next) {
+        try {
+            const { householdId, threadId, pollId } = req.params;
+            if (!householdId || !threadId || !pollId) {
+                throw new Error("Missing required parameters: householdId, threadId, and pollId");
+            }
+            const response = await pollService.votePoll(householdId, threadId, pollId, req.body, req.user.id);
+            res.status(201).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async removePollVote(req, res, next) {
+        try {
+            const { householdId, threadId, pollId } = req.params;
+            if (!householdId || !threadId || !pollId) {
+                throw new Error("Missing required parameters: householdId, threadId, and pollId");
+            }
+            const response = await pollService.removePollVote(householdId, threadId, pollId, req.body.voteId, req.user.id);
+            res.status(204).json(response);
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async getPollAnalytics(req, res, next) {
+        try {
+            const { householdId, messageId, pollId } = req.params;
+            if (!householdId || !messageId || !pollId) {
+                throw new Error("Missing required parameters: householdId, messageId, and pollId");
+            }
+            const response = await pollService.getPollAnalytics(householdId, messageId, pollId, req.user.id);
+            res.json(response);
         }
         catch (error) {
             next(error);
         }
     }
 }
+exports.MessageController = MessageController;

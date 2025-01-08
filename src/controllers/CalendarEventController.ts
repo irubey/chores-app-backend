@@ -1,7 +1,7 @@
-import { Response, NextFunction } from 'express';
-import * as calendarEventService from '../services/calendarEventService';
-import { AuthenticatedRequest } from '../types';
-import { CreateCalendarEventDTO, UpdateCalendarEventDTO } from '@shared/types';
+import { Response, NextFunction } from "express";
+import * as calendarEventService from "../services/calendarEventService";
+import { AuthenticatedRequest } from "../types";
+import { CreateCalendarEventDTO, UpdateCalendarEventDTO } from "@shared/types";
 
 /**
  * CalendarEventController handles all CRUD operations related to general calendar events.
@@ -17,6 +17,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId } = req.params;
+      if (!householdId) {
+        throw new Error("Household ID is required");
+      }
       const response = await calendarEventService.getCalendarEvents(
         householdId,
         req.user!.id
@@ -37,6 +40,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId } = req.params;
+      if (!householdId) {
+        throw new Error("Household ID is required");
+      }
       const eventData: CreateCalendarEventDTO = req.body;
       const response = await calendarEventService.createCalendarEvent(
         householdId,
@@ -59,6 +65,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, eventId } = req.params;
+      if (!householdId || !eventId) {
+        throw new Error("Household ID and Event ID are required");
+      }
       const response = await calendarEventService.getEventById(
         householdId,
         eventId,
@@ -80,6 +89,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, eventId } = req.params;
+      if (!householdId || !eventId) {
+        throw new Error("Household ID and Event ID are required");
+      }
       const updateData: UpdateCalendarEventDTO = req.body;
       const response = await calendarEventService.updateEvent(
         householdId,
@@ -103,6 +115,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, eventId } = req.params;
+      if (!householdId || !eventId) {
+        throw new Error("Household ID and Event ID are required");
+      }
       await calendarEventService.deleteCalendarEvent(
         householdId,
         eventId,
@@ -124,6 +139,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, eventId } = req.params;
+      if (!householdId || !eventId) {
+        throw new Error("Household ID and Event ID are required");
+      }
       const reminderData = req.body;
       const response = await calendarEventService.addReminder(
         householdId,
@@ -147,6 +165,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, eventId, reminderId } = req.params;
+      if (!householdId || !eventId || !reminderId) {
+        throw new Error("Household ID, Event ID, and Reminder ID are required");
+      }
       await calendarEventService.removeReminder(
         householdId,
         eventId,
@@ -169,6 +190,9 @@ export class CalendarEventController {
   ): Promise<void> {
     try {
       const { householdId, date } = req.params;
+      if (!householdId || !date) {
+        throw new Error("Household ID and Date are required");
+      }
       const response = await calendarEventService.getEventsByDate(
         householdId,
         new Date(date),

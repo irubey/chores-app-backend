@@ -21,6 +21,14 @@ export interface AuthenticatedRequest<T = any> extends Request {
     swapRequestId?: string;
     subtaskId?: string;
     ruleId?: string;
+    eventId?: string;
+    reminderId?: string;
+    date?: string;
+    expenseId?: string;
+    receiptId?: string;
+    notificationId?: string;
+    settingsId?: string;
+    transactionId?: string;
   };
   body: T;
   cookies: {

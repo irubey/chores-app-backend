@@ -1,354 +1,61 @@
-import prisma from '../config/database';
-import { hashPassword, comparePasswords } from '../utils/passwordUtils';
-import { generateToken, generateRefreshToken } from '../utils/tokenUtils';
-import { NotFoundError, UnauthorizedError, BadRequestError } from '../middlewares/errorHandler';
-import { HouseholdRole } from '@prisma/client';
-import logger from '../utils/logger';
-/**
- * Registers a new user.
- * @param data - User registration data
- * @returns The created user without the password hash
- * @throws BadRequestError if the email is already in use
- */
-export async function registerUser(data) {
-    const existingUser = await prisma.user.findUnique({
-        where: { email: data.email },
-    });
-    if (existingUser) {
-        throw new BadRequestError('Email is already in use.');
-    }
-    const hashedPassword = await hashPassword(data.password);
-    const user = await prisma.user.create({
-        data: {
-            email: data.email,
-            passwordHash: hashedPassword,
-            name: data.name,
-        },
-        select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-        },
-    });
-    return user;
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getUserProfile = getUserProfile;
+exports.updateUserProfile = updateUserProfile;
+const database_1 = __importDefault(require("../config/database"));
+const errorHandler_1 = require("../middlewares/errorHandler");
+const userTransformer_1 = require("../utils/transformers/userTransformer");
+const sockets_1 = require("../sockets");
+// Helper function to wrap data in ApiResponse
+function wrapResponse(data) {
+    return { data };
 }
-/**
- * Logs in a user with email and password.
- * @param credentials - User login credentials
- * @returns Authentication tokens
- * @throws UnauthorizedError if credentials are invalid
- */
-export async function loginUser(credentials) {
-    const user = await prisma.user.findUnique({
-        where: { email: credentials.email },
-    });
-    if (!user || !(await comparePasswords(credentials.password, user.passwordHash || ''))) {
-        throw new UnauthorizedError('Invalid email or password.');
-    }
-    const accessToken = generateToken(user);
-    const refreshToken = generateRefreshToken(user);
-    // Optionally, you can store the refresh token in the database
-    return { accessToken, refreshToken };
-}
+// Reusable select object that matches the User interface
+const userSelect = {
+    id: true,
+    email: true,
+    name: true,
+    createdAt: true,
+    updatedAt: true,
+    deletedAt: true,
+    profileImageURL: true,
+    activeHouseholdId: true,
+};
 /**
  * Retrieves the profile of a user by ID.
  * @param userId - The ID of the user
  * @returns The user profile
  * @throws NotFoundError if the user does not exist
  */
-export async function getUserProfile(userId) {
-    const user = await prisma.user.findUnique({
+async function getUserProfile(userId) {
+    const user = await database_1.default.user.findUnique({
         where: { id: userId },
-        select: {
-            id: true,
-            email: true,
-            name: true,
-            profileImageURL: true,
-            createdAt: true,
-            updatedAt: true,
-        },
+        select: userSelect,
     });
     if (!user) {
-        throw new NotFoundError('User not found.');
+        throw new errorHandler_1.NotFoundError('User not found.');
     }
-    return user;
+    const transformedUser = (0, userTransformer_1.transformUser)(user);
+    return wrapResponse(transformedUser);
 }
 /**
- * Creates a new household and adds the creator as an admin member.
- * @param data - Household creation data
- * @param userId - The ID of the user creating the household
- * @returns The created household
+ * Updates the user's profile information.
+ * @param userId - The ID of the user
+ * @param data - The data to update
+ * @returns The updated user
+ * @throws NotFoundError if the user does not exist
  */
-export async function createHousehold(data, userId) {
-    const household = await prisma.household.create({
-        data: {
-            name: data.name,
-            members: {
-                create: {
-                    userId: userId,
-                    role: HouseholdRole.ADMIN,
-                },
-            },
-        },
-        include: {
-            members: {
-                include: {
-                    user: true,
-                },
-            },
-        },
+async function updateUserProfile(userId, data) {
+    const user = await database_1.default.user.update({
+        where: { id: userId },
+        data: (0, userTransformer_1.transformUserUpdateInput)(data),
+        select: userSelect,
     });
-    return household;
+    const transformedUser = (0, userTransformer_1.transformUser)(user);
+    // Notify connected clients about the user update
+    (0, sockets_1.getIO)().emit('user_updated', { user: transformedUser });
+    return wrapResponse(transformedUser);
 }
-/**
- * Adds a new member to a household.
- * @param householdId - The ID of the household
- * @param memberId - The ID of the user to add
- * @param role - The role of the new member
- * @param requestingUserId - The ID of the user performing the action
- * @returns The updated household
- * @throws UnauthorizedError if the requesting user is not an admin
- * @throws NotFoundError if the household or member does not exist
- * @throws BadRequestError if the user is already a member
- */
-export async function addMemberToHousehold(householdId, memberId, role = HouseholdRole.MEMBER, requestingUserId) {
-    // Verify requesting user is an admin of the household
-    const requesterMembership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId: requestingUserId,
-            },
-        },
-    });
-    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
-        throw new UnauthorizedError('You do not have permission to add members to this household.');
-    }
-    // Check if the user is already a member
-    const existingMembership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId: memberId,
-            },
-        },
-    });
-    if (existingMembership) {
-        throw new BadRequestError('User is already a member of the household.');
-    }
-    const updatedHousehold = await prisma.household.update({
-        where: { id: householdId },
-        data: {
-            members: {
-                create: {
-                    userId: memberId,
-                    role: role,
-                },
-            },
-        },
-        include: {
-            members: {
-                include: {
-                    user: true,
-                },
-            },
-        },
-    });
-    return updatedHousehold;
-}
-/**
- * Removes a member from a household.
- * @param householdId - The ID of the household
- * @param memberId - The ID of the member to remove
- * @param requestingUserId - The ID of the user performing the action
- * @throws UnauthorizedError if the requesting user is not an admin
- * @throws NotFoundError if the household or member does not exist
- * @throws BadRequestError if attempting to remove the last admin
- */
-export async function removeMemberFromHousehold(householdId, memberId, requestingUserId) {
-    // Verify requesting user is an admin of the household
-    const requesterMembership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId: requestingUserId,
-            },
-        },
-    });
-    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
-        throw new UnauthorizedError('You do not have permission to remove members from this household.');
-    }
-    // Verify the member exists in the household
-    const memberMembership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId: memberId,
-            },
-        },
-    });
-    if (!memberMembership) {
-        throw new NotFoundError('Member not found in the household.');
-    }
-    // Check if removing this member would leave the household without an admin
-    if (memberMembership.role === HouseholdRole.ADMIN) {
-        const adminCount = await prisma.householdMember.count({
-            where: {
-                householdId,
-                role: HouseholdRole.ADMIN,
-            },
-        });
-        if (adminCount <= 1) {
-            throw new BadRequestError('Cannot remove the last admin from the household.');
-        }
-    }
-    await prisma.householdMember.delete({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId: memberId,
-            },
-        },
-    });
-}
-/**
- * Updates household details.
- * @param householdId - The ID of the household
- * @param data - The updated household data
- * @param requestingUserId - The ID of the user performing the action
- * @returns The updated household
- * @throws UnauthorizedError if the requesting user is not an admin
- * @throws NotFoundError if the household does not exist
- */
-export async function updateHousehold(householdId, data, requestingUserId) {
-    // Verify requesting user is an admin of the household
-    const requesterMembership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId: requestingUserId,
-            },
-        },
-    });
-    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
-        throw new UnauthorizedError('You do not have permission to update this household.');
-    }
-    const updatedHousehold = await prisma.household.update({
-        where: { id: householdId },
-        data: {
-            name: data.name,
-        },
-        include: {
-            members: {
-                include: {
-                    user: true,
-                },
-            },
-        },
-    });
-    return updatedHousehold;
-}
-/**
- * Deletes a household.
- * @param householdId - The ID of the household
- * @param requestingUserId - The ID of the user performing the action
- * @throws UnauthorizedError if the requesting user is not an admin
- * @throws NotFoundError if the household does not exist
- */
-export async function deleteHousehold(householdId, requestingUserId) {
-    // Verify requesting user is an admin of the household
-    const requesterMembership = await prisma.householdMember.findUnique({
-        where: {
-            userId_householdId: {
-                householdId,
-                userId: requestingUserId,
-            },
-        },
-    });
-    if (!requesterMembership || requesterMembership.role !== HouseholdRole.ADMIN) {
-        throw new UnauthorizedError('You do not have permission to delete this household.');
-    }
-    // Optionally, you can add logic to handle related data before deletion
-    await prisma.household.delete({
-        where: { id: householdId },
-    });
-}
-/**
- * Handles finding or creating a user based on OAuth credentials.
- */
-export const findOrCreateOAuthUser = {
-    /**
-     * Finds an existing user via OAuth or creates a new one.
-     * @param params - OAuth user parameters
-     * @returns The existing or newly created user
-     * @throws BadRequestError if unable to create user
-     */
-    findOrCreate: async (params) => {
-        const { oauthProvider, oauthId, name, email } = params;
-        // Check if an OAuthIntegration exists
-        let oauthIntegration = await prisma.oAuthIntegration.findUnique({
-            where: {
-                userId_provider: {
-                    userId: oauthId,
-                    provider: oauthProvider,
-                },
-            },
-        });
-        if (oauthIntegration) {
-            // Return the associated user
-            const user = await prisma.user.findUnique({
-                where: { id: oauthIntegration.userId },
-            });
-            if (user) {
-                return user;
-            }
-            else {
-                // If OAuthIntegration exists but user does not, delete the OAuthIntegration
-                await prisma.oAuthIntegration.delete({
-                    where: { id: oauthIntegration.id },
-                });
-            }
-        }
-        // If no OAuthIntegration, create a new user and OAuthIntegration
-        return await prisma.$transaction(async (tx) => {
-            const newUser = await tx.user.create({
-                data: {
-                    email,
-                    name,
-                    profileImageURL: '', // Set default or pass as parameter if available
-                },
-            });
-            await tx.oAuthIntegration.create({
-                data: {
-                    userId: newUser.id,
-                    provider: oauthProvider,
-                    accessToken: '', // Store accessToken if needed
-                    refreshToken: '', // Store refreshToken if needed
-                    expiresAt: null, // Set expiration if applicable
-                },
-            });
-            return newUser;
-        }).catch((error) => {
-            logger.error('Error in findOrCreateOAuthUser:', error);
-            throw new BadRequestError('Failed to create user via OAuth.');
-        });
-    },
-    /**
-     * Retrieves a user by their ID.
-     * @param userId - The ID of the user
-     * @returns The user object
-     * @throws NotFoundError if the user does not exist
-     */
-    getUserById: async (userId) => {
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-        });
-        if (!user) {
-            throw new NotFoundError('User not found.');
-        }
-        return user;
-    },
-};

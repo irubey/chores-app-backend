@@ -1,20 +1,24 @@
-import { AuthService } from '../services/authService';
-import { UnauthorizedError } from '../middlewares/errorHandler';
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AuthController = void 0;
+const authService_1 = require("../services/authService");
+const errorHandler_1 = require("../middlewares/errorHandler");
+const logger_1 = __importDefault(require("../utils/logger"));
 /**
  * AuthController handles user authentication processes.
  */
-export class AuthController {
+class AuthController {
     /**
      * Registers a new user.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
      */
     static async register(req, res, next) {
         try {
             const userData = req.body;
-            const user = await AuthService.register(userData);
-            res.status(201).json(user);
+            const response = await authService_1.AuthService.register(userData, res);
+            res.status(201).json(response);
         }
         catch (error) {
             next(error);
@@ -22,23 +26,11 @@ export class AuthController {
     }
     /**
      * Logs in an existing user.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
      */
     static async login(req, res, next) {
         try {
-            const { email, password } = req.body;
-            const tokens = await AuthService.login(email, password);
-            res
-                .cookie('refreshToken', tokens.refreshToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                path: '/api/auth/refresh-token',
-            })
-                .status(200)
-                .json({ accessToken: tokens.accessToken });
+            const response = await authService_1.AuthService.login(req.body, res);
+            res.status(200).json(response);
         }
         catch (error) {
             next(error);
@@ -46,25 +38,11 @@ export class AuthController {
     }
     /**
      * Logs out a user by clearing the refresh token cookie.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
      */
     static async logout(req, res, next) {
         try {
-            const userId = req.user?.id;
-            if (userId) {
-                await AuthService.logout(userId);
-            }
-            res
-                .clearCookie('refreshToken', {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                path: '/api/auth/refresh-token',
-            })
-                .status(200)
-                .json({ message: 'Logged out successfully.' });
+            await authService_1.AuthService.logout(res);
+            res.status(204).send();
         }
         catch (error) {
             next(error);
@@ -72,29 +50,29 @@ export class AuthController {
     }
     /**
      * Refreshes the access token using a valid refresh token.
-     * @param req Authenticated Express Request object
-     * @param res Express Response object
-     * @param next Express NextFunction for error handling
      */
     static async refreshToken(req, res, next) {
         try {
             const refreshToken = req.cookies.refreshToken;
             if (!refreshToken) {
-                throw new UnauthorizedError('No refresh token provided.');
+                logger_1.default.debug("No refresh token in cookies");
+                throw new errorHandler_1.UnauthorizedError("No refresh token provided.");
             }
-            const tokens = await AuthService.refreshToken(refreshToken);
-            res
-                .cookie('refreshToken', tokens.refreshToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                path: '/api/auth/refresh-token',
-            })
-                .status(200)
-                .json({ accessToken: tokens.accessToken });
+            logger_1.default.debug("Attempting token refresh", {
+                hasRefreshToken: true,
+                cookies: Object.keys(req.cookies),
+            });
+            await authService_1.AuthService.refreshToken(refreshToken, res);
+            logger_1.default.debug("Token refresh successful", {
+                cookies: Object.keys(res.getHeaders()["set-cookie"] || []),
+            });
+            // Return a simple success response - tokens are in cookies
+            res.status(200).json({ status: "success" });
         }
         catch (error) {
+            logger_1.default.error("Token refresh failed", { error });
             next(error);
         }
     }
 }
+exports.AuthController = AuthController;

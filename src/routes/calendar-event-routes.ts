@@ -4,6 +4,7 @@ import { authMiddleware } from "../middlewares/authMiddleware";
 import { rbacMiddleware } from "../middlewares/rbacMiddleware";
 import { validate } from "../middlewares/validationMiddleware";
 import { asyncHandler } from "../utils/asyncHandler";
+import { HouseholdRole } from "@shared/enums";
 
 const router = Router({ mergeParams: true });
 
@@ -26,7 +27,7 @@ router.get(
 router.post(
   "/",
   authMiddleware,
-  rbacMiddleware("WRITE"),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(CalendarEventController.createCalendarEvent)
 );
 
@@ -49,7 +50,7 @@ router.get(
 router.patch(
   "/:eventId",
   authMiddleware,
-  rbacMiddleware("WRITE"),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(CalendarEventController.updateEvent)
 );
 
@@ -61,7 +62,7 @@ router.patch(
 router.delete(
   "/:eventId",
   authMiddleware,
-  rbacMiddleware("ADMIN"),
+  rbacMiddleware([HouseholdRole.ADMIN]),
   asyncHandler(CalendarEventController.deleteEvent)
 );
 
@@ -73,7 +74,7 @@ router.delete(
 router.post(
   "/:eventId/reminders",
   authMiddleware,
-  rbacMiddleware("WRITE"),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(CalendarEventController.addReminder)
 );
 
@@ -85,7 +86,7 @@ router.post(
 router.delete(
   "/:eventId/reminders/:reminderId",
   authMiddleware,
-  rbacMiddleware("WRITE"),
+  rbacMiddleware([HouseholdRole.ADMIN, HouseholdRole.MEMBER]),
   asyncHandler(CalendarEventController.removeReminder)
 );
 

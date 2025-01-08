@@ -1,12 +1,12 @@
-import { Router } from 'express';
-import { NotificationController } from '../controllers/NotificationController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { validate } from '../middlewares/validationMiddleware';
+import { Router } from "express";
+import { NotificationController } from "../controllers/notificationController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { validate } from "../middlewares/validationMiddleware";
 import {
   createNotificationSchema,
   markAsReadSchema,
-} from '../utils/validationSchemas';
-import { asyncHandler } from '../utils/asyncHandler';
+} from "../utils/validationSchemas";
+import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router();
 
@@ -16,7 +16,7 @@ const router = Router();
  * @access  Protected
  */
 router.get(
-  '/',
+  "/",
   authMiddleware,
   asyncHandler(NotificationController.getNotifications)
 );
@@ -27,7 +27,7 @@ router.get(
  * @access  Protected, Admin only (Assuming only admins can create notifications)
  */
 router.post(
-  '/',
+  "/",
   authMiddleware,
   // rbacMiddleware(['ADMIN']), // Uncomment if only admins can create notifications
   validate(createNotificationSchema),
@@ -40,7 +40,7 @@ router.post(
  * @access  Protected
  */
 router.patch(
-  '/:notificationId/read',
+  "/:notificationId/read",
   authMiddleware,
   validate(markAsReadSchema),
   asyncHandler(NotificationController.markAsRead)
@@ -52,7 +52,7 @@ router.patch(
  * @access  Protected
  */
 router.delete(
-  '/:notificationId',
+  "/:notificationId",
   authMiddleware,
   asyncHandler(NotificationController.deleteNotification)
 );
@@ -63,7 +63,7 @@ router.delete(
  * @access  Protected
  */
 router.get(
-  '/settings',
+  "/settings",
   authMiddleware,
   asyncHandler(NotificationController.getNotificationSettings)
 );
@@ -74,7 +74,7 @@ router.get(
  * @access  Protected
  */
 router.patch(
-  '/settings/:settingsId',
+  "/settings/:settingsId",
   authMiddleware,
   asyncHandler(NotificationController.updateNotificationSettings)
 );
