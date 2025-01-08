@@ -10,7 +10,7 @@ COPY package*.json ./
 
 # Create .npmrc file using ARG
 ARG NPM_TOKEN
-RUN echo "@irubey:registry=https://npm.pkg.github.com/\n//npm.pkg.github.com/:_authToken=${NPM_TOKEN}\nalways-auth=true" > .npmrc
+RUN echo "@irubey:registry=https://npm.pkg.github.com/\n//npm.pkg.github.com/:_authToken=\${NPM_TOKEN}\nalways-auth=true" > .npmrc
 
 # Install dependencies
 RUN npm ci
