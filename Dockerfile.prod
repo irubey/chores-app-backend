@@ -5,6 +5,11 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
+# Install OpenSSL and other required packages
+RUN apt-get update && \
+    apt-get install -y openssl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package*.json ./
 
@@ -18,7 +23,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client with explicit SSL parameters
+ENV PRISMA_CLI_BINARY_TARGETS=linux-musl,debian-openssl-3.0.x
 RUN npx prisma generate
 
 # Build the application
@@ -29,6 +35,11 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
+# Install OpenSSL and other required packages
+RUN apt-get update && \
+    apt-get install -y openssl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package*.json ./
 
@@ -36,20 +47,21 @@ COPY package*.json ./
 ARG NPM_TOKEN
 RUN echo "@irubey:registry=https://npm.pkg.github.com/\n//npm.pkg.github.com/:_authToken=${NPM_TOKEN}\nalways-auth=true" > .npmrc
 
-# Install production dependencies
-RUN npm ci --only=production
-
-# Remove .npmrc after install
-RUN rm -f .npmrc
+# Install production dependencies including tsconfig-paths
+RUN npm ci --only=production && \
+    npm install tsconfig-paths && \
+    rm -f .npmrc
 
 # Copy built assets from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/tsconfig*.json ./
 
 # Set production environment
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=2048"
+ENV PRISMA_CLI_BINARY_TARGETS=linux-musl,debian-openssl-3.0.x
 
 # Create a startup script
 COPY <<'EOF' /app/start.sh
@@ -57,7 +69,7 @@ COPY <<'EOF' /app/start.sh
 echo "Running database migrations..."
 npx prisma migrate deploy
 echo "Starting the application..."
-npm start
+exec node -r tsconfig-paths/register dist/app.js
 EOF
 
 RUN chmod +x /app/start.sh
