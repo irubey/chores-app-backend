@@ -17,19 +17,41 @@ import threadRoutes from "./routes/thread-routes";
 const app = express();
 const server = http.createServer(app);
 
-// CORS Middleware
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3001",
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
-    exposedHeaders: ["Set-Cookie"],
-  })
-);
+// Define allowed origins
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "https://hearth-frontend.vercel.app",
+  "https://hearth-frontend-9zisd9ga9-isaacs-projects-4c3ee9fc.vercel.app",
+  // Include localhost for development
+  "http://localhost:3001",
+].filter(Boolean); // Remove any undefined values
 
-// Handle Preflight Requests
-app.options("*", cors());
+// CORS configuration
+const corsOptions: cors.CorsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log(`Blocked origin: ${origin}`); // Helpful for debugging
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+  exposedHeaders: ["Set-Cookie"],
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options("*", cors(corsOptions));
 
 // // Initialize Socket.io
 // const io = initializeSocket(server);
@@ -38,6 +60,9 @@ app.options("*", cors());
 connectDatabase();
 
 // Middleware Setup
+
+// Add this before other middleware
+app.set("trust proxy", 1);
 
 // Rate Limiting Middleware
 app.use(rateLimitMiddleware);
