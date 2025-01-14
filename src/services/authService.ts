@@ -87,11 +87,10 @@ export class AuthService {
   ): string {
     const cookieOptions = {
       httpOnly: process.env.COOKIE_HTTP_ONLY !== "false",
-      secure: process.env.COOKIE_SECURE === "true",
-      sameSite:
-        (process.env.COOKIE_SAME_SITE as "lax" | "strict" | "none") || "lax",
+      secure: true,
+      sameSite: "none" as const,
       path: "/",
-      domain: process.env.COOKIE_DOMAIN || undefined,
+      domain: process.env.NODE_ENV === "production" ? ".vercel.app" : undefined,
     };
 
     // Convert JWT time strings to milliseconds

@@ -24,7 +24,9 @@ const allowedOrigins = [
   "https://hearth-frontend-9zisd9ga9-isaacs-projects-4c3ee9fc.vercel.app",
   // Include localhost for development
   "http://localhost:3001",
-].filter(Boolean); // Remove any undefined values
+  // Add wildcard for vercel preview deployments
+  /^https:\/\/hearth-frontend.*\.vercel\.app$/
+].filter(Boolean);
 
 // CORS configuration
 const corsOptions: cors.CorsOptions = {
@@ -34,10 +36,16 @@ const corsOptions: cors.CorsOptions = {
       return callback(null, true);
     }
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Check exact matches first
+    if (allowedOrigins.some(allowed => {
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return allowed === origin;
+    })) {
       callback(null, true);
     } else {
-      console.log(`Blocked origin: ${origin}`); // Helpful for debugging
+      console.log(`Blocked origin: ${origin}`);
       callback(new Error("Not allowed by CORS"));
     }
   },
