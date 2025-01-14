@@ -156,9 +156,9 @@ export async function createChore(
 
   const transformedChore = transformChoreToChoreWithAssignees(chore);
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('chore_created', { chore: transformedChore });
+  // getIO()
+  //   .to(`household_${householdId}`)
+  //   .emit('chore_created', { chore: transformedChore });
 
   return wrapResponse(transformedChore);
 }
@@ -269,9 +269,9 @@ export async function updateChore(
   })) as PrismaChoreWithFullRelations;
 
   const transformedChore = transformChoreToChoreWithAssignees(chore);
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('chore_update', { chore: transformedChore });
+  // getIO()
+  //   .to(`household_${householdId}`)
+  //   .emit('chore_update', { chore: transformedChore });
 
   return wrapResponse(transformedChore);
 }
@@ -334,9 +334,9 @@ export async function deleteChore(
     await createChoreHistory(tx, choreId, ChoreAction.DELETED, userId);
   });
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('chore_update', { choreId, deleted: true });
+  // getIO()
+  //   .to(`household_${householdId}`)
+  //   .emit('chore_update', { choreId, deleted: true });
 }
 
 /**
@@ -397,9 +397,9 @@ export async function createChoreSwapRequest(
 
   const transformedSwapRequest = transformChoreSwapRequest(swapRequest);
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('chore_swap_request', { swapRequest: transformedSwapRequest });
+  // getIO()
+  //   .to(`household_${householdId}`)
+  //   .emit('chore_swap_request', { swapRequest: transformedSwapRequest });
 
   return wrapResponse(transformedSwapRequest);
 }
@@ -499,16 +499,23 @@ export async function approveOrRejectChoreSwap(
   const transformedChore = transformChoreToChoreWithAssignees(result);
 
   if (approved) {
-    getIO().to(`household_${householdId}`).emit('chore_swap_approved', {
-      choreId,
-      chore: transformedChore,
-      swapRequestId,
-    });
+    // getIO()
+    //   .to(`household_${householdId}`)
+    //   .emit('chore_swap_approved', {
+    //     swapRequestId,
+    //     choreId,
+    //     requestingUserId,
+    //     targetUserId,
+    //   });
   } else {
-    getIO().to(`household_${householdId}`).emit('chore_swap_rejected', {
-      choreId,
-      swapRequestId,
-    });
+    // getIO()
+    //   .to(`household_${householdId}`)
+    //   .emit('chore_swap_rejected', {
+    //     swapRequestId,
+    //     choreId,
+    //     requestingUserId,
+    //     targetUserId,
+    //   });
   }
 
   return wrapResponse(transformedChore);

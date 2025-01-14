@@ -67,8 +67,5 @@ export async function updateUserProfile(
 
   const transformedUser = transformUser(user as PrismaUserMinimal);
 
-  // Notify connected clients about the user update
-  getIO().emit('user_updated', { user: transformedUser });
-
   return wrapResponse(transformedUser);
 }

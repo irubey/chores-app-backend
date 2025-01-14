@@ -234,11 +234,10 @@ export async function createPoll(
 
     const transformedPoll = transformPollWithDetails(poll);
 
-    getIO().to(`household_${householdId}`).emit('poll_update', {
-      action: MessageAction.POLL_CREATED,
-      messageId,
-      poll: transformedPoll,
-    });
+    // getIO().to(`household_${householdId}`).emit('poll_update', {
+    //   type: 'created',
+    //   poll: transformedPoll,
+    // });
 
     return wrapResponse(transformedPoll);
   } catch (error) {
@@ -323,11 +322,10 @@ export async function updatePoll(
 
     const transformedPoll = transformPollWithDetails(poll);
 
-    getIO().to(`household_${householdId}`).emit('poll_update', {
-      action: MessageAction.POLL_UPDATED,
-      messageId,
-      poll: transformedPoll,
-    });
+    // getIO().to(`household_${householdId}`).emit('poll_update', {
+    //   type: 'updated',
+    //   poll: transformedPoll,
+    // });
 
     return wrapResponse(transformedPoll);
   } catch (error) {
@@ -382,11 +380,11 @@ export async function deletePoll(
       });
     });
 
-    getIO().to(`household_${householdId}`).emit('poll_update', {
-      action: MessageAction.POLL_DELETED,
-      messageId,
-      pollId,
-    });
+    // getIO().to(`household_${householdId}`).emit('poll_update', {
+    //   action: MessageAction.POLL_DELETED,
+    //   messageId,
+    //   pollId,
+    // });
 
     return wrapResponse(undefined);
   } catch (error) {
@@ -487,12 +485,10 @@ export async function votePoll(
 
     const transformedVote = transformPollVoteWithUser(vote);
 
-    getIO().to(`household_${householdId}`).emit('poll_vote_update', {
-      action: MessageAction.POLL_VOTED,
-      messageId,
-      pollId,
-      vote: transformedVote,
-    });
+    // getIO().to(`household_${householdId}`).emit('poll_vote_update', {
+    //   type: 'created',
+    //   vote: transformedVote,
+    // });
 
     return wrapResponse(transformedVote);
   } catch (error) {
@@ -538,12 +534,12 @@ export async function removePollVote(
       where: { id: voteId },
     });
 
-    getIO().to(`household_${householdId}`).emit('poll_vote_update', {
-      action: MessageAction.POLL_VOTE_REMOVED,
-      messageId,
-      pollId,
-      voteId,
-    });
+    // getIO().to(`household_${householdId}`).emit('poll_vote_update', {
+    //   action: MessageAction.POLL_VOTE_REMOVED,
+    //   messageId,
+    //   pollId,
+    //   voteId,
+    // });
 
     return wrapResponse(undefined);
   } catch (error) {

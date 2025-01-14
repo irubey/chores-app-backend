@@ -166,11 +166,6 @@ export async function createCalendarEvent(
     event as PrismaEventWithFullRelations
   );
 
-  getIO().to(`household_${householdId}`).emit('calendar_event_created', {
-    action: CalendarEventAction.CREATED,
-    event: transformedEvent,
-  });
-
   return wrapResponse(transformedEvent);
 }
 
@@ -248,11 +243,6 @@ export async function updateEvent(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
-    action: CalendarEventAction.UPDATED,
-    event: transformedEvent,
-  });
-
   return wrapResponse(transformedEvent);
 }
 
@@ -285,11 +275,6 @@ export async function deleteEvent(
     await tx.event.delete({
       where: { id: eventId },
     });
-  });
-
-  getIO().to(`household_${householdId}`).emit('calendar_event_deleted', {
-    action: CalendarEventAction.DELETED,
-    eventId,
   });
 
   return wrapResponse(undefined);
@@ -353,11 +338,6 @@ export async function addReminder(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
-    action: CalendarEventAction.UPDATED,
-    event: transformedEvent,
-  });
-
   return wrapResponse(transformedEvent);
 }
 
@@ -415,11 +395,6 @@ export async function removeReminder(
   });
 
   const transformedEvent = transformEventWithDetails(event);
-
-  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
-    action: CalendarEventAction.UPDATED,
-    event: transformedEvent,
-  });
 
   return wrapResponse(transformedEvent);
 }
@@ -513,11 +488,6 @@ export async function updateEventStatus(
 
   const transformedEvent = transformEventWithDetails(event);
 
-  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
-    action: CalendarEventAction.STATUS_CHANGED,
-    event: transformedEvent,
-  });
-
   return wrapResponse(transformedEvent);
 }
 
@@ -573,11 +543,6 @@ export async function deleteCalendarEvent(
   });
 
   const transformedEvent = transformEventWithDetails(event);
-
-  getIO().to(`household_${householdId}`).emit('calendar_event_update', {
-    action: CalendarEventAction.DELETED,
-    event: transformedEvent,
-  });
 
   return wrapResponse(undefined);
 }

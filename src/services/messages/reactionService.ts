@@ -107,11 +107,11 @@ export async function addReaction(
     const transformedReaction = transformReactionWithUser(reaction);
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit('reaction_update', {
-      action: MessageAction.REACTION_ADDED,
-      messageId,
-      reaction: transformedReaction,
-    });
+    // getIO().to(`household_${householdId}`).emit('reaction_update', {
+    //   action: MessageAction.REACTION_ADDED,
+    //   messageId,
+    //   reaction: transformedReaction,
+    // });
 
     return wrapResponse(transformedReaction);
   } catch (error) {
@@ -168,11 +168,11 @@ export async function removeReaction(
     });
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit('reaction_update', {
-      action: MessageAction.REACTION_REMOVED,
-      messageId,
-      reactionId,
-    });
+    // getIO().to(`household_${householdId}`).emit('reaction_update', {
+    //   action: MessageAction.REACTION_REMOVED,
+    //   messageId,
+    //   reactionId,
+    // });
 
     return wrapResponse(undefined);
   } catch (error) {

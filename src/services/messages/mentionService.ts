@@ -104,11 +104,11 @@ export async function createMention(
     const transformedMention = transformMentionWithUser(mention);
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit('mention_update', {
-      action: MessageAction.MENTIONED,
-      messageId,
-      mention: transformedMention,
-    });
+    // getIO().to(`household_${householdId}`).emit('mention_update', {
+    //   action: MessageAction.MENTIONED,
+    //   messageId,
+    //   mention: transformedMention,
+    // });
 
     return wrapResponse(transformedMention);
   } catch (error) {
@@ -275,11 +275,11 @@ export async function deleteMention(
     });
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit('mention_update', {
-      action: MessageAction.MENTIONED,
-      messageId,
-      mentionId,
-    });
+    // getIO().to(`household_${householdId}`).emit('mention_update', {
+    //   action: MessageAction.MENTIONED,
+    //   messageId,
+    //   mentionId,
+    // });
 
     return wrapResponse(undefined);
   } catch (error) {

@@ -43,11 +43,12 @@ export function handleServiceError(
  * @param data - Data to emit
  */
 export function emitHouseholdEvent(
-  eventName: string,
   householdId: string,
-  data: unknown
+  eventName: string,
+  data: any
 ): void {
-  getIO().to(`household_${householdId}`).emit(eventName, data);
+  // Socket events disabled
+  // getIO().to(`household_${householdId}`).emit(eventName, data);
 }
 
 /**
@@ -56,12 +57,9 @@ export function emitHouseholdEvent(
  * @param userId - ID of the user to emit to
  * @param data - Data to emit
  */
-export function emitUserEvent(
-  eventName: string,
-  userId: string,
-  data: unknown
-): void {
-  getIO().to(`user_${userId}`).emit(eventName, data);
+export function emitUserEvent(userId: string, eventName: string, data: any): void {
+  // Socket events disabled
+  // getIO().to(`user_${userId}`).emit(eventName, data);
 }
 
 /**
@@ -179,14 +177,13 @@ export function generateRandomString(length: number): string {
  * @param data - Data to emit
  */
 export function emitThreadEvent(
-  eventName: string,
   threadId: string,
   householdId: string,
-  data: unknown
+  eventName: string,
+  data: any
 ): void {
-  const io = getIO();
-  // Emit to thread room
-  io.to(`thread_${threadId}`).emit(eventName, data);
-  // Also emit to household room for broader updates
-  io.to(`household_${householdId}`).emit(eventName, data);
+  // Socket events disabled
+  // const io = getIO();
+  // io.to(`thread_${threadId}`).emit(eventName, data);
+  // io.to(`household_${householdId}`).emit(eventName, data);
 }

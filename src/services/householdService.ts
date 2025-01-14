@@ -263,9 +263,9 @@ export async function updateHousehold(
       userId,
     });
 
-    emitHouseholdEvent(SOCKET_EVENTS.HOUSEHOLD_UPDATE, householdId, {
-      household: transformedHousehold,
-    });
+    // getIO()
+    //   .to(`household_${householdId}`)
+    //   .emit('household_updated', { household: transformedHousehold });
 
     return wrapResponse(transformedHousehold);
   } catch (error) {
@@ -305,9 +305,9 @@ export async function deleteHousehold(
     const transformedHousehold = transformHouseholdWithMembers(
       household as PrismaHouseholdWithFullRelations
     );
-    emitHouseholdEvent('household_deleted', householdId, {
-      household: transformedHousehold,
-    });
+    // getIO()
+    //   .to(`household_${householdId}`)
+    //   .emit('household_deleted', { householdId });
 
     return wrapResponse(undefined);
   } catch (error) {
@@ -450,9 +450,9 @@ export async function removeMember(
       requestingUserId,
     });
 
-    getIO()
-      .to(`household_${householdId}`)
-      .emit(SOCKET_EVENTS.MEMBER_REMOVED, { userId: member.user?.id });
+    // getIO()
+    //   .to(`household_${householdId}`)
+    //   .emit(SOCKET_EVENTS.MEMBER_REMOVED, { userId: member.user?.id });
 
     return wrapResponse(undefined);
   } catch (error) {
@@ -566,9 +566,9 @@ export async function acceptOrRejectInvitation(
     };
 
     const eventName = accept ? 'invitation_accepted' : 'invitation_rejected';
-    getIO()
-      .to(`household_${householdId}`)
-      .emit(eventName, { member: transformedMember });
+    // getIO()
+    //   .to(`household_${householdId}`)
+    //   .emit(eventName, { member: transformedMember });
 
     return wrapResponse(transformedMember);
   } catch (error) {

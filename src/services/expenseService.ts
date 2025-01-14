@@ -159,10 +159,6 @@ export async function createExpense(
 
   const transformedExpense = transformExpenseWithSplits(expense);
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('expense_created', { expense: transformedExpense });
-
   return wrapResponse(transformedExpense);
 }
 
@@ -326,10 +322,6 @@ export async function updateExpense(
 
   const transformedExpense = transformExpenseWithSplits(expense);
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('expense_updated', { expense: transformedExpense });
-
   return wrapResponse(transformedExpense);
 }
 
@@ -385,10 +377,6 @@ export async function deleteExpense(
     });
   });
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('expense_update', { expenseId, deleted: true });
-
   return wrapResponse(undefined);
 }
 
@@ -443,10 +431,6 @@ export async function uploadReceipt(
   const transformedReceipt = transformReceipt(
     receipt as PrismaReceiptWithFullRelations
   );
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('receipt_uploaded', { receipt: transformedReceipt });
-
   return wrapResponse(transformedReceipt);
 }
 
@@ -515,8 +499,6 @@ export async function deleteReceipt(
       where: { id: receiptId },
     });
   });
-
-  getIO().to(`household_${householdId}`).emit('receipt_deleted', { receiptId });
 
   return wrapResponse(undefined);
 }
@@ -630,10 +612,6 @@ export async function updateExpenseSplits(
   })) as PrismaExpenseWithFullRelations;
 
   const transformedExpense = transformExpenseWithSplits(expense);
-
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('expense_splits_updated', { expense: transformedExpense });
 
   return wrapResponse(transformedExpense);
 }

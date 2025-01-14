@@ -283,11 +283,6 @@ export async function createMessage(
       message as PrismaMessageWithFullRelations
     );
 
-    getIO().to(`household_${householdId}`).emit("message_update", {
-      action: MessageAction.CREATED,
-      message: transformedMessage,
-    });
-
     return wrapResponse(transformedMessage);
   } catch (error) {
     return handleServiceError(error, "create message", { threadId }) as never;
@@ -416,11 +411,6 @@ export async function updateMessage(
       updatedMessage as PrismaMessageWithFullRelations
     );
 
-    getIO().to(`household_${householdId}`).emit("message_update", {
-      action: MessageAction.UPDATED,
-      message: transformedMessage,
-    });
-
     return wrapResponse(transformedMessage);
   } catch (error) {
     return handleServiceError(error, "update message", { messageId }) as never;
@@ -455,11 +445,6 @@ export async function deleteMessage(
     await prisma.message.update({
       where: { id: messageId },
       data: { deletedAt: new Date() },
-    });
-
-    getIO().to(`household_${householdId}`).emit("message_update", {
-      action: MessageAction.DELETED,
-      messageId,
     });
 
     return wrapResponse(undefined);

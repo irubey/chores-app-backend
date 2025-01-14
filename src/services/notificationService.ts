@@ -91,9 +91,11 @@ export async function createNotification(
     notification as PrismaNotificationWithFullRelations
   );
 
-  getIO().to(`user_${data.userId}`).emit('notification_update', {
-    notification: transformedNotification,
-  });
+  // Socket events disabled
+  // getIO().to(`user_${data.userId}`).emit('notification_update', {
+  //   type: 'created',
+  //   notification: transformedNotification,
+  // });
 
   return wrapResponse(transformedNotification);
 }
@@ -134,9 +136,11 @@ export async function markAsRead(
     updatedNotification as PrismaNotificationWithFullRelations
   );
 
-  getIO().to(`user_${userId}`).emit('notification_update', {
-    notification: transformedNotification,
-  });
+  // Socket events disabled
+  // getIO().to(`user_${userId}`).emit('notification_update', {
+  //   type: 'updated',
+  //   notification: transformedNotification,
+  // });
 
   return wrapResponse(transformedNotification);
 }
@@ -165,7 +169,8 @@ export async function deleteNotification(
     });
   });
 
-  getIO().to(`user_${userId}`).emit('notification_update', { notificationId });
+  // Socket events disabled
+  // getIO().to(`user_${userId}`).emit('notification_update', { notificationId });
 
   return wrapResponse(undefined);
 }
@@ -225,17 +230,19 @@ export async function updateNotificationSettings(
     settings as PrismaNotificationSettingsWithFullRelations
   );
 
-  if (settings.userId) {
-    getIO().to(`user_${settings.userId}`).emit('settings_update', {
-      settings: transformedSettings,
-    });
-  }
-
-  if (settings.householdId) {
-    getIO().to(`household_${settings.householdId}`).emit('settings_update', {
-      settings: transformedSettings,
-    });
-  }
+  // Socket events disabled
+  // if (settings.userId) {
+  //   getIO().to(`user_${settings.userId}`).emit('settings_update', {
+  //     type: 'updated',
+  //     settings: transformedSettings,
+  //   });
+  // }
+  // if (settings.householdId) {
+  //   getIO().to(`household_${settings.householdId}`).emit('settings_update', {
+  //     type: 'updated',
+  //     settings: transformedSettings,
+  //   });
+  // }
 
   return wrapResponse(transformedSettings);
 }

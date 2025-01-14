@@ -9,7 +9,6 @@ import {
   ChoreAction,
   ChoreStatus,
 } from '@shared/enums';
-import { getIO } from '../sockets';
 import { verifyMembership } from './authService';
 import {
   transformSubtask,
@@ -74,10 +73,10 @@ export async function addSubtask(
   });
 
   const transformedSubtask = transformSubtask(subtask);
-  getIO().to(`household_${householdId}`).emit('subtask_created', {
-    choreId,
-    subtask: transformedSubtask,
-  });
+  // getIO().to(`household_${householdId}`).emit('subtask_created', {
+  //   choreId,
+  //   subtask: transformedSubtask,
+  // });
 
   return wrapResponse(transformedSubtask);
 }
@@ -136,10 +135,10 @@ export async function updateSubtask(
   });
 
   const transformedSubtask = transformSubtask(subtask);
-  getIO().to(`household_${householdId}`).emit('subtask_updated', {
-    choreId,
-    subtask: transformedSubtask,
-  });
+  // getIO().to(`household_${householdId}`).emit('subtask_updated', {
+  //   choreId,
+  //   subtask: transformedSubtask,
+  // });
 
   return wrapResponse(transformedSubtask);
 }
@@ -169,10 +168,10 @@ export async function deleteSubtask(
     await createChoreHistory(tx, choreId, ChoreAction.UPDATED, userId);
   });
 
-  getIO().to(`household_${householdId}`).emit('subtask_deleted', {
-    choreId,
-    subtaskId,
-  });
+  // getIO().to(`household_${householdId}`).emit('subtask_deleted', {
+  //   choreId,
+  //   subtaskId,
+  // });
 
   return wrapResponse(undefined);
 }

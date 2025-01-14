@@ -117,10 +117,6 @@ export async function createTransaction(
     transaction as PrismaTransactionWithFullRelations
   );
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('transaction_created', { transaction: transformedTransaction });
-
   return wrapResponse(transformedTransaction);
 }
 
@@ -192,10 +188,6 @@ export async function updateTransactionStatus(
     transaction as PrismaTransactionWithFullRelations
   );
 
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('transaction_updated', { transaction: transformedTransaction });
-
   return wrapResponse(transformedTransaction);
 }
 
@@ -228,10 +220,6 @@ export async function deleteTransaction(
       where: { id: transactionId },
     });
   });
-
-  getIO()
-    .to(`household_${householdId}`)
-    .emit('transaction_deleted', { transactionId });
 
   return wrapResponse(undefined);
 }

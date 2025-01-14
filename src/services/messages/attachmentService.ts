@@ -125,11 +125,11 @@ export async function addAttachment(
     const transformedAttachment = transformAttachment(attachment);
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit('attachment_update', {
-      action: MessageAction.ATTACHMENT_ADDED,
-      messageId,
-      attachment: transformedAttachment,
-    });
+    // getIO().to(`household_${householdId}`).emit('attachment_update', {
+    //   action: MessageAction.ATTACHMENT_ADDED,
+    //   messageId,
+    //   attachment: transformedAttachment,
+    // });
 
     logger.info(
       `Successfully added attachment ${attachment.id} to message ${messageId}`
@@ -249,11 +249,11 @@ export async function deleteAttachment(
     });
 
     // Emit socket event
-    getIO().to(`household_${householdId}`).emit('attachment_update', {
-      action: MessageAction.ATTACHMENT_REMOVED,
-      messageId,
-      attachmentId,
-    });
+    // getIO().to(`household_${householdId}`).emit('attachment_update', {
+    //   action: MessageAction.ATTACHMENT_REMOVED,
+    //   messageId,
+    //   attachmentId,
+    // });
 
     logger.info(`Successfully deleted attachment ${attachmentId}`);
     return wrapResponse(undefined);
