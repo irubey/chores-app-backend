@@ -91,6 +91,7 @@ export class AuthService {
       sameSite: "none" as const,
       path: "/",
       domain: process.env.COOKIE_DOMAIN || undefined,
+      partitioned: true,
     };
 
     // Convert JWT time strings to milliseconds
@@ -140,6 +141,7 @@ export class AuthService {
       sameSite: "none" as const,
       path: "/",
       domain: process.env.COOKIE_DOMAIN || undefined,
+      partitioned: true,
     };
 
     logger.debug("Clearing auth cookies", {
