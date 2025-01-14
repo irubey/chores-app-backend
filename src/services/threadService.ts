@@ -29,7 +29,6 @@ import logger from "../utils/logger";
 import {
   wrapResponse,
   handleServiceError,
-  emitThreadEvent,
 } from "../utils/servicesUtils";
 
 // Create a constant for the message include object to avoid repetition
@@ -368,11 +367,6 @@ export async function createThread(
 
     const transformedThread = transformThreadWithDetails(thread);
 
-    emitThreadEvent("thread_update", thread.id, data.householdId, {
-      action: ThreadAction.CREATED,
-      thread: transformedThread,
-    });
-
     return wrapResponse(transformedThread);
   } catch (error) {
     return handleServiceError(error, "create thread") as never;
@@ -501,11 +495,6 @@ export async function updateThread(
 
     const transformedThread = transformThreadWithDetails(updatedThread);
 
-    emitThreadEvent("thread_update", threadId, householdId, {
-      action: ThreadAction.UPDATED,
-      thread: transformedThread,
-    });
-
     return wrapResponse(transformedThread);
   } catch (error) {
     return handleServiceError(error, "update thread", { threadId }) as never;
@@ -528,11 +517,6 @@ export async function deleteThread(
     await prisma.thread.delete({ where: { id: threadId } });
 
     logger.info("Successfully deleted thread", { threadId });
-
-    emitThreadEvent("thread_update", threadId, householdId, {
-      action: ThreadAction.DELETED,
-      threadId,
-    });
 
     return wrapResponse(undefined);
   } catch (error) {
@@ -611,11 +595,6 @@ export async function inviteUsersToThread(
     });
 
     const transformedThread = transformThreadWithDetails(updatedThread);
-
-    emitThreadEvent("thread_update", threadId, householdId, {
-      action: ThreadAction.USERS_INVITED,
-      thread: transformedThread,
-    });
 
     return wrapResponse(transformedThread);
   } catch (error) {
