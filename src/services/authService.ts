@@ -90,7 +90,7 @@ export class AuthService {
       secure: true,
       sameSite: "none" as const,
       path: "/",
-      domain: process.env.NODE_ENV === "production" ? ".vercel.app" : undefined,
+      domain: process.env.COOKIE_DOMAIN || undefined,
     };
 
     // Convert JWT time strings to milliseconds
@@ -136,9 +136,8 @@ export class AuthService {
   public static clearAuthCookies(res: Response): void {
     const cookieOptions = {
       httpOnly: process.env.COOKIE_HTTP_ONLY !== "false",
-      secure: process.env.COOKIE_SECURE === "true",
-      sameSite:
-        (process.env.COOKIE_SAME_SITE as "lax" | "strict" | "none") || "lax",
+      secure: true,
+      sameSite: "none" as const,
       path: "/",
       domain: process.env.COOKIE_DOMAIN || undefined,
     };
